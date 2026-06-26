@@ -9,7 +9,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayDeque;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -19,7 +18,6 @@ import java.util.Set;
 
 public final class WhostmMusicController {
     private static final Random RANDOM = new Random();
-    private static final ArrayDeque<Identifier> QUEUE = new ArrayDeque<>();
     private static final Set<String> DISABLED = new HashSet<>();
     private static final List<MusicTrack> TRACKS = MusicCatalog.tracks();
 
@@ -49,7 +47,6 @@ public final class WhostmMusicController {
             stopCurrent(minecraft);
             current = null;
             currentTrackId = null;
-            QUEUE.clear();
         }
         saveConfig(minecraft);
     }
@@ -66,12 +63,34 @@ public final class WhostmMusicController {
             DISABLED.remove(track.key());
         } else {
             DISABLED.add(track.key());
-            QUEUE.removeIf(id -> id.equals(track.id()));
             if (track.id().equals(currentTrackId)) {
-                skip(minecraft);
+                stopCurrent(minecraft);
+                current = null;
+                currentTrackId = null;
+                playNextIfNeeded(minecraft);
             }
         }
         saveConfig(minecraft);
+    }
+
+    public static void setAllEnabled(boolean enabled, Minecraft minecraft) {
+        if (!controlsEnabled(minecraft)) {
+            return;
+        }
+        if (enabled) {
+            DISABLED.clear();
+        } else {
+            for (MusicTrack track : TRACKS) {
+                DISABLED.add(track.key());
+            }
+        }
+        if (currentTrackId != null && !isCurrentTrackEnabled()) {
+            stopCurrent(minecraft);
+            current = null;
+            currentTrackId = null;
+        }
+        saveConfig(minecraft);
+        playNextIfNeeded(minecraft);
     }
 
     public static void playNow(MusicTrack track, Minecraft minecraft) {
@@ -79,26 +98,23 @@ public final class WhostmMusicController {
             return;
         }
         if (!isEnabled(track)) {
-            setEnabled(track, true, minecraft);
+            DISABLED.remove(track.key());
+            saveConfig(minecraft);
         }
         stopCurrent(minecraft);
         play(track.id(), minecraft);
     }
 
-    public static void enqueue(MusicTrack track, Minecraft minecraft) {
-        if (controlsEnabled(minecraft) && isEnabled(track)) {
-            QUEUE.addLast(track.id());
-        }
+    public static void skip(Minecraft minecraft) {
+        skipNext(minecraft);
     }
 
-    public static void skip(Minecraft minecraft) {
-        if (!controlsEnabled(minecraft)) {
-            return;
-        }
-        stopCurrent(minecraft);
-        current = null;
-        currentTrackId = null;
-        playNextIfNeeded(minecraft);
+    public static void skipNext(Minecraft minecraft) {
+        skipTo(minecraft, true);
+    }
+
+    public static void skipPrevious(Minecraft minecraft) {
+        skipTo(minecraft, false);
     }
 
     public static void stop(Minecraft minecraft) {
@@ -110,40 +126,41 @@ public final class WhostmMusicController {
         currentTrackId = null;
     }
 
-    public static void clearQueue(Minecraft minecraft) {
-        if (controlsEnabled(minecraft)) {
-            QUEUE.clear();
-        }
-    }
-
     public static void toggleShuffle(Minecraft minecraft) {
         if (!controlsEnabled(minecraft)) {
             return;
         }
         shuffle = !shuffle;
         saveConfig(minecraft);
+        playNextIfNeeded(minecraft);
     }
 
     public static boolean shuffle() {
         return shuffle;
     }
 
-    public static int queueSize() {
-        return QUEUE.size();
+    public static boolean hasEnabledTracks(Minecraft minecraft) {
+        ensureConfig(minecraft);
+        return TRACKS.stream().anyMatch(WhostmMusicController::isEnabled);
+    }
+
+    public static Component currentSongMessage() {
+        return WhostmMusicHud.nowPlayingMessage();
     }
 
     public static Component status(Minecraft minecraft) {
         if (!controlsEnabled(minecraft)) {
-            return Component.literal("Controls: off | Vanilla music control active | No random gaps");
+            return Component.literal("Controls: off | Vanilla chooses music normally | No random gaps");
         }
         String currentName = currentTrackId == null
-                ? "none"
+                ? WhostmMusicHud.currentSong().getString()
                 : MusicCatalog.title(currentTrackId).orElse(currentTrackId.toString());
-        return Component.literal("Controls: on | Now playing: " + currentName + " | Queue: " + QUEUE.size() + " | Shuffle: " + (shuffle ? "on" : "off"));
+        String enabled = enabledTrackCount() + "/" + TRACKS.size() + " enabled";
+        return Component.literal("Controls: on | Now playing: " + currentName + " | " + enabled + " | Shuffle: " + (shuffle ? "on" : "off"));
     }
 
     public static boolean shouldSuppressVanillaMusic(Minecraft minecraft) {
-        return controlsEnabled(minecraft) && (isCustomActive(minecraft) || !QUEUE.isEmpty() || shuffle);
+        return controlsEnabled(minecraft) && (isCustomActive(minecraft) || (shuffle && hasEnabledTracks(minecraft)));
     }
 
     public static boolean isCustomActive(Minecraft minecraft) {
@@ -163,35 +180,81 @@ public final class WhostmMusicController {
         playNextIfNeeded(minecraft);
     }
 
-    private static void playNextIfNeeded(Minecraft minecraft) {
-        if (minecraft == null || current != null) {
+    private static void skipTo(Minecraft minecraft, boolean forward) {
+        if (!controlsEnabled(minecraft)) {
             return;
         }
-
-        Optional<Identifier> next = nextTrack();
+        Optional<Identifier> next = selectManualTrack(forward);
+        stopCurrent(minecraft);
+        current = null;
+        currentTrackId = null;
         next.ifPresent(id -> play(id, minecraft));
     }
 
-    private static Optional<Identifier> nextTrack() {
-        while (!QUEUE.isEmpty()) {
-            Identifier queued = QUEUE.removeFirst();
-            if (!DISABLED.contains(queued.toString())) {
-                return Optional.of(queued);
-            }
+    private static void playNextIfNeeded(Minecraft minecraft) {
+        if (minecraft == null || current != null || !shuffle) {
+            return;
         }
 
-        if (!shuffle) {
-            return Optional.empty();
-        }
+        Optional<Identifier> next = selectRandomTrack();
+        next.ifPresent(id -> play(id, minecraft));
+    }
 
-        List<Identifier> enabled = TRACKS.stream()
-                .filter(WhostmMusicController::isEnabled)
-                .map(MusicTrack::id)
-                .toList();
+    private static Optional<Identifier> selectManualTrack(boolean forward) {
+        List<MusicTrack> enabled = enabledTracks();
         if (enabled.isEmpty()) {
             return Optional.empty();
         }
-        return Optional.of(enabled.get(RANDOM.nextInt(enabled.size())));
+        if (shuffle) {
+            return selectRandomTrack();
+        }
+        int currentIndex = -1;
+        if (currentTrackId != null) {
+            for (int i = 0; i < enabled.size(); i++) {
+                if (enabled.get(i).id().equals(currentTrackId)) {
+                    currentIndex = i;
+                    break;
+                }
+            }
+        }
+        int nextIndex;
+        if (currentIndex < 0) {
+            nextIndex = forward ? 0 : enabled.size() - 1;
+        } else if (forward) {
+            nextIndex = (currentIndex + 1) % enabled.size();
+        } else {
+            nextIndex = (currentIndex - 1 + enabled.size()) % enabled.size();
+        }
+        return Optional.of(enabled.get(nextIndex).id());
+    }
+
+    private static Optional<Identifier> selectRandomTrack() {
+        List<MusicTrack> enabled = enabledTracks();
+        if (enabled.isEmpty()) {
+            return Optional.empty();
+        }
+        if (enabled.size() == 1) {
+            return Optional.of(enabled.getFirst().id());
+        }
+        MusicTrack selected;
+        do {
+            selected = enabled.get(RANDOM.nextInt(enabled.size()));
+        } while (selected.id().equals(currentTrackId));
+        return Optional.of(selected.id());
+    }
+
+    private static List<MusicTrack> enabledTracks() {
+        return TRACKS.stream()
+                .filter(WhostmMusicController::isEnabled)
+                .toList();
+    }
+
+    private static int enabledTrackCount() {
+        return enabledTracks().size();
+    }
+
+    private static boolean isCurrentTrackEnabled() {
+        return currentTrackId == null || DISABLED.stream().noneMatch(disabled -> disabled.equals(currentTrackId.toString()));
     }
 
     private static void play(Identifier id, Minecraft minecraft) {

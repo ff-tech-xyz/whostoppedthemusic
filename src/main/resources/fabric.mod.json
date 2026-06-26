@@ -3,7 +3,7 @@
   "id": "whostoppedthemusic",
   "version": "${version}",
   "name": "Who Stopped The Music",
-  "description": "Vanilla music always plays, shows mapped song-name HUD notices, and optionally lets players control official soundtrack and music-disc songs from a Ctrl+M panel.",
+  "description": "Vanilla music always plays, shows cassette-style mapped song-name notices, and optionally lets players control official soundtrack and music-disc songs from Music Settings.",
   "authors": [
     "Phred2026"
   ],

@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.1.3-test.3] - 2026-06-26
+
+### Added
+- Cassette-player UI at the top of the pause menu. Click the cassette to open Music Settings.
+- Current-song display on the pause-menu cassette, Music Settings cassette, and top-of-screen song-change HUD.
+- Previous/next arrow controls in both the pause menu and Music Settings.
+- Search bar plus Select All and Deselect All controls in Music Settings.
+
+### Changed
+- Replaced the queue UI with simpler checkbox-based enable/disable selection while keeping shuffle.
+- Polished the music HUD into a cassette-style overlay.
+
 ## [1.1.3-test.2] - 2026-06-26
 
 ### Added

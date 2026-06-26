@@ -7,10 +7,11 @@ A client-side Minecraft Fabric mod for **Minecraft 26.2** that keeps vanilla mus
 - Eliminates the random silence between vanilla music tracks.
 - Prevents vanilla music from being cut short mid-song.
 - Shows a brief top-of-screen **Now playing** HUD with mapped song names like `Aria Math`, `Sweden`, and `Pigstep`.
-- Adds a **Music Panel** opened with `Ctrl+M`.
-- Adds a **Music Panel** button to the pause menu.
+- Adds polished **Music Settings** opened with `Ctrl+M`.
+- Adds a cassette-player control at the top of the pause menu. Click the cassette to open settings.
+- Shows the current song on the pause-menu cassette, settings cassette, and top-of-screen song-change HUD.
 - Starts with **Controls off** by default. When off, vanilla controls music normally, just without the random gaps.
-- When Controls are on, lets players play, queue, shuffle, enable, or disable official Minecraft soundtrack songs and music-disc songs.
+- When Controls are on, lets players play, skip previous/next, shuffle, search, select/deselect, enable, or disable official Minecraft soundtrack songs and music-disc songs.
 - Saves controls, shuffle, and disabled-song settings to `config/whostoppedthemusic.properties`.
 
 ## What it doesn't do
