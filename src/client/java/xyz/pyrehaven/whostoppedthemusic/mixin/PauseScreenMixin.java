@@ -26,10 +26,10 @@ public abstract class PauseScreenMixin extends Screen {
             return;
         }
 
-        int cassetteWidth = Math.min(360, Math.max(220, this.width - 112));
+        int cassetteWidth = Math.min(300, Math.max(180, this.width - 144));
         int cassetteX = this.width / 2 - cassetteWidth / 2;
-        int cassetteY = 8;
-        int cassetteHeight = 44;
+        int cassetteY = 6;
+        int cassetteHeight = 30;
         int arrowY = cassetteY + cassetteHeight / 2 - 10;
 
         Button previous = Button.builder(Component.translatable("button.whostoppedthemusic.previous"), button -> WhostmMusicController.skipPrevious(this.minecraft))

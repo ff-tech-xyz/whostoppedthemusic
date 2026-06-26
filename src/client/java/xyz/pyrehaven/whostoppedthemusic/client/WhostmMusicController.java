@@ -3,6 +3,7 @@ package xyz.pyrehaven.whostoppedthemusic.client;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
+import net.minecraft.sounds.SoundSource;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -23,8 +24,12 @@ public final class WhostmMusicController {
 
     private static EventMusicSoundInstance current;
     private static Identifier currentTrackId;
+    private static Identifier savedTrackId;
     private static boolean controlsEnabled;
     private static boolean shuffle;
+    private static boolean hardSilenced;
+    private static boolean pendingResume;
+    private static boolean wasInWorld;
     private static boolean configLoaded;
 
     private WhostmMusicController() {
@@ -44,9 +49,12 @@ public final class WhostmMusicController {
         ensureConfig(minecraft);
         controlsEnabled = enabled;
         if (!enabled) {
-            stopCurrent(minecraft);
+            stopMusicChannel(minecraft);
             current = null;
             currentTrackId = null;
+            pendingResume = false;
+        } else if (savedTrackId != null && !hardSilenced) {
+            pendingResume = true;
         }
         saveConfig(minecraft);
     }
@@ -64,10 +72,19 @@ public final class WhostmMusicController {
         } else {
             DISABLED.add(track.key());
             if (track.id().equals(currentTrackId)) {
-                stopCurrent(minecraft);
+                Optional<Identifier> replacement = selectReplacementAfterDisabling(track);
+                stopMusicChannel(minecraft);
                 current = null;
                 currentTrackId = null;
-                playNextIfNeeded(minecraft);
+                if (replacement.isPresent()) {
+                    hardSilenced = false;
+                    pendingResume = false;
+                    play(replacement.get(), minecraft);
+                } else {
+                    hardSilenced = true;
+                    pendingResume = false;
+                    savedTrackId = null;
+                }
             }
         }
         saveConfig(minecraft);
@@ -79,15 +96,20 @@ public final class WhostmMusicController {
         }
         if (enabled) {
             DISABLED.clear();
+            hardSilenced = false;
+            pendingResume = savedTrackId != null;
         } else {
             for (MusicTrack track : TRACKS) {
                 DISABLED.add(track.key());
             }
-        }
-        if (currentTrackId != null && !isCurrentTrackEnabled()) {
-            stopCurrent(minecraft);
+            hardSilenced = true;
+            pendingResume = false;
+            savedTrackId = null;
+            stopMusicChannel(minecraft);
             current = null;
             currentTrackId = null;
+            saveConfig(minecraft);
+            return;
         }
         saveConfig(minecraft);
         playNextIfNeeded(minecraft);
@@ -99,9 +121,12 @@ public final class WhostmMusicController {
         }
         if (!isEnabled(track)) {
             DISABLED.remove(track.key());
-            saveConfig(minecraft);
         }
-        stopCurrent(minecraft);
+        hardSilenced = false;
+        pendingResume = false;
+        stopMusicChannel(minecraft);
+        current = null;
+        currentTrackId = null;
         play(track.id(), minecraft);
     }
 
@@ -121,9 +146,13 @@ public final class WhostmMusicController {
         if (!controlsEnabled(minecraft)) {
             return;
         }
-        stopCurrent(minecraft);
+        hardSilenced = true;
+        pendingResume = false;
+        savedTrackId = null;
+        stopMusicChannel(minecraft);
         current = null;
         currentTrackId = null;
+        saveConfig(minecraft);
     }
 
     public static void toggleShuffle(Minecraft minecraft) {
@@ -131,6 +160,9 @@ public final class WhostmMusicController {
             return;
         }
         shuffle = !shuffle;
+        if (shuffle && hasEnabledTracks(minecraft)) {
+            hardSilenced = false;
+        }
         saveConfig(minecraft);
         playNextIfNeeded(minecraft);
     }
@@ -152,6 +184,9 @@ public final class WhostmMusicController {
         if (!controlsEnabled(minecraft)) {
             return Component.literal("Controls: off | Vanilla chooses music normally | No random gaps");
         }
+        if (hardSilenced) {
+            return Component.literal("Controls: on | Stopped | " + enabledTrackCount() + "/" + TRACKS.size() + " enabled | Shuffle: " + (shuffle ? "on" : "off"));
+        }
         String currentName = currentTrackId == null
                 ? WhostmMusicHud.currentSong().getString()
                 : MusicCatalog.title(currentTrackId).orElse(currentTrackId.toString());
@@ -160,7 +195,14 @@ public final class WhostmMusicController {
     }
 
     public static boolean shouldSuppressVanillaMusic(Minecraft minecraft) {
-        return controlsEnabled(minecraft) && (isCustomActive(minecraft) || (shuffle && hasEnabledTracks(minecraft)));
+        if (!controlsEnabled(minecraft)) {
+            return false;
+        }
+        return hardSilenced
+                || !hasEnabledTracks(minecraft)
+                || pendingResume
+                || isCustomActive(minecraft)
+                || (shuffle && hasEnabledTracks(minecraft));
     }
 
     public static boolean isCustomActive(Minecraft minecraft) {
@@ -170,14 +212,36 @@ public final class WhostmMusicController {
     public static void tick(Minecraft minecraft) {
         ensureConfig(minecraft);
         WhostmMusicHud.tick();
+        boolean inWorld = minecraft != null && minecraft.level != null;
         if (!controlsEnabled) {
+            wasInWorld = inWorld;
             return;
         }
-        if (current != null && !minecraft.getSoundManager().isActive(current)) {
+        if (current != null && minecraft != null && !minecraft.getSoundManager().isActive(current)) {
+            if (!inWorld && savedTrackId != null && !hardSilenced) {
+                pendingResume = true;
+            } else if (inWorld && !shuffle) {
+                savedTrackId = null;
+                saveConfig(minecraft);
+            }
             current = null;
             currentTrackId = null;
         }
-        playNextIfNeeded(minecraft);
+        if (inWorld && !wasInWorld && savedTrackId != null && !hardSilenced) {
+            pendingResume = true;
+        }
+        wasInWorld = inWorld;
+
+        if (current == null && pendingResume && !hardSilenced) {
+            if (savedTrackId != null && isEnabled(savedTrackId)) {
+                play(savedTrackId, minecraft);
+            }
+            pendingResume = false;
+        }
+
+        if (!hardSilenced) {
+            playNextIfNeeded(minecraft);
+        }
     }
 
     private static void skipTo(Minecraft minecraft, boolean forward) {
@@ -185,14 +249,17 @@ public final class WhostmMusicController {
             return;
         }
         Optional<Identifier> next = selectManualTrack(forward);
-        stopCurrent(minecraft);
+        hardSilenced = false;
+        pendingResume = false;
+        stopMusicChannel(minecraft);
         current = null;
         currentTrackId = null;
         next.ifPresent(id -> play(id, minecraft));
+        saveConfig(minecraft);
     }
 
     private static void playNextIfNeeded(Minecraft minecraft) {
-        if (minecraft == null || current != null || !shuffle) {
+        if (minecraft == null || current != null || hardSilenced || !shuffle) {
             return;
         }
 
@@ -243,6 +310,26 @@ public final class WhostmMusicController {
         return Optional.of(selected.id());
     }
 
+    private static Optional<Identifier> selectReplacementAfterDisabling(MusicTrack disabledTrack) {
+        if (enabledTracks().isEmpty()) {
+            return Optional.empty();
+        }
+        if (shuffle) {
+            return selectRandomTrack();
+        }
+        int disabledIndex = TRACKS.indexOf(disabledTrack);
+        if (disabledIndex < 0) {
+            return Optional.of(enabledTracks().getFirst().id());
+        }
+        for (int offset = 1; offset <= TRACKS.size(); offset++) {
+            MusicTrack candidate = TRACKS.get((disabledIndex + offset) % TRACKS.size());
+            if (isEnabled(candidate)) {
+                return Optional.of(candidate.id());
+            }
+        }
+        return Optional.empty();
+    }
+
     private static List<MusicTrack> enabledTracks() {
         return TRACKS.stream()
                 .filter(WhostmMusicController::isEnabled)
@@ -253,20 +340,28 @@ public final class WhostmMusicController {
         return enabledTracks().size();
     }
 
-    private static boolean isCurrentTrackEnabled() {
-        return currentTrackId == null || DISABLED.stream().noneMatch(disabled -> disabled.equals(currentTrackId.toString()));
+    private static boolean isEnabled(Identifier id) {
+        return id != null && DISABLED.stream().noneMatch(disabled -> disabled.equals(id.toString()));
     }
 
     private static void play(Identifier id, Minecraft minecraft) {
+        if (minecraft == null) {
+            return;
+        }
         EventMusicSoundInstance instance = new EventMusicSoundInstance(id);
         current = instance;
         currentTrackId = id;
+        savedTrackId = id;
+        hardSilenced = false;
+        pendingResume = false;
         minecraft.getSoundManager().play(instance);
+        saveConfig(minecraft);
     }
 
-    private static void stopCurrent(Minecraft minecraft) {
-        if (minecraft != null && current != null) {
-            minecraft.getSoundManager().stop(current);
+    private static void stopMusicChannel(Minecraft minecraft) {
+        if (minecraft != null) {
+            minecraft.getSoundManager().stop(null, SoundSource.MUSIC);
+            minecraft.getSoundManager().stop(null, SoundSource.RECORDS);
         }
     }
 
@@ -286,6 +381,11 @@ public final class WhostmMusicController {
         }
         controlsEnabled = Boolean.parseBoolean(props.getProperty("controls", "false"));
         shuffle = Boolean.parseBoolean(props.getProperty("shuffle", "false"));
+        hardSilenced = Boolean.parseBoolean(props.getProperty("silenced", "false"));
+        String currentId = props.getProperty("current", "").trim();
+        savedTrackId = currentId.isEmpty() ? null : Identifier.tryParse(currentId);
+        pendingResume = controlsEnabled && !hardSilenced && savedTrackId != null;
+        DISABLED.clear();
         String disabled = props.getProperty("disabled", "");
         for (String id : disabled.split(",")) {
             String trimmed = id.trim();
@@ -302,6 +402,8 @@ public final class WhostmMusicController {
         Properties props = new Properties();
         props.setProperty("controls", Boolean.toString(controlsEnabled));
         props.setProperty("shuffle", Boolean.toString(shuffle));
+        props.setProperty("silenced", Boolean.toString(hardSilenced));
+        props.setProperty("current", savedTrackId == null ? "" : savedTrackId.toString());
         props.setProperty("disabled", String.join(",", DISABLED));
         Path path = configPath(minecraft);
         try {

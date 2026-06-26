@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.1.3-test.4] - 2026-06-26
+
+### Fixed
+- Stop now forces the music and record channels silent while panel controls are on, instead of letting vanilla immediately refill the silence.
+- Deselecting the currently playing track now stops it and advances to the next enabled track; Deselect All stops playback and keeps music silent.
+- Controls, shuffle, disabled songs, the current song, and the stopped/silenced state now persist through world changes and game restarts.
+
+### Changed
+- Made Music Settings more minimal: compact title/status text, soundtrack list on the left, and controls on the right on normal-width screens.
+- Shrunk the pause-menu cassette control so it takes less room at the top of the pause screen.
+
 ## [1.1.3-test.3] - 2026-06-26
 
 ### Added
