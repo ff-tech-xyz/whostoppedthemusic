@@ -1,0 +1,11 @@
+{
+  "screen.whostoppedthemusic.music": "Music Panel",
+  "text.whostoppedthemusic.hotkey": "Open anytime with Ctrl+M. Pick tracks, queue them, or let shuffle drive.",
+  "button.whostoppedthemusic.play": "Play",
+  "button.whostoppedthemusic.queue": "Queue",
+  "button.whostoppedthemusic.skip": "Skip",
+  "button.whostoppedthemusic.stop": "Stop",
+  "button.whostoppedthemusic.shuffle_on": "Shuffle: On",
+  "button.whostoppedthemusic.shuffle_off": "Shuffle: Off",
+  "button.whostoppedthemusic.clear_queue": "Clear Queue"
+}

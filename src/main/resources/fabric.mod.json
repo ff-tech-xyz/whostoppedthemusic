@@ -3,13 +3,13 @@
   "id": "whostoppedthemusic",
   "version": "${version}",
   "name": "Who Stopped The Music",
-  "description": "Vanilla music always plays. No silence, no gaps. Vanilla track selection stays intact.",
+  "description": "Vanilla music always plays, and a Ctrl+M / pause-menu panel lets players choose, queue, shuffle, and disable music events.",
   "authors": [
     "Phred2026"
   ],
   "contact": {
     "homepage": "https://pyrehaven.xyz",
-    "sources": "https://github.com/phred2026-cyber/whostoppedthemusic"
+    "sources": "https://github.com/ff-tech-xyz/whostoppedthemusic"
   },
   "license": "MIT",
   "environment": "client",

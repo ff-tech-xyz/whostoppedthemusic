@@ -8,6 +8,7 @@ import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import xyz.pyrehaven.whostoppedthemusic.client.WhostmMusicController;
 
 @Mixin(MusicManager.class)
 public class MusicManagerMixin {
@@ -26,8 +27,18 @@ public class MusicManagerMixin {
      * instead of waiting vanilla's random gap (up to ~2.75 min).
      * Only fires when no music is currently playing.
      */
-    @Inject(method = "tick", at = @At("HEAD"))
+    @Inject(method = "tick", at = @At("HEAD"), cancellable = true)
     private void whostm_zeroDelay(CallbackInfo ci) {
+        if (WhostmMusicController.shouldSuppressVanillaMusic(this.minecraft)) {
+            if (this.currentMusic != null) {
+                this.minecraft.getSoundManager().stop(this.currentMusic);
+                this.currentMusic = null;
+            }
+            this.nextSongDelay = 20;
+            ci.cancel();
+            return;
+        }
+
         if (this.currentMusic == null || !this.minecraft.getSoundManager().isActive(this.currentMusic)) {
             if (this.nextSongDelay > 0) {
                 this.nextSongDelay = 0;
