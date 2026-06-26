@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.1.3-test.2] - 2026-06-26
+
+### Added
+- Official Minecraft soundtrack song-name mapping for the music panel, including album tracks such as `Aria Math`, `Sweden`, and `Mice on Venus`.
+- Music-disc songs in the panel, including `Pigstep`, `otherside`, `Creator`, `Lava Chicken`, and the rest of the official Java Edition discs.
+- Top-of-screen `Now playing` HUD notice whenever music or records start, mapped to the real song name when known.
+- Top-level `Controls` toggle in the panel, off by default.
+
+### Changed
+- When `Controls` is off, the panel controls are disabled and vanilla controls music normally, preserving the original no-random-gap behavior.
+- When `Controls` is on, the panel can directly play exact soundtrack and disc resources instead of only vanilla weighted music-event pools.
+
 ## [1.1.3-test.1] - 2026-06-26
 
 ### Added

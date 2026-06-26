@@ -80,6 +80,10 @@ java {
 	targetCompatibility = JavaVersion.VERSION_21
 }
 
+tasks.named('sourcesJar') {
+	exclude('fabric.mod.json')
+}
+
 jar {
 	from("LICENSE") {
 		rename { "${it}_${project.archives_base_name}" }

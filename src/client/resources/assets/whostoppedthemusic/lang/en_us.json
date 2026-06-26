@@ -1,6 +1,8 @@
 {
   "screen.whostoppedthemusic.music": "Music Panel",
-  "text.whostoppedthemusic.hotkey": "Open anytime with Ctrl+M. Pick tracks, queue them, or let shuffle drive.",
+  "text.whostoppedthemusic.hotkey": "Open anytime with Ctrl+M.",
+  "text.whostoppedthemusic.controls_hint": "Controls off means vanilla chooses music normally, with the old no-gap behavior.",
+  "button.whostoppedthemusic.controls": "Controls",
   "button.whostoppedthemusic.play": "Play",
   "button.whostoppedthemusic.queue": "Queue",
   "button.whostoppedthemusic.skip": "Skip",
