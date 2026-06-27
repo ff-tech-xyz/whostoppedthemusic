@@ -21,6 +21,7 @@ public final class MusicSelectionScreen extends Screen {
     private static final int MARGIN = 8;
     private static final int GAP = 8;
     private static final int CONTROL_WIDTH = 180;
+    private static final int VOLUME_WIDTH = 34;
 
     private final Screen parent;
     private TrackListWidget trackList;
@@ -32,6 +33,9 @@ public final class MusicSelectionScreen extends Screen {
     private Button deselectAllButton;
     private MusicVolumeSlider volumeSlider;
     private EditBox searchBox;
+    private int statusX;
+    private int statusY;
+    private int statusWidth;
 
     public MusicSelectionScreen(Screen parent) {
         super(Component.translatable("screen.whostoppedthemusic.music"));
@@ -50,17 +54,20 @@ public final class MusicSelectionScreen extends Screen {
 
     private void initWideLayout() {
         int top = 32;
-        int bottom = this.height - 52;
-        int controlsX = MARGIN;
-        int listX = controlsX + CONTROL_WIDTH + GAP;
-        int listWidth = Math.max(220, this.width - listX - MARGIN);
-        int listHeight = Math.max(48, bottom - top);
+        int bottom = this.height - 36;
+        int volumeX = this.width - MARGIN - VOLUME_WIDTH;
+        int controlsX = volumeX - GAP - CONTROL_WIDTH;
+        int listX = MARGIN;
+        int listWidth = Math.max(220, controlsX - listX - GAP);
+        int listTop = top + 28;
+        int listHeight = Math.max(48, bottom - listTop);
+
+        addSearchBox(listX, top, listWidth);
+        this.trackList = new TrackListWidget(this.minecraft, listWidth, listHeight, listTop, listX);
+        this.addRenderableWidget(this.trackList);
 
         int y = top;
         addControlsCheckbox(controlsX, y);
-        y += 24;
-
-        addSearchBox(controlsX, y, CONTROL_WIDTH);
         y += 28;
 
         addBulkButtons(controlsX, y, CONTROL_WIDTH, CONTROL_WIDTH, 0, true);
@@ -93,15 +100,16 @@ public final class MusicSelectionScreen extends Screen {
         this.addRenderableWidget(this.shuffleButton);
         y += 28;
 
-        this.volumeSlider = new MusicVolumeSlider(controlsX, y, CONTROL_WIDTH, 20, this.minecraft);
+        this.statusX = controlsX;
+        this.statusY = y;
+        this.statusWidth = CONTROL_WIDTH;
+
+        this.volumeSlider = new MusicVolumeSlider(volumeX, top, VOLUME_WIDTH, Math.max(96, bottom - top), this.minecraft, true);
         this.addRenderableWidget(this.volumeSlider);
 
         this.addRenderableWidget(Button.builder(Component.translatable("gui.done"), button -> this.onClose())
                 .bounds(controlsX, this.height - 28, CONTROL_WIDTH, 20)
                 .build());
-
-        this.trackList = new TrackListWidget(this.minecraft, listWidth, listHeight, top, listX);
-        this.addRenderableWidget(this.trackList);
     }
 
     private void initCompactLayout() {
@@ -111,6 +119,9 @@ public final class MusicSelectionScreen extends Screen {
         int rowY = 32;
         int selectWidth = 82;
         int deselectWidth = 92;
+        this.statusX = MARGIN;
+        this.statusY = this.height - 42;
+        this.statusWidth = this.width - MARGIN * 2;
 
         addControlsCheckbox(center - 47, rowY);
         this.addRenderableWidget(Button.builder(Component.translatable("gui.done"), button -> this.onClose())
@@ -118,7 +129,7 @@ public final class MusicSelectionScreen extends Screen {
                 .build());
         addSearchBox(rowX, rowY + 24, rowWidth);
         addBulkButtons(center - (selectWidth + deselectWidth + 6) / 2, rowY + 48, selectWidth, deselectWidth, 6, false);
-        this.volumeSlider = new MusicVolumeSlider(rowX, rowY + 72, rowWidth, 20, this.minecraft);
+        this.volumeSlider = new MusicVolumeSlider(rowX, rowY + 72, rowWidth, 20, this.minecraft, false);
         this.addRenderableWidget(this.volumeSlider);
 
         int bottomControlsY = this.height - 28;
@@ -204,7 +215,7 @@ public final class MusicSelectionScreen extends Screen {
 
         extractor.centeredText(this.font, this.title, this.width / 2, 8, 0xFFF6F1E2);
         extractor.centeredText(this.font, WhostmMusicController.currentSongMessage(), this.width / 2, 20, 0xFFA0E0FF);
-        extractor.text(this.font, WhostmMusicController.status(this.minecraft), MARGIN, this.height - 42, 0xFFA0E0FF);
+        extractor.textWithWordWrap(this.font, WhostmMusicController.status(this.minecraft), this.statusX, this.statusY, this.statusWidth, 0xFFA0E0FF);
     }
 
     @Override
@@ -255,10 +266,12 @@ public final class MusicSelectionScreen extends Screen {
 
     private static final class MusicVolumeSlider extends AbstractSliderButton {
         private final Minecraft minecraft;
+        private final boolean vertical;
 
-        private MusicVolumeSlider(int x, int y, int width, int height, Minecraft minecraft) {
+        private MusicVolumeSlider(int x, int y, int width, int height, Minecraft minecraft, boolean vertical) {
             super(x, y, width, height, volumeMessage(WhostmMusicController.musicVolume(minecraft)), WhostmMusicController.musicVolume(minecraft));
             this.minecraft = minecraft;
+            this.vertical = vertical;
         }
 
         private void syncFromOptions() {
@@ -267,6 +280,64 @@ public final class MusicSelectionScreen extends Screen {
                 this.value = optionValue;
                 updateMessage();
             }
+        }
+
+        @Override
+        public void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
+            if (!this.vertical) {
+                super.extractWidgetRenderState(graphics, mouseX, mouseY, partialTick);
+                return;
+            }
+
+            int x = this.getX();
+            int y = this.getY();
+            int width = this.getWidth();
+            int height = this.getHeight();
+            int border = this.active ? 0xFFA0E0FF : 0xFF66717D;
+            int fill = this.isHoveredOrFocused() ? 0xCC2A2435 : 0xAA14131B;
+            int accent = 0xFFE7B966;
+            int text = this.active ? 0xFFF6F1E2 : 0xFF7B8794;
+            int trackTop = y + 24;
+            int trackBottom = y + height - 28;
+            int trackX = x + width / 2 - 2;
+            int handleY = trackBottom - (int) Math.round(this.value * Math.max(1, trackBottom - trackTop));
+
+            graphics.fill(x + 2, y + 2, x + width + 2, y + height + 2, 0x66000000);
+            graphics.fill(x, y, x + width, y + height, fill);
+            graphics.outline(x, y, width, height, border);
+            graphics.centeredText(this.minecraft.font, "Vol", x + width / 2, y + 7, text);
+            graphics.fill(trackX, trackTop, trackX + 4, trackBottom, 0xFF333744);
+            graphics.outline(trackX - 1, trackTop - 1, 6, trackBottom - trackTop + 2, 0xFF11121A);
+            graphics.fill(x + 5, handleY - 3, x + width - 5, handleY + 4, accent);
+            graphics.outline(x + 5, handleY - 3, width - 10, 7, 0xFF3C2626);
+            graphics.centeredText(this.minecraft.font, percentText(this.value), x + width / 2, y + height - 17, text);
+        }
+
+        @Override
+        public void onClick(net.minecraft.client.input.MouseButtonEvent event, boolean doubleClick) {
+            if (!this.vertical) {
+                super.onClick(event, doubleClick);
+                return;
+            }
+            this.playDownSound(Minecraft.getInstance().getSoundManager());
+            setValueFromMouse(event.y());
+        }
+
+        @Override
+        protected void onDrag(net.minecraft.client.input.MouseButtonEvent event, double dragX, double dragY) {
+            if (!this.vertical) {
+                super.onDrag(event, dragX, dragY);
+                return;
+            }
+            setValueFromMouse(event.y());
+        }
+
+        private void setValueFromMouse(double mouseY) {
+            double top = this.getY() + 24.0D;
+            double bottom = this.getY() + this.getHeight() - 28.0D;
+            double range = Math.max(1.0D, bottom - top);
+            double next = 1.0D - (mouseY - top) / range;
+            this.setValue(Math.max(0.0D, Math.min(1.0D, next)));
         }
 
         @Override
@@ -280,8 +351,16 @@ public final class MusicSelectionScreen extends Screen {
         }
 
         private static Component volumeMessage(double value) {
-            int percent = (int) Math.round(Math.max(0.0D, Math.min(1.0D, value)) * 100.0D);
+            int percent = percent(value);
             return Component.translatable("button.whostoppedthemusic.volume", percent);
+        }
+
+        private static String percentText(double value) {
+            return percent(value) + "%";
+        }
+
+        private static int percent(double value) {
+            return (int) Math.round(Math.max(0.0D, Math.min(1.0D, value)) * 100.0D);
         }
     }
 

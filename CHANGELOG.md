@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.3-test.7] - 2026-06-27
+
+### Changed
+- Wide Music Settings now keeps the title and current song centered, puts search plus the full-height song list on the left, stacks the controls on the right, and moves Music Volume to a vertical far-right slider.
+
 ## [1.1.3-test.6] - 2026-06-27
 
 ### Added
