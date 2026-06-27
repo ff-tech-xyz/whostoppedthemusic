@@ -3,7 +3,7 @@
   "id": "whostoppedthemusic",
   "version": "${version}",
   "name": "Who Stopped The Music",
-  "description": "Vanilla music always plays, shows cassette-style mapped song-name notices, and optionally lets players control official soundtrack and music-disc songs from Music Settings.",
+  "description": "Client-side music controls for Minecraft 26.2: removes vanilla silence gaps, shows compact Now Playing notices, adds Music Settings, and uses deterministic shuffle for selected soundtrack and music-disc songs.",
   "authors": [
     "Phred2026"
   ],

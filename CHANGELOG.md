@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.1.3] - 2026-06-27
+
+### Added
+- Music Settings opened with `Ctrl+M`, with searchable official soundtrack and music-disc selection.
+- Pause-menu cassette player with current-song display, previous and next controls, and click-to-open settings.
+- Music Volume control wired to Minecraft's built-in Music volume option.
+- Detailed `docs/HOW_IT_WORKS.md` documentation for controls, shuffle, persistence, and implementation boundaries.
+
+### Changed
+- The top-of-screen song-change notice now uses a compact PyreHaven-style toast instead of the cluttered cassette overlay.
+- Music Settings now uses the final side-by-side layout: search and full-height song list on the left, controls on the right, and vertical volume on the far right.
+- README and mod metadata now describe the current controller behavior instead of only the original no-gap behavior.
+
+### Fixed
+- Shuffle now builds a predetermined selected-song cycle when shuffle turns on, moves Next and Previous through that cycle, and reshuffles only after every selected song has played.
+- Stop, Deselect All, disabled songs, current song, controls, shuffle, and silence state now persist correctly through world changes and game restarts.
+
 ## [1.1.3-test.8] - 2026-06-27
 
 ### Fixed
