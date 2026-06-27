@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.1.3-test.5] - 2026-06-27
+
+### Fixed
+- Shuffle now builds a predetermined cycle when it is turned on, walks forward and backward through that cycle, and reshuffles only after every enabled song has been used.
+- Previous now returns to the prior shuffled song instead of asking shuffle for a fresh random pick.
+
+### Changed
+- Replaced the top-of-screen song-change popup with a compact PyreHaven-style toast instead of the busier cassette overlay.
+
 ## [1.1.3-test.4] - 2026-06-26
 
 ### Fixed

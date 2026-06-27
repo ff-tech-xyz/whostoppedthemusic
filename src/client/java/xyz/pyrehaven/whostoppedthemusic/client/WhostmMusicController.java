@@ -10,6 +10,8 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -21,6 +23,8 @@ public final class WhostmMusicController {
     private static final Random RANDOM = new Random();
     private static final Set<String> DISABLED = new HashSet<>();
     private static final List<MusicTrack> TRACKS = MusicCatalog.tracks();
+    private static final List<Identifier> SHUFFLE_ORDER = new ArrayList<>();
+    private static final List<Identifier> SHUFFLE_HISTORY = new ArrayList<>();
 
     private static EventMusicSoundInstance current;
     private static Identifier currentTrackId;
@@ -53,8 +57,12 @@ public final class WhostmMusicController {
             current = null;
             currentTrackId = null;
             pendingResume = false;
+            resetShuffleOrder();
         } else if (savedTrackId != null && !hardSilenced) {
             pendingResume = true;
+            if (shuffle) {
+                resetShuffleCycle(savedTrackId);
+            }
         }
         saveConfig(minecraft);
     }
@@ -69,6 +77,9 @@ public final class WhostmMusicController {
         }
         if (enabled) {
             DISABLED.remove(track.key());
+            if (shuffle) {
+                syncShuffleOrderAround(currentTrackId);
+            }
         } else {
             DISABLED.add(track.key());
             if (track.id().equals(currentTrackId)) {
@@ -85,6 +96,8 @@ public final class WhostmMusicController {
                     pendingResume = false;
                     savedTrackId = null;
                 }
+            } else if (shuffle) {
+                syncShuffleOrderAround(currentTrackId);
             }
         }
         saveConfig(minecraft);
@@ -98,6 +111,9 @@ public final class WhostmMusicController {
             DISABLED.clear();
             hardSilenced = false;
             pendingResume = savedTrackId != null;
+            if (shuffle) {
+                syncShuffleOrderAround(currentTrackId == null ? savedTrackId : currentTrackId);
+            }
         } else {
             for (MusicTrack track : TRACKS) {
                 DISABLED.add(track.key());
@@ -105,6 +121,7 @@ public final class WhostmMusicController {
             hardSilenced = true;
             pendingResume = false;
             savedTrackId = null;
+            resetShuffleOrder();
             stopMusicChannel(minecraft);
             current = null;
             currentTrackId = null;
@@ -127,6 +144,9 @@ public final class WhostmMusicController {
         stopMusicChannel(minecraft);
         current = null;
         currentTrackId = null;
+        if (shuffle) {
+            resetShuffleCycle(track.id());
+        }
         play(track.id(), minecraft);
     }
 
@@ -152,6 +172,7 @@ public final class WhostmMusicController {
         stopMusicChannel(minecraft);
         current = null;
         currentTrackId = null;
+        resetShuffleOrder();
         saveConfig(minecraft);
     }
 
@@ -162,6 +183,9 @@ public final class WhostmMusicController {
         shuffle = !shuffle;
         if (shuffle && hasEnabledTracks(minecraft)) {
             hardSilenced = false;
+            resetShuffleCycle(currentTrackId == null ? savedTrackId : currentTrackId);
+        } else {
+            resetShuffleOrder();
         }
         saveConfig(minecraft);
         playNextIfNeeded(minecraft);
@@ -263,7 +287,7 @@ public final class WhostmMusicController {
             return;
         }
 
-        Optional<Identifier> next = selectRandomTrack();
+        Optional<Identifier> next = selectShuffledTrack(true);
         next.ifPresent(id -> play(id, minecraft));
     }
 
@@ -273,7 +297,7 @@ public final class WhostmMusicController {
             return Optional.empty();
         }
         if (shuffle) {
-            return selectRandomTrack();
+            return selectShuffledTrack(forward);
         }
         int currentIndex = -1;
         if (currentTrackId != null) {
@@ -295,19 +319,28 @@ public final class WhostmMusicController {
         return Optional.of(enabled.get(nextIndex).id());
     }
 
-    private static Optional<Identifier> selectRandomTrack() {
-        List<MusicTrack> enabled = enabledTracks();
-        if (enabled.isEmpty()) {
-            return Optional.empty();
+    private static Optional<Identifier> selectShuffledTrack(boolean forward) {
+        ensureShuffleOrder();
+        if (forward) {
+            if (SHUFFLE_ORDER.isEmpty()) {
+                Identifier lastPlayed = SHUFFLE_HISTORY.isEmpty() ? null : SHUFFLE_HISTORY.getLast();
+                reshuffleForNextCycle(lastPlayed);
+            }
+            if (SHUFFLE_ORDER.isEmpty()) {
+                return Optional.empty();
+            }
+            Identifier next = SHUFFLE_ORDER.removeFirst();
+            addShuffleHistory(next);
+            return Optional.of(next);
         }
-        if (enabled.size() == 1) {
-            return Optional.of(enabled.getFirst().id());
+
+        if (SHUFFLE_HISTORY.size() <= 1) {
+            return SHUFFLE_HISTORY.isEmpty() ? Optional.empty() : Optional.of(SHUFFLE_HISTORY.getLast());
         }
-        MusicTrack selected;
-        do {
-            selected = enabled.get(RANDOM.nextInt(enabled.size()));
-        } while (selected.id().equals(currentTrackId));
-        return Optional.of(selected.id());
+        Identifier currentSelection = SHUFFLE_HISTORY.removeLast();
+        SHUFFLE_ORDER.remove(currentSelection);
+        SHUFFLE_ORDER.add(0, currentSelection);
+        return Optional.of(SHUFFLE_HISTORY.getLast());
     }
 
     private static Optional<Identifier> selectReplacementAfterDisabling(MusicTrack disabledTrack) {
@@ -315,7 +348,7 @@ public final class WhostmMusicController {
             return Optional.empty();
         }
         if (shuffle) {
-            return selectRandomTrack();
+            return selectShuffledTrack(true);
         }
         int disabledIndex = TRACKS.indexOf(disabledTrack);
         if (disabledIndex < 0) {
@@ -340,6 +373,105 @@ public final class WhostmMusicController {
         return enabledTracks().size();
     }
 
+    private static List<Identifier> enabledTrackIds() {
+        return enabledTracks().stream()
+                .map(MusicTrack::id)
+                .toList();
+    }
+
+    private static void ensureShuffleOrder() {
+        if (!shuffle) {
+            resetShuffleOrder();
+            return;
+        }
+
+        Set<Identifier> enabled = new HashSet<>(enabledTrackIds());
+        if (enabled.isEmpty()) {
+            resetShuffleOrder();
+            return;
+        }
+
+        SHUFFLE_ORDER.removeIf(id -> !enabled.contains(id));
+        SHUFFLE_HISTORY.removeIf(id -> !enabled.contains(id));
+
+        if (currentTrackId != null && enabled.contains(currentTrackId) && !currentTrackId.equals(lastShuffleHistory())) {
+            SHUFFLE_ORDER.remove(currentTrackId);
+            addShuffleHistory(currentTrackId);
+        }
+
+        Set<Identifier> known = new HashSet<>(SHUFFLE_ORDER);
+        known.addAll(SHUFFLE_HISTORY);
+        List<Identifier> missing = new ArrayList<>();
+        for (Identifier id : enabled) {
+            if (!known.contains(id)) {
+                missing.add(id);
+            }
+        }
+        Collections.shuffle(missing, RANDOM);
+        SHUFFLE_ORDER.addAll(missing);
+    }
+
+    private static void resetShuffleOrder() {
+        SHUFFLE_ORDER.clear();
+        SHUFFLE_HISTORY.clear();
+    }
+
+    private static void syncShuffleOrderAround(Identifier anchor) {
+        if (!shuffle) {
+            return;
+        }
+        ensureShuffleOrder();
+        if (anchor != null && isEnabled(anchor) && !anchor.equals(lastShuffleHistory())) {
+            SHUFFLE_ORDER.remove(anchor);
+            addShuffleHistory(anchor);
+        }
+    }
+
+    private static void resetShuffleCycle(Identifier anchor) {
+        resetShuffleOrder();
+        List<Identifier> enabled = new ArrayList<>(enabledTrackIds());
+        if (enabled.isEmpty()) {
+            return;
+        }
+
+        if (anchor != null && enabled.remove(anchor)) {
+            addShuffleHistory(anchor);
+        }
+        Collections.shuffle(enabled, RANDOM);
+        SHUFFLE_ORDER.addAll(enabled);
+    }
+
+    private static void reshuffleForNextCycle(Identifier lastPlayed) {
+        SHUFFLE_ORDER.clear();
+        List<Identifier> enabled = new ArrayList<>(enabledTrackIds());
+        if (enabled.isEmpty()) {
+            return;
+        }
+        Collections.shuffle(enabled, RANDOM);
+        if (lastPlayed != null && enabled.size() > 1 && lastPlayed.equals(enabled.getFirst())) {
+            Collections.rotate(enabled, -1);
+        }
+        SHUFFLE_ORDER.addAll(enabled);
+    }
+
+    private static Identifier lastShuffleHistory() {
+        return SHUFFLE_HISTORY.isEmpty() ? null : SHUFFLE_HISTORY.getLast();
+    }
+
+    private static void addShuffleHistory(Identifier id) {
+        if (id == null) {
+            return;
+        }
+        if (id.equals(lastShuffleHistory())) {
+            return;
+        }
+        SHUFFLE_HISTORY.add(id);
+        int maxHistory = Math.max(32, TRACKS.size() * 4);
+        while (SHUFFLE_HISTORY.size() > maxHistory) {
+            SHUFFLE_HISTORY.removeFirst();
+        }
+    }
+
     private static boolean isEnabled(Identifier id) {
         return id != null && DISABLED.stream().noneMatch(disabled -> disabled.equals(id.toString()));
     }
@@ -347,6 +479,11 @@ public final class WhostmMusicController {
     private static void play(Identifier id, Minecraft minecraft) {
         if (minecraft == null) {
             return;
+        }
+        if (shuffle) {
+            ensureShuffleOrder();
+            SHUFFLE_ORDER.remove(id);
+            addShuffleHistory(id);
         }
         EventMusicSoundInstance instance = new EventMusicSoundInstance(id);
         current = instance;

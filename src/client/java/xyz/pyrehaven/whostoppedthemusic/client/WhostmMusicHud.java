@@ -55,22 +55,45 @@ public final class WhostmMusicHud {
 
         Minecraft minecraft = Minecraft.getInstance();
         int alpha = ticksRemaining < 20 ? Math.max(0, ticksRemaining * 235 / 20) : 235;
-        int boxWidth = Math.min(graphics.guiWidth() - 18, 330);
+        int maxWidth = Math.min(graphics.guiWidth() - 18, 330);
+        int boxWidth = Math.min(maxWidth, Math.max(128, minecraft.font.width(message) + 28));
         int x = graphics.guiWidth() / 2 - boxWidth / 2;
         int y = 8;
 
         graphics.nextStratum();
-        drawCassette(
+        drawNowPlayingToast(
                 graphics,
                 minecraft.font,
                 x,
                 y,
                 boxWidth,
-                42,
-                Component.translatable("text.whostoppedthemusic.cassette_title"),
+                24,
                 message,
                 alpha
         );
+    }
+
+    private static void drawNowPlayingToast(
+            GuiGraphicsExtractor graphics,
+            Font font,
+            int x,
+            int y,
+            int width,
+            int height,
+            Component text,
+            int alpha
+    ) {
+        int a = Math.max(0, Math.min(255, alpha));
+        int background = ARGB.color(a, 18, 17, 24);
+        int border = ARGB.color(a, 178, 206, 232);
+        int accent = ARGB.color(a, 231, 185, 102);
+        int foreground = ARGB.color(Math.min(255, a + 20), 246, 241, 226);
+
+        graphics.fill(x + 2, y + 2, x + width + 2, y + height + 2, ARGB.color(a / 3, 0, 0, 0));
+        graphics.fill(x, y, x + width, y + height, background);
+        graphics.outline(x, y, width, height, border);
+        graphics.fill(x + 4, y + 4, x + 7, y + height - 4, accent);
+        graphics.centeredText(font, clipped(font, text.getString(), Math.max(10, width - 20)), x + width / 2 + 4, y + (height - font.lineHeight) / 2, foreground);
     }
 
     public static void drawCassette(
