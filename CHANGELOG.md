@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.3-test.8] - 2026-06-27
+
+### Fixed
+- Removed the stacked Music Settings fallback so normal GUI-scale screens use the compact side-by-side layout: search plus track list on the left, controls on the right, and the vertical volume slider on the far right.
+
 ## [1.1.3-test.7] - 2026-06-27
 
 ### Changed

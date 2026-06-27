@@ -44,22 +44,23 @@ public final class MusicSelectionScreen extends Screen {
 
     @Override
     protected void init() {
-        if (this.width >= 540) {
-            initWideLayout();
-        } else {
-            initCompactLayout();
-        }
+        initSideBySideLayout();
         refreshControlState();
     }
 
-    private void initWideLayout() {
+    private void initSideBySideLayout() {
         int top = 32;
         int bottom = this.height - 36;
-        int volumeX = this.width - MARGIN - VOLUME_WIDTH;
-        int controlsX = volumeX - GAP - CONTROL_WIDTH;
+        int availableWidth = Math.max(240, this.width - MARGIN * 2);
+        int volumeWidth = this.width >= 380 ? VOLUME_WIDTH : 26;
+        int minListWidth = this.width >= 380 ? 160 : 120;
+        int maxControlsWidth = Math.max(96, availableWidth - volumeWidth - GAP * 2 - minListWidth);
+        int controlsWidth = Math.min(CONTROL_WIDTH, Math.min(maxControlsWidth, Math.max(112, availableWidth / 3)));
+        int volumeX = this.width - MARGIN - volumeWidth;
+        int controlsX = volumeX - GAP - controlsWidth;
         int listX = MARGIN;
-        int listWidth = Math.max(220, controlsX - listX - GAP);
-        int listTop = top + 28;
+        int listWidth = Math.max(80, controlsX - listX - GAP);
+        int listTop = top + 24;
         int listHeight = Math.max(48, bottom - listTop);
 
         addSearchBox(listX, top, listWidth);
@@ -68,22 +69,26 @@ public final class MusicSelectionScreen extends Screen {
 
         int y = top;
         addControlsCheckbox(controlsX, y);
-        y += 28;
+        y += 24;
 
-        addBulkButtons(controlsX, y, CONTROL_WIDTH, CONTROL_WIDTH, 0, true);
-        y += 52;
+        int smallGap = 4;
+        int bulkWidth = Math.max(54, (controlsWidth - smallGap) / 2);
+        addBulkButtons(controlsX, y, bulkWidth, Math.max(54, controlsWidth - bulkWidth - smallGap), smallGap);
+        y += 24;
 
+        int arrowWidth = Math.min(44, Math.max(34, (controlsWidth - smallGap * 2) / 4));
+        int stopWidth = Math.max(44, controlsWidth - arrowWidth * 2 - smallGap * 2);
         this.previousButton = Button.builder(Component.translatable("button.whostoppedthemusic.previous"), button -> WhostmMusicController.skipPrevious(this.minecraft))
-                .bounds(controlsX, y, 52, 20)
+                .bounds(controlsX, y, arrowWidth, 20)
                 .build();
         this.stopButton = Button.builder(WhostmMusicController.playStopMessage(this.minecraft), button -> {
                     WhostmMusicController.playOrStop(this.minecraft);
                     refreshControlState();
                 })
-                .bounds(controlsX + 64, y, 52, 20)
+                .bounds(controlsX + arrowWidth + smallGap, y, stopWidth, 20)
                 .build();
         this.nextButton = Button.builder(Component.translatable("button.whostoppedthemusic.next"), button -> WhostmMusicController.skipNext(this.minecraft))
-                .bounds(controlsX + 128, y, 52, 20)
+                .bounds(controlsX + arrowWidth + smallGap + stopWidth + smallGap, y, arrowWidth, 20)
                 .build();
         this.addRenderableWidget(this.previousButton);
         this.addRenderableWidget(this.stopButton);
@@ -95,72 +100,21 @@ public final class MusicSelectionScreen extends Screen {
                     button.setMessage(shuffleMessage());
                     refreshControlState();
                 })
-                .bounds(controlsX, y, CONTROL_WIDTH, 20)
+                .bounds(controlsX, y, controlsWidth, 20)
                 .build();
         this.addRenderableWidget(this.shuffleButton);
         y += 28;
 
         this.statusX = controlsX;
         this.statusY = y;
-        this.statusWidth = CONTROL_WIDTH;
+        this.statusWidth = controlsWidth;
 
-        this.volumeSlider = new MusicVolumeSlider(volumeX, top, VOLUME_WIDTH, Math.max(96, bottom - top), this.minecraft, true);
+        this.volumeSlider = new MusicVolumeSlider(volumeX, top, volumeWidth, Math.max(96, bottom - top), this.minecraft, true);
         this.addRenderableWidget(this.volumeSlider);
 
         this.addRenderableWidget(Button.builder(Component.translatable("gui.done"), button -> this.onClose())
-                .bounds(controlsX, this.height - 28, CONTROL_WIDTH, 20)
+                .bounds(controlsX, this.height - 28, controlsWidth, 20)
                 .build());
-    }
-
-    private void initCompactLayout() {
-        int center = this.width / 2;
-        int rowWidth = Math.min(548, Math.max(220, this.width - 16));
-        int rowX = center - rowWidth / 2;
-        int rowY = 32;
-        int selectWidth = 82;
-        int deselectWidth = 92;
-        this.statusX = MARGIN;
-        this.statusY = this.height - 42;
-        this.statusWidth = this.width - MARGIN * 2;
-
-        addControlsCheckbox(center - 47, rowY);
-        this.addRenderableWidget(Button.builder(Component.translatable("gui.done"), button -> this.onClose())
-                .bounds(rowX + rowWidth - 58, rowY, 58, 20)
-                .build());
-        addSearchBox(rowX, rowY + 24, rowWidth);
-        addBulkButtons(center - (selectWidth + deselectWidth + 6) / 2, rowY + 48, selectWidth, deselectWidth, 6, false);
-        this.volumeSlider = new MusicVolumeSlider(rowX, rowY + 72, rowWidth, 20, this.minecraft, false);
-        this.addRenderableWidget(this.volumeSlider);
-
-        int bottomControlsY = this.height - 28;
-        int listTop = rowY + 100;
-        int listHeight = Math.max(48, this.height - listTop - 52);
-        this.trackList = new TrackListWidget(this.minecraft, this.width, listHeight, listTop, 0);
-        this.addRenderableWidget(this.trackList);
-
-        this.previousButton = Button.builder(Component.translatable("button.whostoppedthemusic.previous"), button -> WhostmMusicController.skipPrevious(this.minecraft))
-                .bounds(center - 132, bottomControlsY, 38, 20)
-                .build();
-        this.stopButton = Button.builder(WhostmMusicController.playStopMessage(this.minecraft), button -> {
-                    WhostmMusicController.playOrStop(this.minecraft);
-                    refreshControlState();
-                })
-                .bounds(center - 90, bottomControlsY, 64, 20)
-                .build();
-        this.nextButton = Button.builder(Component.translatable("button.whostoppedthemusic.next"), button -> WhostmMusicController.skipNext(this.minecraft))
-                .bounds(center - 22, bottomControlsY, 38, 20)
-                .build();
-        this.shuffleButton = Button.builder(shuffleMessage(), button -> {
-                    WhostmMusicController.toggleShuffle(this.minecraft);
-                    button.setMessage(shuffleMessage());
-                    refreshControlState();
-                })
-                .bounds(center + 20, bottomControlsY, 110, 20)
-                .build();
-        this.addRenderableWidget(this.previousButton);
-        this.addRenderableWidget(this.stopButton);
-        this.addRenderableWidget(this.nextButton);
-        this.addRenderableWidget(this.shuffleButton);
     }
 
     private void addControlsCheckbox(int x, int y) {
@@ -189,7 +143,7 @@ public final class MusicSelectionScreen extends Screen {
         this.addRenderableWidget(this.searchBox);
     }
 
-    private void addBulkButtons(int x, int y, int selectWidth, int deselectWidth, int gap, boolean stacked) {
+    private void addBulkButtons(int x, int y, int selectWidth, int deselectWidth, int gap) {
         this.selectAllButton = Button.builder(Component.translatable("button.whostoppedthemusic.select_all"), button -> {
                     WhostmMusicController.setAllEnabled(true, this.minecraft);
                     this.trackList.rebuildEntries();
@@ -202,7 +156,7 @@ public final class MusicSelectionScreen extends Screen {
                     this.trackList.rebuildEntries();
                     refreshControlState();
                 })
-                .bounds(stacked ? x : x + selectWidth + gap, stacked ? y + 24 : y, deselectWidth, 20)
+                .bounds(x + selectWidth + gap, y, deselectWidth, 20)
                 .build();
         this.addRenderableWidget(this.selectAllButton);
         this.addRenderableWidget(this.deselectAllButton);
