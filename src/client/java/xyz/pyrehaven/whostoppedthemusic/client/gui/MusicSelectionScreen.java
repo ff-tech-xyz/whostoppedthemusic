@@ -2,6 +2,7 @@ package xyz.pyrehaven.whostoppedthemusic.client.gui;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.components.AbstractSliderButton;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.Checkbox;
 import net.minecraft.client.gui.components.ContainerObjectSelectionList;
@@ -29,6 +30,7 @@ public final class MusicSelectionScreen extends Screen {
     private Button shuffleButton;
     private Button selectAllButton;
     private Button deselectAllButton;
+    private MusicVolumeSlider volumeSlider;
     private EditBox searchBox;
 
     public MusicSelectionScreen(Screen parent) {
@@ -48,14 +50,11 @@ public final class MusicSelectionScreen extends Screen {
 
     private void initWideLayout() {
         int top = 32;
-        int bottom = this.height - 8;
-        int controlsX = this.width - CONTROL_WIDTH - MARGIN;
-        int listX = MARGIN;
-        int listWidth = Math.max(180, controlsX - listX - GAP);
+        int bottom = this.height - 52;
+        int controlsX = MARGIN;
+        int listX = controlsX + CONTROL_WIDTH + GAP;
+        int listWidth = Math.max(220, this.width - listX - MARGIN);
         int listHeight = Math.max(48, bottom - top);
-
-        this.trackList = new TrackListWidget(this.minecraft, listWidth, listHeight, top, listX);
-        this.addRenderableWidget(this.trackList);
 
         int y = top;
         addControlsCheckbox(controlsX, y);
@@ -70,7 +69,10 @@ public final class MusicSelectionScreen extends Screen {
         this.previousButton = Button.builder(Component.translatable("button.whostoppedthemusic.previous"), button -> WhostmMusicController.skipPrevious(this.minecraft))
                 .bounds(controlsX, y, 52, 20)
                 .build();
-        this.stopButton = Button.builder(Component.translatable("button.whostoppedthemusic.stop"), button -> WhostmMusicController.stop(this.minecraft))
+        this.stopButton = Button.builder(WhostmMusicController.playStopMessage(this.minecraft), button -> {
+                    WhostmMusicController.playOrStop(this.minecraft);
+                    refreshControlState();
+                })
                 .bounds(controlsX + 64, y, 52, 20)
                 .build();
         this.nextButton = Button.builder(Component.translatable("button.whostoppedthemusic.next"), button -> WhostmMusicController.skipNext(this.minecraft))
@@ -89,10 +91,17 @@ public final class MusicSelectionScreen extends Screen {
                 .bounds(controlsX, y, CONTROL_WIDTH, 20)
                 .build();
         this.addRenderableWidget(this.shuffleButton);
+        y += 28;
+
+        this.volumeSlider = new MusicVolumeSlider(controlsX, y, CONTROL_WIDTH, 20, this.minecraft);
+        this.addRenderableWidget(this.volumeSlider);
 
         this.addRenderableWidget(Button.builder(Component.translatable("gui.done"), button -> this.onClose())
                 .bounds(controlsX, this.height - 28, CONTROL_WIDTH, 20)
                 .build());
+
+        this.trackList = new TrackListWidget(this.minecraft, listWidth, listHeight, top, listX);
+        this.addRenderableWidget(this.trackList);
     }
 
     private void initCompactLayout() {
@@ -109,9 +118,11 @@ public final class MusicSelectionScreen extends Screen {
                 .build());
         addSearchBox(rowX, rowY + 24, rowWidth);
         addBulkButtons(center - (selectWidth + deselectWidth + 6) / 2, rowY + 48, selectWidth, deselectWidth, 6, false);
+        this.volumeSlider = new MusicVolumeSlider(rowX, rowY + 72, rowWidth, 20, this.minecraft);
+        this.addRenderableWidget(this.volumeSlider);
 
         int bottomControlsY = this.height - 28;
-        int listTop = rowY + 76;
+        int listTop = rowY + 100;
         int listHeight = Math.max(48, this.height - listTop - 52);
         this.trackList = new TrackListWidget(this.minecraft, this.width, listHeight, listTop, 0);
         this.addRenderableWidget(this.trackList);
@@ -119,7 +130,10 @@ public final class MusicSelectionScreen extends Screen {
         this.previousButton = Button.builder(Component.translatable("button.whostoppedthemusic.previous"), button -> WhostmMusicController.skipPrevious(this.minecraft))
                 .bounds(center - 132, bottomControlsY, 38, 20)
                 .build();
-        this.stopButton = Button.builder(Component.translatable("button.whostoppedthemusic.stop"), button -> WhostmMusicController.stop(this.minecraft))
+        this.stopButton = Button.builder(WhostmMusicController.playStopMessage(this.minecraft), button -> {
+                    WhostmMusicController.playOrStop(this.minecraft);
+                    refreshControlState();
+                })
                 .bounds(center - 90, bottomControlsY, 64, 20)
                 .build();
         this.nextButton = Button.builder(Component.translatable("button.whostoppedthemusic.next"), button -> WhostmMusicController.skipNext(this.minecraft))
@@ -207,7 +221,12 @@ public final class MusicSelectionScreen extends Screen {
             this.nextButton.active = canSkip;
         }
         if (this.stopButton != null) {
-            this.stopButton.active = active;
+            this.stopButton.active = active && (hasEnabledTracks || WhostmMusicController.isMusicPlaying(this.minecraft));
+            this.stopButton.setMessage(WhostmMusicController.playStopMessage(this.minecraft));
+        }
+        if (this.volumeSlider != null) {
+            this.volumeSlider.active = true;
+            this.volumeSlider.syncFromOptions();
         }
         if (this.shuffleButton != null) {
             this.shuffleButton.active = active && hasEnabledTracks;
@@ -232,6 +251,38 @@ public final class MusicSelectionScreen extends Screen {
         return Component.translatable(WhostmMusicController.shuffle()
                 ? "button.whostoppedthemusic.shuffle_on"
                 : "button.whostoppedthemusic.shuffle_off");
+    }
+
+    private static final class MusicVolumeSlider extends AbstractSliderButton {
+        private final Minecraft minecraft;
+
+        private MusicVolumeSlider(int x, int y, int width, int height, Minecraft minecraft) {
+            super(x, y, width, height, volumeMessage(WhostmMusicController.musicVolume(minecraft)), WhostmMusicController.musicVolume(minecraft));
+            this.minecraft = minecraft;
+        }
+
+        private void syncFromOptions() {
+            double optionValue = WhostmMusicController.musicVolume(this.minecraft);
+            if (Math.abs(optionValue - this.value) > 0.001D) {
+                this.value = optionValue;
+                updateMessage();
+            }
+        }
+
+        @Override
+        protected void updateMessage() {
+            this.setMessage(volumeMessage(this.value));
+        }
+
+        @Override
+        protected void applyValue() {
+            WhostmMusicController.setMusicVolume(this.minecraft, this.value);
+        }
+
+        private static Component volumeMessage(double value) {
+            int percent = (int) Math.round(Math.max(0.0D, Math.min(1.0D, value)) * 100.0D);
+            return Component.translatable("button.whostoppedthemusic.volume", percent);
+        }
     }
 
     private static final class TrackListWidget extends ContainerObjectSelectionList<TrackEntry> {
@@ -297,9 +348,9 @@ public final class MusicSelectionScreen extends Screen {
         private TrackEntry(MusicTrack track, Minecraft minecraft) {
             this.track = track;
             this.minecraft = minecraft;
-            this.enabled = Checkbox.builder(track.displayName(), minecraft.font)
+            this.enabled = Checkbox.builder(Component.empty(), minecraft.font)
                     .selected(WhostmMusicController.isEnabled(track))
-                    .maxWidth(340)
+                    .maxWidth(Checkbox.getBoxSize(minecraft.font))
                     .onValueChange((checkbox, selected) -> WhostmMusicController.setEnabled(track, selected, minecraft))
                     .build();
             this.play = Button.builder(Component.translatable("button.whostoppedthemusic.play"), button -> WhostmMusicController.playNow(track, minecraft))
@@ -319,8 +370,41 @@ public final class MusicSelectionScreen extends Screen {
             this.enabled.setPosition(x, y + 1);
             this.play.setPosition(right - 62, y);
 
+            int checkboxSize = Checkbox.getBoxSize(this.minecraft.font);
+            int titleX = x + checkboxSize + 6;
+            int titleWidth = Math.max(20, this.play.getX() - titleX - 8);
+
             this.enabled.extractRenderState(extractor, mouseX, mouseY, partialTick);
+            drawMarqueeTitle(extractor, this.track.displayName().getString(), titleX, y + 6, titleWidth, hovered);
             this.play.extractRenderState(extractor, mouseX, mouseY, partialTick);
+        }
+
+        private void drawMarqueeTitle(GuiGraphicsExtractor extractor, String title, int x, int y, int width, boolean hovered) {
+            int color = WhostmMusicController.isEnabled(this.track) ? 0xFFF6F1E2 : 0xFF7B8794;
+            int textWidth = this.minecraft.font.width(title);
+            if (textWidth <= width) {
+                extractor.text(this.minecraft.font, title, x, y, color);
+                return;
+            }
+
+            int overflow = textWidth - width;
+            int pauseMs = hovered ? 250 : 900;
+            int scrollMs = Math.max(1800, overflow * 45);
+            long phase = Math.floorMod(System.currentTimeMillis() + Math.abs(this.track.key().hashCode() % 1000), (pauseMs + scrollMs) * 2L);
+            int offset;
+            if (phase < pauseMs) {
+                offset = 0;
+            } else if (phase < pauseMs + scrollMs) {
+                offset = (int) Math.round((phase - pauseMs) * overflow / (double) scrollMs);
+            } else if (phase < pauseMs * 2L + scrollMs) {
+                offset = overflow;
+            } else {
+                offset = overflow - (int) Math.round((phase - pauseMs * 2L - scrollMs) * overflow / (double) scrollMs);
+            }
+
+            extractor.enableScissor(x, y - 1, x + width, y + this.minecraft.font.lineHeight + 1);
+            extractor.text(this.minecraft.font, title, x - offset, y, color);
+            extractor.disableScissor();
         }
 
         private void refreshControlState(boolean controlsActive) {

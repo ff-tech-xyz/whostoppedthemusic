@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.1.3-test.6] - 2026-06-27
+
+### Added
+- Music Settings now includes a Music Volume slider wired directly to Minecraft's built-in Music volume option.
+- Long song names in the list now scroll sideways in a smooth player-style marquee instead of being cut off.
+
+### Changed
+- Wide Music Settings layout now stacks controls on the left and keeps the song list on the right.
+- The Stop button now becomes Play when nothing is currently playing; pressing Play starts a random enabled song.
+
 ## [1.1.3-test.5] - 2026-06-27
 
 ### Fixed

@@ -15,6 +15,7 @@
   "button.whostoppedthemusic.stop": "Stop",
   "button.whostoppedthemusic.shuffle_on": "Shuffle: On",
   "button.whostoppedthemusic.shuffle_off": "Shuffle: Off",
+  "button.whostoppedthemusic.volume": "Music Volume: %s%%",
   "button.whostoppedthemusic.select_all": "Select All",
   "button.whostoppedthemusic.deselect_all": "Deselect All"
 }

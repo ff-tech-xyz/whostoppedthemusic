@@ -8,6 +8,7 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+import xyz.pyrehaven.whostoppedthemusic.client.WhostmMusicController;
 import xyz.pyrehaven.whostoppedthemusic.client.WhostmMusicHud;
 
 @Mixin(SoundManager.class)
@@ -21,6 +22,7 @@ public class SoundManagerMixin {
         if (instance.getSource() != SoundSource.MUSIC && instance.getSource() != SoundSource.RECORDS) {
             return;
         }
+        WhostmMusicController.noticeMusicStarted(instance);
         WhostmMusicHud.announce(instance.getIdentifier(), instance.getSound());
     }
 }

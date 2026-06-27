@@ -1,6 +1,7 @@
 package xyz.pyrehaven.whostoppedthemusic.client;
 
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.resources.sounds.SoundInstance;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.sounds.SoundSource;
@@ -27,6 +28,7 @@ public final class WhostmMusicController {
     private static final List<Identifier> SHUFFLE_HISTORY = new ArrayList<>();
 
     private static EventMusicSoundInstance current;
+    private static SoundInstance observedMusic;
     private static Identifier currentTrackId;
     private static Identifier savedTrackId;
     private static boolean controlsEnabled;
@@ -162,6 +164,31 @@ public final class WhostmMusicController {
         skipTo(minecraft, false);
     }
 
+    public static void playOrStop(Minecraft minecraft) {
+        if (!controlsEnabled(minecraft)) {
+            return;
+        }
+        if (isMusicPlaying(minecraft)) {
+            stop(minecraft);
+        } else {
+            playRandom(minecraft);
+        }
+    }
+
+    public static void playRandom(Minecraft minecraft) {
+        if (!controlsEnabled(minecraft)) {
+            return;
+        }
+        Optional<Identifier> next = shuffle ? selectShuffledTrack(true) : selectRandomEnabledTrack();
+        hardSilenced = false;
+        pendingResume = false;
+        stopMusicChannel(minecraft);
+        current = null;
+        currentTrackId = null;
+        next.ifPresent(id -> play(id, minecraft));
+        saveConfig(minecraft);
+    }
+
     public static void stop(Minecraft minecraft) {
         if (!controlsEnabled(minecraft)) {
             return;
@@ -198,6 +225,37 @@ public final class WhostmMusicController {
     public static boolean hasEnabledTracks(Minecraft minecraft) {
         ensureConfig(minecraft);
         return TRACKS.stream().anyMatch(WhostmMusicController::isEnabled);
+    }
+
+    public static boolean isMusicPlaying(Minecraft minecraft) {
+        return isCustomActive(minecraft)
+                || (minecraft != null && observedMusic != null && minecraft.getSoundManager().isActive(observedMusic));
+    }
+
+    public static void noticeMusicStarted(SoundInstance instance) {
+        observedMusic = instance;
+    }
+
+    public static Component playStopMessage(Minecraft minecraft) {
+        return Component.translatable(isMusicPlaying(minecraft)
+                ? "button.whostoppedthemusic.stop"
+                : "button.whostoppedthemusic.play");
+    }
+
+    public static double musicVolume(Minecraft minecraft) {
+        if (minecraft == null) {
+            return 1.0D;
+        }
+        return minecraft.options.getSoundSourceVolume(SoundSource.MUSIC);
+    }
+
+    public static void setMusicVolume(Minecraft minecraft, double volume) {
+        if (minecraft == null) {
+            return;
+        }
+        double clamped = Math.max(0.0D, Math.min(1.0D, volume));
+        minecraft.options.getSoundSourceOptionInstance(SoundSource.MUSIC).set(clamped);
+        minecraft.options.save();
     }
 
     public static Component currentSongMessage() {
@@ -341,6 +399,17 @@ public final class WhostmMusicController {
         SHUFFLE_ORDER.remove(currentSelection);
         SHUFFLE_ORDER.add(0, currentSelection);
         return Optional.of(SHUFFLE_HISTORY.getLast());
+    }
+
+    private static Optional<Identifier> selectRandomEnabledTrack() {
+        List<MusicTrack> enabled = enabledTracks();
+        if (enabled.isEmpty()) {
+            return Optional.empty();
+        }
+        if (enabled.size() == 1) {
+            return Optional.of(enabled.getFirst().id());
+        }
+        return Optional.of(enabled.get(RANDOM.nextInt(enabled.size())).id());
     }
 
     private static Optional<Identifier> selectReplacementAfterDisabling(MusicTrack disabledTrack) {
