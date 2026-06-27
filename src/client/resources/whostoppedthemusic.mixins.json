@@ -5,7 +5,12 @@
   "compatibilityLevel": "JAVA_21",
   "mixins": [],
   "client": [
-    "MusicManagerMixin"
+    "HudMixin",
+    "KeyboardHandlerMixin",
+    "MinecraftClientTickMixin",
+    "MusicManagerMixin",
+    "PauseScreenMixin",
+    "SoundManagerMixin"
   ],
   "injectors": {
     "defaultRequire": 1

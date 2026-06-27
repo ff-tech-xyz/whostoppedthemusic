@@ -20,8 +20,8 @@ repositories {
 def localMinecraftMetadataServer = {
 	def metadataDir = file("gradle/minecraft")
 	def server = com.sun.net.httpserver.HttpServer.create(new java.net.InetSocketAddress("127.0.0.1", 0), 0)
-	server.createContext("/26.1.2-custom.json") { exchange ->
-		byte[] body = new File(metadataDir, "26.1.2-custom.json").bytes
+	server.createContext("/26.2-custom.json") { exchange ->
+		byte[] body = new File(metadataDir, "26.2-custom.json").bytes
 		exchange.responseHeaders.add("Content-Type", "application/json")
 		exchange.sendResponseHeaders(200, body.length)
 		exchange.responseBody.write(body)
@@ -29,7 +29,7 @@ def localMinecraftMetadataServer = {
 	}
 	server.start()
 	gradle.buildFinished { server.stop(0) }
-	return "http://127.0.0.1:${server.address.port}/26.1.2-custom.json"
+	return "http://127.0.0.1:${server.address.port}/26.2-custom.json"
 }.call()
 
 loom {
@@ -58,7 +58,7 @@ sourceSets {
 
 dependencies {
 	minecraft "com.mojang:minecraft:${project.minecraft_version}"
-	mappings files("gradle/minecraft/identity-official-26.1.2.jar")
+	mappings files("gradle/minecraft/identity-official-26.2.jar")
 	modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
 }
 
@@ -78,6 +78,10 @@ java {
 	withSourcesJar()
 	sourceCompatibility = JavaVersion.VERSION_21
 	targetCompatibility = JavaVersion.VERSION_21
+}
+
+tasks.named('sourcesJar') {
+	exclude('fabric.mod.json')
 }
 
 jar {

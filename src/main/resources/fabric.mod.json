@@ -3,13 +3,13 @@
   "id": "whostoppedthemusic",
   "version": "${version}",
   "name": "Who Stopped The Music",
-  "description": "Vanilla music always plays. No silence, no gaps. Vanilla track selection stays intact.",
+  "description": "Client-side music controls for Minecraft 26.2: removes vanilla silence gaps, shows compact Now Playing notices, adds Music Settings, and uses deterministic shuffle for selected soundtrack and music-disc songs.",
   "authors": [
     "Phred2026"
   ],
   "contact": {
     "homepage": "https://pyrehaven.xyz",
-    "sources": "https://github.com/phred2026-cyber/whostoppedthemusic"
+    "sources": "https://github.com/ff-tech-xyz/whostoppedthemusic"
   },
   "license": "MIT",
   "environment": "client",
@@ -18,8 +18,8 @@
     "whostoppedthemusic.mixins.json"
   ],
   "depends": {
-    "fabricloader": ">=0.19.2",
-    "minecraft": "~26.1.2",
+    "fabricloader": ">=0.19.3",
+    "minecraft": "~26.2",
     "java": ">=21"
   }
 }

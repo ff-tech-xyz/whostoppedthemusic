@@ -1,0 +1,21 @@
+{
+  "screen.whostoppedthemusic.music": "Music Settings",
+  "text.whostoppedthemusic.hotkey": "Open anytime with Ctrl+M.",
+  "text.whostoppedthemusic.controls_hint": "Controls off means vanilla chooses music normally, with the old no-gap behavior.",
+  "text.whostoppedthemusic.settings_hint": "Search, check, and shuffle the official Minecraft soundtrack and music discs.",
+  "text.whostoppedthemusic.search": "Search music...",
+  "text.whostoppedthemusic.no_song": "No song playing",
+  "text.whostoppedthemusic.now_playing": "Now playing: %s",
+  "text.whostoppedthemusic.cassette_title": "Who Stopped The Music",
+  "text.whostoppedthemusic.open_settings": "Click cassette for settings",
+  "button.whostoppedthemusic.controls": "Controls",
+  "button.whostoppedthemusic.play": "Play",
+  "button.whostoppedthemusic.previous": "◀",
+  "button.whostoppedthemusic.next": "▶",
+  "button.whostoppedthemusic.stop": "Stop",
+  "button.whostoppedthemusic.shuffle_on": "Shuffle: On",
+  "button.whostoppedthemusic.shuffle_off": "Shuffle: Off",
+  "button.whostoppedthemusic.volume": "Music Volume: %s%%",
+  "button.whostoppedthemusic.select_all": "Select All",
+  "button.whostoppedthemusic.deselect_all": "Deselect All"
+}
