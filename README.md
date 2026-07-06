@@ -1,18 +1,21 @@
 # Who Stopped The Music
 
-A client-side Minecraft Fabric mod for **Minecraft 26.2** that keeps vanilla music moving, shows the real song name, and adds an optional in-game music controller for the official Minecraft soundtrack and music discs.
+Who Stopped The Music is a client-side Minecraft mod that makes the game’s music feel less broken and easier to control.
 
-## What it does now
+Minecraft normally leaves long quiet gaps between songs, and sometimes the music stops in ways that feel random. This mod keeps the soundtrack moving, shows you what song is playing, and gives you a simple in-game music controller when you want more control.
 
-- Removes the long random silence gap between vanilla music tracks.
-- Prevents vanilla music from being cut short mid-song.
-- Shows a compact top-of-screen **Now playing** toast when music or records start, using mapped song names such as `Aria Math`, `Sweden`, and `Pigstep`.
-- Adds a compact cassette player to the top of the pause menu. The cassette shows the current song, has previous and next buttons, and opens Music Settings when clicked.
-- Adds **Music Settings**, opened with `Ctrl+M`, with search and the full song list on the left, controls on the right, and a vertical Music Volume slider on the far right.
-- Starts with **Controls off** by default. In this mode, vanilla still chooses music normally, but the no-gap and no-cutoff fixes stay active.
-- When **Controls** are on, the mod takes over playback for selected official soundtrack songs and music discs.
-- Lets players play, stop, skip previous, skip next, enable shuffle, search songs, select all songs, deselect all songs, and enable or disable individual tracks.
-- Saves controls, shuffle, disabled songs, current song, and stopped or silenced state to `config/whostoppedthemusic.properties`.
+## What it does
+
+- Removes the long silent gaps between normal Minecraft music tracks.
+- Helps songs keep playing instead of getting cut off too early.
+- Shows a small "Now playing" notice when music or records start.
+- Adds a cassette-style music button to the pause menu.
+- Adds a Music Settings screen, opened with `Ctrl+M`.
+- Lets you play, stop, skip, shuffle, search, and choose which official songs can play.
+- Works with the Minecraft soundtrack and music discs.
+- Saves your music settings between game sessions.
+
+By default, the mod stays out of the way. Minecraft still chooses the music like normal, but the annoying silence gaps and early cutoffs are fixed. If you turn on the extra controls, you can take over playback yourself and choose what you want to hear.
 
 ## Deterministic shuffle
 
