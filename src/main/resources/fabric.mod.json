@@ -12,6 +12,7 @@
     "sources": "https://github.com/ff-tech-xyz/whostoppedthemusic"
   },
   "license": "MIT",
+  "icon": "assets/whostoppedthemusic/icon.png",
   "environment": "client",
   "entrypoints": {},
   "mixins": [
