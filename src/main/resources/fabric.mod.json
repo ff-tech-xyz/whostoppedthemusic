@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "id": "whostoppedthemusic",
   "version": "${version}",
-  "name": "Who Stopped The Music",
-  "description": "Client-side music controls for Minecraft 26.2: removes vanilla silence gaps, shows compact Now Playing notices, adds Music Settings, and uses deterministic shuffle for selected soundtrack and music-disc songs.",
+  "name": "Who Stopped The Music — NON-DEPLOYABLE SCAFFOLD",
+  "description": "Structural clean-rebuild groundwork only. The released gameplay implementation is absent; this jar deliberately fails during client initialization and must not be distributed or installed.",
   "authors": [
     "Phred2026"
   ],
@@ -14,10 +14,11 @@
   "license": "MIT",
   "icon": "assets/whostoppedthemusic/icon.png",
   "environment": "client",
-  "entrypoints": {},
-  "mixins": [
-    "whostoppedthemusic.mixins.json"
-  ],
+  "entrypoints": {
+    "client": [
+      "xyz.pyrehaven.whostoppedthemusic.WhoStoppedTheMusicClient"
+    ]
+  },
   "depends": {
     "fabricloader": ">=0.19.3",
     "minecraft": "~26.2",

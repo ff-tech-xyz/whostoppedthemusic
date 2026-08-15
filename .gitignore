@@ -2,6 +2,7 @@
 build/
 out/
 run/
+runs/
 .idea/
 *.iml
 .vscode/
