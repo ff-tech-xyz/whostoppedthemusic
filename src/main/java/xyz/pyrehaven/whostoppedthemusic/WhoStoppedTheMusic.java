@@ -16,6 +16,9 @@ import net.minecraft.resources.Identifier;
 import org.slf4j.LoggerFactory;
 import xyz.pyrehaven.whostoppedthemusic.ui.CassetteWidget;
 import xyz.pyrehaven.whostoppedthemusic.ui.MusicScreen;
+import xyz.pyrehaven.whostoppedthemusic.ui.Theme;
+import xyz.pyrehaven.whostoppedthemusic.music.MusicDirector;
+import net.minecraft.network.chat.Component;
 
 public final class WhoStoppedTheMusic implements ClientModInitializer {
     @Override
@@ -36,7 +39,15 @@ public final class WhoStoppedTheMusic implements ClientModInitializer {
         });
         ScreenEvents.AFTER_INIT.register((client, screen, width, height) -> {
             if (screen instanceof PauseScreen pause && pause.showsPauseMenu()) {
-                Screens.getWidgets(screen).add(new CassetteWidget(client, pause, settings));
+                var cassette = new CassetteWidget(client, pause, settings);
+                Screens.getWidgets(screen).add(cassette);
+                var next = Theme.button(cassette.getRight() + 4, 11, 28, Component.literal(">"),
+                        button -> MusicDirector.get(client).next());
+                next.setTooltip(net.minecraft.client.gui.components.Tooltip.create(
+                        Component.translatable("whostoppedthemusic.next")));
+                Screens.getWidgets(screen).add(next);
+                ScreenEvents.beforeExtract(screen).register((current, graphics, mouseX, mouseY, delta) ->
+                        next.active = MusicDirector.get(client).canNext());
             }
         });
         LoggerFactory.getLogger("whostoppedthemusic").info("Who Stopped The Music 1.2.0 loaded");

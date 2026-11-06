@@ -4,13 +4,13 @@
 
 Who Stopped The Music is a client-side Fabric mod that lets players choose what music Minecraft plays. It plugs into vanilla's own music player instead of running a second one next to it. It has three modes:
 
-- **Vanilla:** the mod stays out of the way and Minecraft picks music exactly as normal.
+- **Vanilla:** Minecraft selects the music. Previous, Pause/Resume and Next control its active background music without affecting Records or sound effects.
 - **Basic:** one song list for the whole game. Tick the songs you want and get play, stop, previous, next and shuffle controls.
 - **Custom:** every place music can play (each biome pool, the Nether, the End, underwater, creative, the title screen and so on) is a button. Inside each one you choose the songs and give each a weight from 1 to 30.
 
 Players can also drop their own `.mp3` and `.ogg` files into a `music` folder, or drag them onto the Add Songs screen, and use them in Basic or Custom. Music discs can be used too.
 
-Version 1.2.0 is a **complete rebuild**. None of the 1.1.x code, build setup or extra folders carries over.
+Version 1.2.0 is a **complete rebuild**. The compact cassette artwork/placement is ported from main; the old controller, build setup and extra folders do not carry over.
 
 ## Target
 
@@ -34,16 +34,25 @@ A **tag** in this mod is one of those pools. Our hooks sit inside steps 1, 4 and
 ## Structure
 
 Current implemented slice (2026-11-06): Settings and first-launch Constant, the M
-MusicScreen with vanilla option widgets and Vanilla body, and a clickable pause
-cassette. Basic/Custom and the library/playback hooks below remain planned, not
-implemented. This slice defaults to Vanilla, not Basic. Jukebox is saved only;
-its playback effect belongs to function 8.
+MusicScreen with a bare tape on the left and settings/transport on the right,
+and a compact top pause-menu cassette with Next. Vanilla is the only mode;
+Basic/Custom, library and custom files below remain planned. Jukebox is saved
+only; its playback effect belongs to function 8.
 
-The cassette sits at the bottom of the pause menu, away from vanilla's top-left
-song line. When that line is present the cassette says only “Music settings”,
-not the song a second time. Otherwise it reads the actual active music instance
-and vanilla's translation key, or says nothing is playing. A read-only
-`mixin/MusicManagerAccessor.java` exposes that instance; it changes no playback.
+The compact cassette retains its player housing, main's centered width/30-pixel
+height and y=6 placement. Its title always comes from the actual music instance;
+the duplicate vanilla pause song line is suppressed without changing the toast
+option or in-game toast. Clicking the tape opens MusicScreen. Both tape views
+put one scrolling/clipped title between two reels and report silence, pause or
+mute truthfully.
+
+`MusicDirector` belongs to each vanilla MusicManager. It observes successfully
+started, resolved sounds, retains up to 64 history entries, and disables Previous
+without history. Previous replays that exact Sound with its original pool identity;
+Next calls vanilla startPlaying with the current situational Music. Pause/Resume
+uses only currentMusic's channel and preserves its playback position. A held pause
+freezes MusicManager.tick; SoundEngine.resume reapplies it after vanilla resumes
+menu audio. No extra tick loop, deck, global mute or Records/SFX control exists.
 
 ```text
 whostoppedthemusic/
@@ -86,8 +95,8 @@ whostoppedthemusic/
     │   │   │   │   # Pure logic, no Minecraft classes: weighted shuffle "deck" with history
     │   │   │   │   # for previous/next. Fully unit tested.
     │   │   │   ├── MusicDirector.java
-    │   │   │   │   # The only place that decides what plays: mode -> which deck -> which track.
-    │   │   │   │   # Owns Play / Stop / Previous / Next / Shuffle and play-now.
+    │   │   │   │   # Implemented vanilla transport, resolved-song history and channel pause.
+    │   │   │   │   # Later owns Basic/Custom selection; no deck/library behavior yet.
     │   │   │   ├── TrackSoundInstance.java
     │   │   │   │   # The sound instance for a chosen track. Its identifier stays the pool id so
     │   │   │   │   # vanilla's pool-change logic keeps working. Resolves to the chosen file.
@@ -100,13 +109,15 @@ whostoppedthemusic/
     │   │   │       # open the folder. Never runs on a timer.
     │   │   ├── ui/
     │   │   │   ├── Theme.java               # PyreHaven colours, spacing and text styles in one place
-    │   │   │   ├── MusicScreen.java         # root screen: mode, shared settings row, body for the mode
+    │   │   │   ├── MusicScreen.java         # left bare tape; right mode/settings/transport and Music volume
+    │   │   │   ├── CassetteArtwork.java     # shared port of main's shell, label and crossed reels
+    │   │   │   ├── MusicVolumeSlider.java   # vertical view of vanilla's Music option; keyboard and drag
     │   │   │   ├── BasicPanel.java          # Basic body: search, song list, controls
     │   │   │   ├── CustomPanel.java         # Custom body: grid of tag buttons
     │   │   │   ├── TagEditorScreen.java     # picker | songs in tag | song settings
     │   │   │   ├── AddSongsScreen.java      # drop zone, your songs list, remove, open folder
     │   │   │   ├── SongToast.java           # our Now Playing toast (vanilla Toast interface)
-    │   │   │   ├── CassetteWidget.java      # pause-menu cassette: song/silence or settings link; no transport yet
+    │   │   │   ├── CassetteWidget.java      # top compact cassette, live title and settings link
     │   │   │   └── widget/
     │   │   │       ├── TrackRow.java        # checkbox + title (scrolls if long) + play button
     │   │   │       ├── TrackList.java       # scrolling list of TrackRows with section headers
@@ -114,8 +125,11 @@ whostoppedthemusic/
     │   │   │       └── WeightSlider.java    # 1-30 slider with "5 in 34" chance text
     │   │   └── mixin/
     │   │       ├── MusicManagerAccessor.java        # currentMusic read-only, truthful cassette status
-    │   │       ├── MusicManagerMixin.java           # planned music hooks (see "Hooks")
-    │   │       ├── PauseScreenMixin.java            # hides vanilla's pause-menu music line in Basic/Custom
+    │   │       ├── MusicManagerMixin.java           # owns director; observes starts, resolves history, holds pause
+    │   │       ├── PauseScreenMixin.java            # hides duplicate vanilla pause-menu song line
+    │   │       ├── SoundManagerAccessor.java        # read-only sound engine access for current music channel
+    │   │       ├── SoundEngineAccessor.java         # read-only instance/channel map
+    │   │       ├── SoundEngineMixin.java            # reapplies music-only pause after vanilla resume
     │   │       ├── ClientJukeboxMixin.java          # client-side jukebox start/stop -> JukeboxWatcher
     │   │       └── WeighedSoundEventsAccessor.java  # read-only access to a pool's entries (accessor, no logic)
     │   └── resources/
@@ -150,9 +164,9 @@ whostoppedthemusic/
 ## Modes in detail
 
 ### Vanilla
-- Song choice, the toast and the pause-menu music line are all fully vanilla.
-- The shared settings row shows volumes, Music Frequency, Music Toast and Jukebox. Jukebox is currently saved only; its effect will apply in every mode with function 8.
-- The body says one line: Minecraft picks the music.
+- Song selection and in-game toast stay vanilla. The compact cassette replaces the pause song line.
+- Left: enlarged bare tape, with one live title between two reels. Right: inert Vanilla button, Frequency, saved-only Jukebox and Previous/Pause/Resume/Next. A vertical Music volume slider is at the far right.
+- Master and Music Toast remain in vanilla Options, not this screen. Music and Frequency write the existing vanilla options; Jukebox writes Settings only.
 
 ### Basic
 - There is **one pool for the whole game**: title screen, every biome and dimension, underwater, creative, the dragon fight and the credits. Vanilla never switches pools, so a song carries on when you change biome or leave the world.
@@ -177,47 +191,45 @@ whostoppedthemusic/
 
 ## The screen
 
-The implemented slice has a fixed “Mode: Vanilla” label. Mode cycling only arrives
-with the later bodies/playback; there are no pretend playback or inactive mode
-buttons. The diagram below describes the complete planned screen, not current
-Basic/Custom functionality. The four shared Minecraft controls are vanilla's own
-widgets; Theme styles the surrounding screen, Jukebox/Done buttons and cassette.
+OG Moo-cow's supplied sketches and revised contract govern this screen. The
+implemented mode button says exactly “Vanilla” and does nothing. Basic/Custom
+cycling arrives only with those modes. Theme owns the settings/transport controls
+as well as the surrounding dark surfaces; no player housing surrounds the large tape.
 
 ```text
-┌──────────────────────────────────────────────────────────────┐
-│              Who Stopped The Music      [ Mode: Basic ▸ ]    │  click Mode to cycle Vanilla → Basic → Custom
-│  Master ▬▬▬▬▬●▬  Music ▬▬▬▬●▬▬  [Frequency: Constant]         │  shared row, every mode
-│  [Music Toast: Pause and Toast]  [Jukebox: Pause music]      │
-├──────────────────────────────────────────────────────────────┤
-│  body for the current mode                                   │
-│  Basic: [search] song list (left) | now playing, ◀ ■ ▶,      │
-│         Shuffle, Select/Deselect All, Add Songs (right)      │
-│  Custom: tag button grid + Add Songs                         │
-│  Vanilla: "Minecraft picks the music."                       │
-├──────────────────────────────────────────────────────────────┤
-│                           [ Done ]                           │
-└──────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────┐
+│ Who Stopped The Music                                      │
+│                               [ Vanilla             ] Music│
+│  ┌──── bare tape ──────────┐   [ Frequency: Constant  ]   │  │
+│  │ [reel] song title [reel]│   [ Jukebox: Pause music ]   ●  │
+│  └────────────────────────┘   [ < ] [ || / > ] [ > ]     │  │
+│                                                        70% │
+│                         [ Done ]                           │
+└────────────────────────────────────────────────────────────┘
 ```
 
-- Master and Music volume, Music Frequency and Music Toast are **vanilla's own options**, created from `minecraft.options` (`getSoundSourceOptionInstance(...)`, `musicFrequency()`, `musicToast()`). That way they always match the vanilla settings screen.
+- Music volume and Frequency use **vanilla's own options** from `minecraft.options`. Their themed views update those options directly and save on closing; no duplicate volume/frequency state exists.
 - The screen opens with **M** (rebindable in Controls → Who Stopped The Music) or by clicking the pause-menu cassette.
 - **PyreHaven style:** `Theme.java` owns orange `#E46011`, blue `#27607C`, glow `#4FA8D8`, background `#070B10`, card `#0E141C`, text `#F2F4F7`, and layout dimensions. Orange is the main accent; blue/glow mark edges and focus. **No logo anywhere in the UI.**
-- The UI must work at GUI scales 1–4 and down to a 320×240 window. Narrow windows stack panels instead of overlapping.
+- The UI must work at GUI scales 1–4 and down to a 320×240 window. Narrow windows shrink the tape and right column while preserving left/right placement; titles scroll inside their reel window.
 
 ## Hooks
 
-The goal is the fewest hooks possible, all inside calls vanilla already makes. Method names marked **(confirm)** were not checked against 26.3 source while writing this. Check them before building on them.
+Implemented hooks are described above and checked against 26.3 bytecode and the
+packaged client. The Basic/Custom and jukebox extensions below remain planned;
+method names marked **(confirm)** still need checking when those features begin.
 
 1. **`MusicManagerMixin`**
-   - `tick()`: wrap the `getSituationalMusic()` call.
+   - Implemented: hold `tick()` only during an explicit transport pause; observe `startPlaying(Music)` results and substitute an exact historical sound only for Previous; clear held pause on `stopPlaying()`.
+   - Planned: wrap the `getSituationalMusic()` call.
      - **Basic:** return one constant `Music` (`whostoppedthemusic:basic`, built with `Holder.direct`, vanilla `GAME` delays, `replaceCurrentMusic = false`).
      - **Vanilla / Custom:** pass vanilla's answer through.
      - **Jukebox set to Pause and a nearby jukebox is playing:** fade the current song and hold the next one.
-   - `startPlaying(Music)`: wrap the creation of the sound instance (confirm the exact call, expected `SimpleSoundInstance.forMusic`).
-     - **Vanilla:** unchanged.
+   - `startPlaying(Music)`: the verified `SimpleSoundInstance.forMusic` call is the existing sound-selection seam.
+     - **Vanilla:** normal starts unchanged; Previous uses its resolved historical sound.
      - **Basic / Custom:** ask `MusicDirector` for a track for this pool. Build a `TrackSoundInstance` whose identifier is the pool id. If there's no track, start nothing.
    - `showNowPlayingToastIfNeeded()`: in Basic/Custom, cancel vanilla's toast and show `SongToast` instead, following `options.musicToast()`. This is how the player never sees two toasts.
-2. **`PauseScreenMixin`:** in Basic/Custom, skip the pause screen's call that draws vanilla's music line (confirm where `NowPlayingToast.extractToast` is called). The cassette is added through Fabric `ScreenEvents.AFTER_INIT`, not this mixin.
+2. **`PauseScreenMixin`:** implemented: return false from `rendersNowPlayingToast()` for the full pause menu so the compact cassette owns the title. The cassette and Next are added through Fabric `ScreenEvents.AFTER_INIT`, not this mixin. `SoundEngineMixin` reapplies only a held music pause after `resume`; accessors expose its existing channel without replacing the sound engine.
 3. **`ClientJukeboxMixin`:** the client method that starts and stops a jukebox song at a block position (confirm the class in 26.3; it was `LevelRenderer.playJukeboxSong` / `stopJukeboxSong` in 1.21). It tells `JukeboxWatcher`.
 4. **`WeighedSoundEventsAccessor`:** reads a pool's weighted entries so `TrackLibrary` can list them. Entries that point to another event are followed recursively.
 
@@ -320,9 +332,11 @@ POM/jar/sources jar under that Maven path, the public GitHub release tag above,
 and `https://www.gnu.org/licenses/old-licenses/lgpl-2.1.txt`.
 
 Function 1 introduced the packaged-client title-screen test. The Vanilla UI slice
-extends that same test to first-launch Constant, M/rebinding, the real vanilla
-options and disk reload, Jukebox persistence, cassette navigation, active vanilla
-song/silence and 320×240 widget bounds/non-overlap. Four `SettingsTest` cases cover
+extends that same test to first-launch Constant (after all startup callbacks),
+M/rebinding, real vanilla options and disk reload, Jukebox persistence, top cassette
+navigation, exact historical Previous, situational Next, channel Pause/Resume,
+Records/non-Music isolation, active song/silence and 320×240 placement/bounds/non-overlap.
+Four `SettingsTest` cases cover
 defaults, first-run idempotence, round trip/unknown keys/temp cleanup, corrupt
 file recovery and failed first-run initialization. CI rejects missing/empty/skipped
 JUnit reports, missing UI screenshots or pass marker, and source-output loading

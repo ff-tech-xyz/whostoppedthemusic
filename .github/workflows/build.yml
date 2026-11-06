@@ -54,10 +54,10 @@ jobs:
           print(f'PASS {len(cases)} unit cases, no failures/errors/skips')
           log = (runtime / 'evidence/ci-client.log').read_text()
           assert log.count('Who Stopped The Music 1.2.0 loaded') == 1
-          assert log.count('WHOSTOPPEDTHEMUSIC CLIENT PASS: first-run Constant, Vanilla UI, M/rebind, options/persistence, pause cassette, live song/silence, 320x240') == 1, 'Missing or empty client suite'
+          assert log.count('WHOSTOPPEDTHEMUSIC CLIENT PASS: first-run Constant, Vanilla UI, M/rebind, options/persistence, top cassette, live song/silence, Next/Previous/Pause/Resume, music-only volume, inert mode, 320x240') == 1, 'Missing or empty client suite'
           loaded = (runtime / 'evidence/client-classes.log').read_text()
           assert f'xyz.pyrehaven.whostoppedthemusic.WhoStoppedTheMusic source: file:{runtime}/build/libs/whostoppedthemusic-1.2.0.jar' in loaded
-          for name in ['vanilla', 'cassette-vanilla-line', 'cassette-song', 'cassette-silence', 'vanilla-small']:
+          for name in ['vanilla', 'cassette-vanilla-line', 'cassette-song', 'cassette-silence', 'paused', 'transport', 'vanilla-small']:
               assert list((runtime / 'run/clientGameTest/screenshots').glob(f'*_whostoppedthemusic-{name}.png'))
           print('PASS packaged Vanilla UI, first launch, controls/persistence, key binding, cassette and small window')
           PY

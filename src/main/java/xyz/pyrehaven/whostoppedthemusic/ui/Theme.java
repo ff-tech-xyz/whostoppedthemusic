@@ -20,14 +20,7 @@ public final class Theme {
     public static final int CONTROL_HEIGHT = 20;
     public static final int ROW = CONTROL_HEIGHT + GAP;
     public static final int MAX_WIDTH = 600;
-    public static final int TWO_COLUMN_WIDTH = 420;
-    public static final int HEADER_HEIGHT = 46;
     public static final int DONE_WIDTH = 120;
-    public static final int CASSETTE_WIDTH = 276;
-    public static final int CASSETTE_HEIGHT = 30;
-    public static final int CASSETTE_ICON = 32;
-    public static final int REEL = 6;
-    public static final int REEL_INSET = 7;
 
     private Theme() {
     }
@@ -40,7 +33,7 @@ public final class Theme {
                 graphics.outline(getX(), getY(), getWidth(), getHeight(), isHoveredOrFocused() ? GLOW : BLUE);
                 graphics.fill(getX(), getY(), getX() + ACCENT, getBottom(), ORANGE);
                 graphics.centeredText(net.minecraft.client.Minecraft.getInstance().font, getMessage(),
-                        getX() + getWidth() / 2, getY() + GAP, TEXT);
+                        getX() + getWidth() / 2, getY() + GAP, active ? TEXT : BLUE);
             }
         };
     }
