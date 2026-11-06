@@ -33,6 +33,18 @@ A **tag** in this mod is one of those pools. Our hooks sit inside steps 1, 4 and
 
 ## Structure
 
+Current implemented slice (2026-11-06): Settings and first-launch Constant, the M
+MusicScreen with vanilla option widgets and Vanilla body, and a clickable pause
+cassette. Basic/Custom and the library/playback hooks below remain planned, not
+implemented. This slice defaults to Vanilla, not Basic. Jukebox is saved only;
+its playback effect belongs to function 8.
+
+The cassette sits at the bottom of the pause menu, away from vanilla's top-left
+song line. When that line is present the cassette says only “Music settings”,
+not the song a second time. Otherwise it reads the actual active music instance
+and vanilla's translation key, or says nothing is playing. A read-only
+`mixin/MusicManagerAccessor.java` exposes that instance; it changes no playback.
+
 ```text
 whostoppedthemusic/
 ├── .github/workflows/build.yml      # CI: build, unit tests, client game test (copied from RealSize, adapted)
@@ -56,8 +68,8 @@ whostoppedthemusic/
     │   │   ├── WhoStoppedTheMusic.java
     │   │   │   # Client entrypoint. Wiring only: loads Settings, registers the M key, the
     │   │   │   # pause-screen cassette (ScreenEvents.AFTER_INIT) and the TrackLibrary reload
-    │   │   │   # listener. Applies the first-launch Music Frequency. No music logic.
-    │   │   ├── Mode.java                    # enum VANILLA, BASIC, CUSTOM
+    │   │   │   # listener (later). Applies first-launch Music Frequency at CLIENT_STARTED. No music logic.
+    │   │   ├── Mode.java                    # VANILLA now; BASIC/CUSTOM added with their playback
     │   │   ├── JukeboxSetting.java          # enum PLAY_OVER, PAUSE_MUSIC
     │   │   ├── Settings.java
     │   │   │   # The only owner of mod settings. JSON at config/whostoppedthemusic.json,
@@ -94,14 +106,15 @@ whostoppedthemusic/
     │   │   │   ├── TagEditorScreen.java     # picker | songs in tag | song settings
     │   │   │   ├── AddSongsScreen.java      # drop zone, your songs list, remove, open folder
     │   │   │   ├── SongToast.java           # our Now Playing toast (vanilla Toast interface)
-    │   │   │   ├── CassetteWidget.java      # pause-menu cassette: current song, prev/next, click to open
+    │   │   │   ├── CassetteWidget.java      # pause-menu cassette: song/silence or settings link; no transport yet
     │   │   │   └── widget/
     │   │   │       ├── TrackRow.java        # checkbox + title (scrolls if long) + play button
     │   │   │       ├── TrackList.java       # scrolling list of TrackRows with section headers
     │   │   │       ├── TagButton.java       # tag name, song count, "edited" marker
     │   │   │       └── WeightSlider.java    # 1-30 slider with "5 in 34" chance text
     │   │   └── mixin/
-    │   │       ├── MusicManagerMixin.java           # the music hooks (see "Hooks")
+    │   │       ├── MusicManagerAccessor.java        # currentMusic read-only, truthful cassette status
+    │   │       ├── MusicManagerMixin.java           # planned music hooks (see "Hooks")
     │   │       ├── PauseScreenMixin.java            # hides vanilla's pause-menu music line in Basic/Custom
     │   │       ├── ClientJukeboxMixin.java          # client-side jukebox start/stop -> JukeboxWatcher
     │   │       └── WeighedSoundEventsAccessor.java  # read-only access to a pool's entries (accessor, no logic)
@@ -118,7 +131,7 @@ whostoppedthemusic/
     │   └── MusicFolderTest.java     # file filter, copy, duplicate names, delete
     └── gametest/
         ├── java/xyz/pyrehaven/whostoppedthemusic/
-        │   └── ClientSmokeGameTest.java # boots the packaged jar; screen/mode coverage added with function 14
+        │   └── ClientSmokeGameTest.java # packaged Vanilla UI, first-run Constant, options/persistence, keys, cassette, small window
         └── resources/fabric.mod.json   # development-only client test entrypoint
 ```
 
@@ -138,7 +151,7 @@ whostoppedthemusic/
 
 ### Vanilla
 - Song choice, the toast and the pause-menu music line are all fully vanilla.
-- The shared settings row still shows (volumes, Music Frequency, Music Toast, Jukebox), and the Jukebox setting still applies.
+- The shared settings row shows volumes, Music Frequency, Music Toast and Jukebox. Jukebox is currently saved only; its effect will apply in every mode with function 8.
 - The body says one line: Minecraft picks the music.
 
 ### Basic
@@ -164,6 +177,12 @@ whostoppedthemusic/
 
 ## The screen
 
+The implemented slice has a fixed “Mode: Vanilla” label. Mode cycling only arrives
+with the later bodies/playback; there are no pretend playback or inactive mode
+buttons. The diagram below describes the complete planned screen, not current
+Basic/Custom functionality. The four shared Minecraft controls are vanilla's own
+widgets; Theme styles the surrounding screen, Jukebox/Done buttons and cassette.
+
 ```text
 ┌──────────────────────────────────────────────────────────────┐
 │              Who Stopped The Music      [ Mode: Basic ▸ ]    │  click Mode to cycle Vanilla → Basic → Custom
@@ -182,7 +201,7 @@ whostoppedthemusic/
 
 - Master and Music volume, Music Frequency and Music Toast are **vanilla's own options**, created from `minecraft.options` (`getSoundSourceOptionInstance(...)`, `musicFrequency()`, `musicToast()`). That way they always match the vanilla settings screen.
 - The screen opens with **M** (rebindable in Controls → Who Stopped The Music) or by clicking the pause-menu cassette.
-- **PyreHaven style:** take the exact colour values from PyreHaven-core's brand tokens. PYRE orange is the main accent (active buttons, the selected mode, weights); HAVEN blue is for focus, selection and the now-playing text. Panels are dark. **No logo anywhere in the UI.** Every colour and size lives in `Theme.java`.
+- **PyreHaven style:** `Theme.java` owns orange `#E46011`, blue `#27607C`, glow `#4FA8D8`, background `#070B10`, card `#0E141C`, text `#F2F4F7`, and layout dimensions. Orange is the main accent; blue/glow mark edges and focus. **No logo anywhere in the UI.**
 - The UI must work at GUI scales 1–4 and down to a 320×240 window. Narrow windows stack panels instead of overlapping.
 
 ## Hooks
@@ -236,13 +255,13 @@ Fabric API instead of mixins:
 
 ## Settings file
 
-`config/whostoppedthemusic.json`. Unknown keys are ignored. A broken file is renamed to `.broken` and defaults are used. No migration from 1.1.x: the old `whostoppedthemusic.properties` is ignored.
+`config/whostoppedthemusic.json`. Unknown keys are ignored. A broken file is renamed to `.broken` and defaults are used. No migration from 1.1.x: the old `whostoppedthemusic.properties` is ignored. Currently stores configVersion, firstRunDone, mode (VANILLA) and jukebox. The Basic/Custom fields below are the later schema, not implemented data yet.
 
 ```json
 {
   "configVersion": 1,
   "firstRunDone": true,
-  "mode": "BASIC",
+  "mode": "VANILLA",
   "jukebox": "PAUSE_MUSIC",
   "basic": {
     "shuffle": true,
@@ -300,10 +319,14 @@ Sources: Maven Central `dev/mccue/jlayer-decoder/maven-metadata.xml`, the releas
 POM/jar/sources jar under that Maven path, the public GitHub release tag above,
 and `https://www.gnu.org/licenses/old-licenses/lgpl-2.1.txt`.
 
-Function 1 has one packaged-client title-screen test. There are no unit tests
-yet: CI explicitly reports them as not run until function 2 introduces
-`SettingsTest`. Once unit sources exist, missing/empty/skipped JUnit reports fail
-CI; a missing client pass marker also fails CI. No empty suite is called passed.
+Function 1 introduced the packaged-client title-screen test. The Vanilla UI slice
+extends that same test to first-launch Constant, M/rebinding, the real vanilla
+options and disk reload, Jukebox persistence, cassette navigation, active vanilla
+song/silence and 320×240 widget bounds/non-overlap. Four `SettingsTest` cases cover
+defaults, first-run idempotence, round trip/unknown keys/temp cleanup, corrupt
+file recovery and failed first-run initialization. CI rejects missing/empty/skipped
+JUnit reports, missing UI screenshots or pass marker, and source-output loading
+instead of the packaged jar. No empty suite is called passed.
 
 ## How to build
 
@@ -385,7 +408,7 @@ The jar lands in `~/runtime/whostoppedthemusic/build/libs/whostoppedthemusic-1.2
 ## Rules for this codebase
 
 - **One owner per job:** settings only in `Settings`, song choice only in `MusicDirector`, the track list only in `TrackLibrary`. No second manager, wrapper or fallback beside a broken path. Fix the path itself.
-- **Mixins only where Fabric API has no hook**, kept to the four listed above, each doing one thing.
+- **Mixins only where Fabric API has no hook**: the four planned hooks above, plus the read-only currentMusic accessor used by the Vanilla cassette. Each owns one job.
 - **No new tick work.** The single tick listener only checks the key.
 - **No hard-coded English** in Java. All text goes in `en_us.json`.
 - **No hard-coded colours or sizes** outside `Theme.java`.

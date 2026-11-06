@@ -36,7 +36,7 @@ jobs:
           mkdir -p ../../runtime/whostoppedthemusic/evidence
           ./gradlew --no-daemon clean build --console=plain 2>&1 | tee ../../runtime/whostoppedthemusic/evidence/ci-build.log
           sha256sum ../../runtime/whostoppedthemusic/build/libs/whostoppedthemusic-1.2.0.jar > ../../runtime/whostoppedthemusic/evidence/artifact.sha256
-      - name: Boot the packaged client to the title screen
+      - name: Exercise packaged Vanilla UI and persistence
         run: |
           set -euo pipefail
           xvfb-run -a ./gradlew --no-daemon runClientGameTest --console=plain 2>&1 | tee ../../runtime/whostoppedthemusic/evidence/ci-client.log
@@ -47,22 +47,19 @@ jobs:
           import xml.etree.ElementTree as ET
           runtime = Path('../../runtime/whostoppedthemusic').resolve()
           reports = list((runtime / 'build/test-results/test').glob('TEST-*.xml'))
-          unit_sources = list(Path('src/test').rglob('*.java'))
-          if unit_sources or reports:
-              assert reports, 'Missing JUnit reports'
-              cases = [c for p in reports for c in ET.parse(p).getroot().iter('testcase')]
-              assert cases, 'Empty behavioral suite'
-              assert all(c.find('failure') is None and c.find('error') is None and c.find('skipped') is None for c in cases)
-              print(f'PASS {len(cases)} unit cases, no failures/errors/skips')
-          else:
-              print('NOT RUN: no unit tests in function 1; SettingsTest begins in function 2')
+          assert reports, 'Missing JUnit reports'
+          cases = [c for p in reports for c in ET.parse(p).getroot().iter('testcase')]
+          assert cases, 'Empty behavioral suite'
+          assert all(c.find('failure') is None and c.find('error') is None and c.find('skipped') is None for c in cases)
+          print(f'PASS {len(cases)} unit cases, no failures/errors/skips')
           log = (runtime / 'evidence/ci-client.log').read_text()
           assert log.count('Who Stopped The Music 1.2.0 loaded') == 1
-          assert log.count('WHOSTOPPEDTHEMUSIC CLIENT PASS: title screen') == 1, 'Missing or empty client suite'
+          assert log.count('WHOSTOPPEDTHEMUSIC CLIENT PASS: first-run Constant, Vanilla UI, M/rebind, options/persistence, pause cassette, live song/silence, 320x240') == 1, 'Missing or empty client suite'
           loaded = (runtime / 'evidence/client-classes.log').read_text()
           assert f'xyz.pyrehaven.whostoppedthemusic.WhoStoppedTheMusic source: file:{runtime}/build/libs/whostoppedthemusic-1.2.0.jar' in loaded
-          assert list((runtime / 'run/clientGameTest/screenshots').glob('*_whostoppedthemusic-title.png'))
-          print('PASS one client title-screen case; entrypoint loaded from packaged jar')
+          for name in ['vanilla', 'cassette-vanilla-line', 'cassette-song', 'cassette-silence', 'vanilla-small']:
+              assert list((runtime / 'run/clientGameTest/screenshots').glob(f'*_whostoppedthemusic-{name}.png'))
+          print('PASS packaged Vanilla UI, first launch, controls/persistence, key binding, cassette and small window')
           PY
           sha256sum -c ../../runtime/whostoppedthemusic/evidence/artifact.sha256
       - name: Retain the tested JAR and verification evidence
