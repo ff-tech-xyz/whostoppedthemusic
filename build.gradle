@@ -1,92 +1,88 @@
 plugins {
-	id 'fabric-loom' version "${loom_version}"
-	id 'maven-publish'
+    id 'net.fabricmc.fabric-loom' version "${loom_version}"
 }
 
-version = project.mod_version
 group = project.maven_group
+version = project.mod_version
 
 base {
-	archivesName = project.archives_base_name
+    archivesName = project.archives_base_name
+}
+
+layout.buildDirectory = file('../../runtime/whostoppedthemusic/build')
+
+loom {
+    clientOnlyMinecraftJar()
+    mods {
+        whostoppedthemusic {
+            sourceSet sourceSets.main
+        }
+    }
+}
+
+fabricApi {
+    configureTests {
+        createSourceSet = true
+        modId = 'whostoppedthemusic-test'
+        enableGameTests = false
+        enableClientGameTests = true
+    }
+}
+
+// configureTests supplies a checkout-local default; keep disposable data outside source.
+loom.runs.configureEach {
+    runDirectory.set(file("../../runtime/whostoppedthemusic/run/${name}"))
 }
 
 repositories {
-	maven {
-		url = uri("gradle/minecraft/local-maven")
-	}
-	mavenCentral()
-}
-
-def localMinecraftMetadataServer = {
-	def metadataDir = file("gradle/minecraft")
-	def server = com.sun.net.httpserver.HttpServer.create(new java.net.InetSocketAddress("127.0.0.1", 0), 0)
-	server.createContext("/26.2-custom.json") { exchange ->
-		byte[] body = new File(metadataDir, "26.2-custom.json").bytes
-		exchange.responseHeaders.add("Content-Type", "application/json")
-		exchange.sendResponseHeaders(200, body.length)
-		exchange.responseBody.write(body)
-		exchange.close()
-	}
-	server.start()
-	gradle.buildFinished { server.stop(0) }
-	return "http://127.0.0.1:${server.address.port}/26.2-custom.json"
-}.call()
-
-loom {
-	customMinecraftMetadata.set(localMinecraftMetadataServer)
-	clientOnlyMinecraftJar()
-	splitEnvironmentSourceSets()
-
-	mods {
-		"whostoppedthemusic" {
-			sourceSet sourceSets.main
-			sourceSet sourceSets.client
-		}
-	}
-}
-
-sourceSets {
-	main {
-		java { srcDirs = ['src/main/java'] }
-		resources { srcDirs = ['src/main/resources'] }
-	}
-	client {
-		java { srcDirs = ['src/client/java'] }
-		resources { srcDirs = ['src/client/resources'] }
-	}
+    mavenCentral()
 }
 
 dependencies {
-	minecraft "com.mojang:minecraft:${project.minecraft_version}"
-	mappings files("gradle/minecraft/identity-official-26.2.jar")
-	modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
-}
-
-processResources {
-	inputs.property "version", project.version
-
-	filesMatching("fabric.mod.json") {
-		expand "version": inputs.properties.version
-	}
-}
-
-tasks.withType(JavaCompile).configureEach {
-	it.options.release = 21
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+    implementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+    implementation "dev.mccue:jlayer-decoder:${project.jlayer_version}"
+    include "dev.mccue:jlayer-decoder:${project.jlayer_version}"
+    testImplementation "net.fabricmc:fabric-loader-junit:${project.loader_version}"
 }
 
 java {
-	withSourcesJar()
-	sourceCompatibility = JavaVersion.VERSION_21
-	targetCompatibility = JavaVersion.VERSION_21
+    toolchain.languageVersion = JavaLanguageVersion.of(25)
 }
 
-tasks.named('sourcesJar') {
-	exclude('fabric.mod.json')
+tasks.withType(JavaCompile).configureEach {
+    options.release = 25
 }
 
-jar {
-	from("LICENSE") {
-		rename { "${it}_${project.archives_base_name}" }
-	}
+tasks.named('test') {
+    useJUnitPlatform()
+    def testTemp = file('../../runtime/whostoppedthemusic/test-temp')
+    systemProperty 'java.io.tmpdir', testTemp.absolutePath
+    doFirst { testTemp.mkdirs() }
 }
 
+tasks.named('processResources') {
+    def metadata = [version: project.version, minecraft_version: project.minecraft_version,
+                    loader_version: project.loader_version, fabric_api_version: project.fabric_api_version]
+    inputs.properties metadata
+    filesMatching('fabric.mod.json') {
+        expand metadata
+    }
+}
+
+tasks.named('jar') {
+    from('LICENSE') {
+        rename { "LICENSE_${project.archives_base_name}" }
+    }
+    from('LICENSE_jlayer')
+}
+
+// Exercise the installable artifact, not an equivalent set of source outputs.
+tasks.named('runClientGameTest') {
+    dependsOn tasks.named('jar'), tasks.named('gametestClasses')
+    classpath = files(classpath.files).minus(sourceSets.main.output)
+            .plus(files(tasks.named('jar').flatMap { it.archiveFile }))
+    jvmArgs "-Xlog:class+load=info:file=${file('../../runtime/whostoppedthemusic/evidence/client-classes.log')}"
+    doFirst { file('../../runtime/whostoppedthemusic/evidence').mkdirs() }
+}

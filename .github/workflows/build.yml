@@ -1,0 +1,80 @@
+name: Verify Who Stopped The Music
+
+on:
+  push:
+    branches: ['update/1.2.0', 'main']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: whostoppedthemusic-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: workspaces/whostoppedthemusic
+        shell: bash
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          path: workspaces/whostoppedthemusic
+          persist-credentials: false
+      - uses: actions/setup-java@dded0888837ed1f317902acf8a20df0ad188d165 # v5.0.0
+        with:
+          distribution: temurin
+          java-version: '25.0.4+7.0.LTS'
+      - name: Build the client artifact and run available unit tests
+        run: |
+          set -euo pipefail
+          mkdir -p ../../runtime/whostoppedthemusic/evidence
+          ./gradlew --no-daemon clean build --console=plain 2>&1 | tee ../../runtime/whostoppedthemusic/evidence/ci-build.log
+          sha256sum ../../runtime/whostoppedthemusic/build/libs/whostoppedthemusic-1.2.0.jar > ../../runtime/whostoppedthemusic/evidence/artifact.sha256
+      - name: Boot the packaged client to the title screen
+        run: |
+          set -euo pipefail
+          xvfb-run -a ./gradlew --no-daemon runClientGameTest --console=plain 2>&1 | tee ../../runtime/whostoppedthemusic/evidence/ci-client.log
+      - name: Reject empty test results and require packaged class provenance
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          runtime = Path('../../runtime/whostoppedthemusic').resolve()
+          reports = list((runtime / 'build/test-results/test').glob('TEST-*.xml'))
+          unit_sources = list(Path('src/test').rglob('*.java'))
+          if unit_sources or reports:
+              assert reports, 'Missing JUnit reports'
+              cases = [c for p in reports for c in ET.parse(p).getroot().iter('testcase')]
+              assert cases, 'Empty behavioral suite'
+              assert all(c.find('failure') is None and c.find('error') is None and c.find('skipped') is None for c in cases)
+              print(f'PASS {len(cases)} unit cases, no failures/errors/skips')
+          else:
+              print('NOT RUN: no unit tests in function 1; SettingsTest begins in function 2')
+          log = (runtime / 'evidence/ci-client.log').read_text()
+          assert log.count('Who Stopped The Music 1.2.0 loaded') == 1
+          assert log.count('WHOSTOPPEDTHEMUSIC CLIENT PASS: title screen') == 1, 'Missing or empty client suite'
+          loaded = (runtime / 'evidence/client-classes.log').read_text()
+          assert f'xyz.pyrehaven.whostoppedthemusic.WhoStoppedTheMusic source: file:{runtime}/build/libs/whostoppedthemusic-1.2.0.jar' in loaded
+          assert list((runtime / 'run/clientGameTest/screenshots').glob('*_whostoppedthemusic-title.png'))
+          print('PASS one client title-screen case; entrypoint loaded from packaged jar')
+          PY
+          sha256sum -c ../../runtime/whostoppedthemusic/evidence/artifact.sha256
+      - name: Retain the tested JAR and verification evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: whostoppedthemusic-${{ github.sha }}
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            runtime/whostoppedthemusic/build/libs/*.jar
+            runtime/whostoppedthemusic/build/test-results/test/*.xml
+            runtime/whostoppedthemusic/run/clientGameTest/screenshots/*.png
+            runtime/whostoppedthemusic/evidence/*.log
+            runtime/whostoppedthemusic/evidence/artifact.sha256
