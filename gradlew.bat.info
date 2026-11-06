@@ -1,0 +1,5 @@
+What: Launches whostoppedthemusic Gradle tasks in Java on Windows, forwarding all supplied arguments, including publishing tasks.
+Touches: Repository build scripts and gradle/wrapper/; Java process; GRADLE_USER_HOME (default ~/.gradle) distributions/caches; project caches and configured build/task outputs.
+Sends: May download Gradle from services.gradle.org and dependencies/plugins from configured repositories; forwarded publishing tasks may send artifacts and credentials to configured services.
+Why: Maintains script documentation for OG Moo-cow's active-project inventory.
+Flags: Task/argument-dependent approval tags; forwarded publishing tasks may upload artifacts.
