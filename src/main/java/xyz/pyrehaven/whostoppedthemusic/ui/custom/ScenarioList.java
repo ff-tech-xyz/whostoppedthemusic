@@ -24,13 +24,19 @@ import xyz.pyrehaven.whostoppedthemusic.ui.Theme;
 public final class ScenarioList extends ContainerObjectSelectionList<ScenarioList.Row> {
     private final Settings settings;
     private final Consumer<ScenarioId> open;
+    private final boolean picker;
     private List<BiomeCatalog.Entry> biomes = List.of();
     private String query = "";
 
     public ScenarioList(Minecraft client, Settings settings, Consumer<ScenarioId> open) {
+        this(client, settings, open, false);
+    }
+
+    public ScenarioList(Minecraft client, Settings settings, Consumer<ScenarioId> open, boolean picker) {
         super(client, Theme.CONTROL_HEIGHT, Theme.CONTROL_HEIGHT, 0, Theme.SCENARIO_ROW);
         this.settings = settings;
         this.open = open;
+        this.picker = picker;
         refresh();
         filter("");
     }
@@ -93,7 +99,7 @@ public final class ScenarioList extends ContainerObjectSelectionList<ScenarioLis
         private Row(ScenarioId id, Component title) {
             this.id = id;
             this.title = title;
-            toggle = id != null && id.kind() == ScenarioId.Kind.SPECIAL && !ScenarioLabels.fixed(id)
+            toggle = !picker && id != null && id.kind() == ScenarioId.Kind.SPECIAL && !ScenarioLabels.fixed(id)
                     ? new Toggle(title, () -> config(id).active(), () -> settings.setScenario(id,
                             config(id).withActive(!config(id).active()), defaults(id))) : null;
             edit = new Button(0, 0, Theme.CONTROL_HEIGHT, Theme.SCENARIO_ROW - Theme.GAP, title,

@@ -16,6 +16,11 @@ public final class Theme {
     public static final int SCENARIO_FILL = 0xFFB4B4B4;
     public static final int SCENARIO_TEXT = 0xFF000000;
     public static final int SCENARIO_ROW = 34;
+    public static final int LIBRARY_ROW = 24;
+
+    public static final int EDITOR_BACK_WIDTH = 48;
+    public static final int INTEGER_LENGTH = 11;
+    public static final int PRIORITY_LABEL_WIDTH = 60;
     public static final int TOGGLE_WIDTH = 26;
     public static final int TOGGLE_HEIGHT = 12;
     public static final int POPUP_WIDTH = 196;
@@ -36,6 +41,9 @@ public final class Theme {
     public static final int ACCENT = 2;
     public static final int CONTROL_HEIGHT = 20;
     public static final int ROW = CONTROL_HEIGHT + GAP;
+    public static final int EDITOR_CONTROLS = ROW * 2 + LINE;
+    public static final int EDITOR_DETAIL = ROW * 2 + LINE;
+    public static final int MISSING_OVERLAY = 0x66737373;
     public static final int MAX_WIDTH = 600;
     public static final int DONE_WIDTH = 120;
     public static final int BASIC_TOP = 34;
@@ -85,10 +93,20 @@ public final class Theme {
     }
 
     public static Button button(int x, int y, int width, Component label, Button.OnPress action) {
+        return button(x, y, width, label, action, false);
+    }
+
+    public static Button scenarioButton(int x, int y, int width, Component label, Button.OnPress action) {
+        return button(x, y, width, label, action, true);
+    }
+
+    private static Button button(int x, int y, int width, Component label, Button.OnPress action, boolean gray) {
         return new Button(x, y, width, CONTROL_HEIGHT, label, action, supplier -> supplier.get()) {
+            private final OverflowText line = new OverflowText();
             @Override
             protected void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
-                settingContents(graphics, this);
+                if (gray) scenarioContents(graphics, this, getMessage(), line, getX() + GAP, getRight() - GAP);
+                else settingContents(graphics, this);
             }
         };
     }
@@ -98,6 +116,14 @@ public final class Theme {
         graphics.textRendererForWidget(button, GuiGraphicsExtractor.HoveredTextEffects.NONE)
                 .acceptScrollingWithDefaultCenter(button.getMessage().copy().withColor(button.active ? TEXT : BLUE),
                         button.getX() + GAP, button.getRight() - GAP, button.getY(), button.getBottom());
+    }
+
+    public static void scenarioContents(GuiGraphicsExtractor graphics, Button button, Component label, OverflowText line, int left, int right) {
+        buttonFrame(graphics, button, true);
+        var font = net.minecraft.client.Minecraft.getInstance().font;
+        int inset = Math.max(0, (right - left - font.width(label)) / 2);
+        line.draw(graphics, font, label, left + inset, right,
+                button.getY() + (button.getHeight() - font.lineHeight) / 2, SCENARIO_TEXT, false, false);
     }
 
     public static net.minecraft.client.gui.components.EditBox search(net.minecraft.client.gui.Font font) {
@@ -125,9 +151,13 @@ public final class Theme {
     }
 
     public static void buttonFrame(GuiGraphicsExtractor graphics, Button button) {
-        graphics.fill(button.getX(), button.getY(), button.getRight(), button.getBottom(), CARD);
+        buttonFrame(graphics, button, false);
+    }
+
+    public static void buttonFrame(GuiGraphicsExtractor graphics, Button button, boolean gray) {
+        graphics.fill(button.getX(), button.getY(), button.getRight(), button.getBottom(), gray ? SCENARIO_BOX : CARD);
         graphics.outline(button.getX(), button.getY(), button.getWidth(), button.getHeight(),
-                button.active && button.isHoveredOrFocused() ? GLOW : BLUE);
+                button.active && button.isHoveredOrFocused() ? gray ? SCENARIO_TEXT : GLOW : gray ? SCENARIO_BOX : BLUE);
         graphics.fill(button.getX(), button.getY(), button.getX() + ACCENT, button.getBottom(),
                 button.active ? ORANGE : BLUE);
     }

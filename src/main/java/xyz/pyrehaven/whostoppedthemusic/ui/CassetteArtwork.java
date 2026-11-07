@@ -29,6 +29,12 @@ public final class CassetteArtwork {
                 false, true, director.playing(track), reelAngle(director));
     }
 
+    public void drawMissing(GuiGraphicsExtractor graphics, AbstractWidget widget, Component title) {
+        draw(graphics, widget, new Track.Metadata(title, Component.empty()),
+                Component.translatable("whostoppedthemusic.missing"), false, false, true, false, 0);
+        graphics.fill(widget.getX(), widget.getY(), widget.getRight(), widget.getBottom(), Theme.MISSING_OVERLAY);
+    }
+
     /** Shared across widgets and screen rebuilds; transport remains owned by the director. */
     public static double reelAngle(MusicDirector director) {
         long now = System.nanoTime();

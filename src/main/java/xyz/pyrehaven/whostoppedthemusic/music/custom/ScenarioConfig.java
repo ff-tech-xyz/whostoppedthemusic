@@ -25,6 +25,26 @@ public record ScenarioConfig(int priority, boolean active, boolean interrupt, Fr
         return new ScenarioConfig(priority, value, interrupt, frequency, jukebox, mustBeOutside, yLevel, songs);
     }
 
+    public ScenarioConfig withPriority(int value) {
+        return new ScenarioConfig(value, active, interrupt, frequency, jukebox, mustBeOutside, yLevel, songs);
+    }
+
+    public ScenarioConfig withInterrupt(boolean value) {
+        return new ScenarioConfig(priority, active, value, frequency, jukebox, mustBeOutside, yLevel, songs);
+    }
+
+    public ScenarioConfig withOutside(boolean value) {
+        return new ScenarioConfig(priority, active, interrupt, frequency, jukebox, value, yLevel, songs);
+    }
+
+    public ScenarioConfig withYLevel(int value) {
+        return new ScenarioConfig(priority, active, interrupt, frequency, jukebox, mustBeOutside, value, songs);
+    }
+
+    public ScenarioConfig withSongs(List<Deck.Entry> value) {
+        return new ScenarioConfig(priority, active, interrupt, frequency, jukebox, mustBeOutside, yLevel, value);
+    }
+
     public ScenarioConfig {
         if (priority < 1 || priority > 10) throw new IllegalArgumentException("priority must be 1–10");
         Objects.requireNonNull(frequency);

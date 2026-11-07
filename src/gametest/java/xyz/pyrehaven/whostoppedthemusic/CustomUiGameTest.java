@@ -160,6 +160,8 @@ final class CustomUiGameTest {
             });
             search(context, "swamp");
             context.runOnClient(client -> check(rowButtons(client).stream().anyMatch(b -> b.getMessage().getString().contains("edited")), "edited list marker"));
+            server.runCommand("fillbiome -8 96 -8 8 112 8 minecraft:forest");
+            editor(context);
             context.getInput().resizeWindow(320, 240);
             context.runOnClient(client -> client.options.guiScale().set(1));
             context.waitTicks(5);
@@ -171,11 +173,215 @@ final class CustomUiGameTest {
                 click(client, rowButtons(client).stream().filter(b -> b.getMessage().getString().startsWith("Swamp")).findFirst().orElseThrow(), 0);
             });
             context.waitForScreen(ScenarioScreen.class);
-            popupCancels(context, "Frequency (Swamp)");
+            popupCancels(context, "Frequency:");
             context.getInput().pressKey(InputConstants.KEY_ESCAPE);
             context.waitForScreen(MusicScreen.class);
         }
         org.slf4j.LoggerFactory.getLogger("whostoppedthemusic-test").info("CUSTOM UI PASS: three-mode cycle, Basic vanilla frequency, both Add routes, registry/search/toggle, tied silence labels/actions, playing/edited rows, normal/narrow bounds/query retention, shared editor controls, popup no/Esc/outside exact-byte cancel and Yes disk/absent/future defaults");
+    }
+
+    private static ScenarioConfig config(Minecraft client, ScenarioId id) {
+        return WhoStoppedTheMusic.settings().scenario(id, MusicDirector.get(client).customPlayback().defaults(id).config());
+    }
+
+    private static void editor(ClientGameTestContext context) {
+        var forest = ScenarioId.biome("minecraft:forest");
+        var plains = ScenarioId.biome("minecraft:plains");
+        context.waitFor(client -> SituationReader.read(client).biome().equals(forest));
+        context.runOnClient(client -> {
+            var folder = client.gameDirectory.toPath().resolve("music");
+            try {
+                Files.createDirectories(folder);
+                for (var entry : java.util.Map.of("stereo.mp3", "Editor-check.mp3", "mono.ogg", "Editor-check.ogg").entrySet()) {
+                    try (var input = CustomUiGameTest.class.getResourceAsStream("/audio/" + entry.getKey())) {
+                        Files.copy(input, folder.resolve(entry.getValue()), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                    }
+                }
+            } catch (java.io.IOException error) { throw new java.io.UncheckedIOException(error); }
+            var settings = WhoStoppedTheMusic.settings();
+            var defaults = MusicDirector.get(client).customPlayback().defaults(forest).config();
+            settings.setScenario(forest, defaults.withSongs(List.of()).withPriority(9).withInterrupt(true), defaults);
+        });
+        var refresh = context.computeOnClient(client -> WhoStoppedTheMusic.LIBRARY.refreshSongs());
+        context.waitFor(client -> refresh.isDone());
+        var parent = context.computeOnClient(client -> client.gui.screen());
+        context.setScreen(() -> new ScenarioScreen(parent, WhoStoppedTheMusic.settings(), forest));
+        context.waitTicks(4);
+        fit(context);
+        drag(context, "Pigstep", true);
+        context.runOnClient(client -> check(config(client, forest).songs().size() == 1 && config(client, forest).songs().getFirst().weight() == 10,
+                "empty drag starts at 10"));
+        var before = configBytes();
+        drag(context, "Pigstep", true);
+        check(Arrays.equals(before, configBytes()), "duplicate drop leaves exact disk bytes");
+        winner(context, forest);
+        context.runOnClient(client -> MusicDirector.get(client).next());
+        context.waitFor(client -> MusicDirector.get(client).playing(WhoStoppedTheMusic.LIBRARY.tracks().stream()
+                .filter(t -> t.id().endsWith("/pigstep")).findFirst().orElseThrow())
+                && ClientSmokeGameTest.channelState(client, MusicDirector.get(client).current(), true).join());
+        drag(context, "Sweden", false);
+        context.runOnClient(client -> check(config(client, forest).songs().size() == 1, "outside drop changes nothing"));
+        drag(context, "Sweden", true);
+        sliderKey(context, InputConstants.KEY_END);
+        context.runOnClient(client -> check(config(client, forest).songs().getLast().weight() == 100, "slider End reaches 100 on focused added song"));
+        sliderKey(context, InputConstants.KEY_HOME);
+        context.runOnClient(client -> check(config(client, forest).songs().getLast().weight() == 1, "slider Home reaches 1"));
+        context.runOnClient(client -> check(client.gui.screen().children().stream().filter(xyz.pyrehaven.whostoppedthemusic.ui.widget.WeightSlider.class::isInstance)
+                .map(AbstractWidget.class::cast).findFirst().orElseThrow().getMessage().getString().contains("1 in 11 (9.1%)"), "focused chance uses this list's weight total"));
+        context.takeScreenshot("editor-forest-normal");
+        press(context, "Remove", 0);
+        press(context, "Remove", 0);
+        context.runOnClient(client -> client.getMusicManager().stopPlaying());
+        context.waitFor(client -> MusicDirector.get(client).customPlayback().resolution().silent());
+        context.runOnClient(client -> check(config(client, forest).songs().isEmpty(), "remove last produces empty silence"));
+        press(context, "Reset to vanilla", 0);
+        context.runOnClient(client -> {
+            var c = config(client, forest);
+            var d = MusicDirector.get(client).customPlayback().defaults(forest).config();
+            check(c.songs().equals(d.songs()) && c.priority() == 9 && c.interrupt(), "reset restores songs only");
+            check(!WhoStoppedTheMusic.settings().songsEdited(forest, d), "reset clears edited marker");
+            WhoStoppedTheMusic.settings().setScenario(plains, config(client, plains).withSongs(List.of(
+                    new xyz.pyrehaven.whostoppedthemusic.music.Deck.Entry("minecraft:records/pigstep", 7))),
+                    MusicDirector.get(client).customPlayback().defaults(plains).config());
+        });
+        press(context, "Copy songs", 0);
+        before = configBytes();
+        context.getInput().pressKey(InputConstants.KEY_ESCAPE);
+        check(Arrays.equals(before, configBytes()), "copy cancel leaves bytes unchanged");
+        press(context, "Copy songs", 0);
+        search(context, "plains");
+        context.runOnClient(client -> check(list(client).children().stream().flatMap(r -> r.children().stream()).noneMatch(Toggle.class::isInstance), "copy picker omits toggles"));
+        context.waitTicks(3);
+        context.runOnClient(client -> click(client, rowButtons(client).stream().filter(b -> b.getMessage().getString().startsWith("Plains")).findFirst().orElseThrow(), 0));
+        context.waitForScreen(ScenarioScreen.class);
+        context.runOnClient(client -> check(config(client, forest).songs().equals(config(client, plains).songs())
+                && config(client, forest).priority() == 9 && config(client, forest).interrupt(), "copy replaces songs and weights only"));
+        context.runOnClient(client -> check(editorLists(client).get(1).children().size() == 1
+                && editorLists(client).get(1).focusedId().equals("minecraft:records/pigstep"), "picker return refreshes retained cassette rows and focus"));
+        drag(context, "Sweden", true);
+        context.runOnClient(client -> check(config(client, forest).songs().getLast().weight() == 7, "nonempty drag uses modal weight"));
+        for (String extension : List.of("mp3", "ogg")) {
+            drag(context, "Editor-check." + extension, true);
+            // Search includes IDs; the literal file name is retained in the entry.
+            context.runOnClient(client -> {
+                var track = WhoStoppedTheMusic.LIBRARY.tracks().stream().filter(t -> t.id().equals("custom:Editor-check." + extension)).findFirst().orElseThrow();
+                check(config(client, forest).songs().stream().anyMatch(e -> e.id().equals(track.id())), "own song can be dragged: " + extension);
+                var d = MusicDirector.get(client).customPlayback().defaults(forest).config();
+                WhoStoppedTheMusic.settings().setScenario(forest, config(client, forest).withSongs(List.of(new xyz.pyrehaven.whostoppedthemusic.music.Deck.Entry(track.id(), 7))), d);
+            });
+            context.waitTicks(3);
+            context.runOnClient(client -> MusicDirector.get(client).next());
+            context.waitFor(client -> ClientSmokeGameTest.channelState(client, MusicDirector.get(client).current(), true).join()
+                    && MusicDirector.get(client).playing(WhoStoppedTheMusic.LIBRARY.tracks().stream().filter(t -> t.id().equals("custom:Editor-check." + extension)).findFirst().orElseThrow()));
+        }
+        context.runOnClient(client -> {
+            var d = MusicDirector.get(client).customPlayback().defaults(forest).config();
+            WhoStoppedTheMusic.settings().setScenario(forest, config(client, forest).withSongs(List.of(
+                    new xyz.pyrehaven.whostoppedthemusic.music.Deck.Entry("absent:music/gone", 25))), d);
+        });
+        context.waitTicks(4);
+        context.runOnClient(client -> check(editorLists(client).get(1).children().stream().flatMap(r -> r.children().stream()).filter(AbstractWidget.class::isInstance)
+                .map(AbstractWidget.class::cast).anyMatch(w -> w.getMessage().getString().contains("Missing")), "missing cassette retained and marked"));
+        context.takeScreenshot("editor-missing");
+        popupCancels(context, "Frequency:");
+        press(context, "Frequency:", 0);
+        press(context, "Jukebox:", 0);
+        context.runOnClient(client -> {
+            var c = config(client, forest);
+            check(c.frequency() == ScenarioConfig.Frequency.DEFAULT && c.jukebox() == JukeboxSetting.PLAY_OVER, "editor cycles its fixture's Constant/Pause settings to Default/Play over");
+            check(client.options.musicFrequency().get() == MusicFrequency.DEFAULT, "editor leaves global frequency unchanged");
+            var thunder = ScenarioId.special(Special.THUNDER);
+            var d = MusicDirector.get(client).customPlayback().defaults(thunder).config();
+            WhoStoppedTheMusic.settings().setScenario(thunder, config(client, thunder).withSongs(List.of(
+                    new xyz.pyrehaven.whostoppedthemusic.music.Deck.Entry("minecraft:music/game/sweden", 20),
+                    new xyz.pyrehaven.whostoppedthemusic.music.Deck.Entry("minecraft:records/pigstep", 30),
+                    new xyz.pyrehaven.whostoppedthemusic.music.Deck.Entry("custom:Editor-check.mp3", 50))), d);
+        });
+        for (boolean narrow : List.of(false, true)) {
+            context.getInput().resizeWindow(narrow ? 320 : 960, narrow ? 240 : 720);
+            context.runOnClient(client -> client.options.guiScale().set(narrow ? 1 : 2));
+            for (var special : Special.values()) {
+                context.setScreen(() -> new ScenarioScreen(parent, WhoStoppedTheMusic.settings(), ScenarioId.special(special)));
+                context.waitTicks(3);
+                if (special == Special.THUNDER) {
+                    context.runOnClient(client -> editorLists(client).get(1).selectSong("minecraft:records/pigstep"));
+                    context.waitTicks(3);
+                }
+                fit(context);
+                context.runOnClient(client -> {
+                    long toggles = client.gui.screen().children().stream().filter(Toggle.class::isInstance).count();
+                    boolean fixed = special == Special.MENU || special == Special.CREDITS;
+                    boolean weather = List.of(Special.THUNDER, Special.RAIN, Special.SNOW).contains(special);
+                    check(toggles == (fixed ? 0 : weather ? 3 : 2), "variant controls: " + special);
+                    if (special == Special.UNDERGROUND) {
+                        var level = client.gui.screen().children().stream().filter(EditBox.class::isInstance).map(EditBox.class::cast).findFirst().orElseThrow();
+                        level.setValue("-256");
+                        check(config(client, ScenarioId.special(special)).yLevel() == -256, "negative whole Y level");
+                        level.setValue("bad");
+                        check(config(client, ScenarioId.special(special)).yLevel() == -256, "invalid Y is not persisted");
+                    }
+                    if (!fixed) {
+                        var id = ScenarioId.special(special);
+                        var previous = config(client, id);
+                        var togglesList = client.gui.screen().children().stream().filter(Toggle.class::isInstance).map(AbstractWidget.class::cast).toList();
+                        click(client, togglesList.getFirst(), 0);
+                        check(config(client, id).active() != previous.active(), "active editor toggle");
+                        click(client, togglesList.get(1), 0);
+                        check(config(client, id).interrupt() != previous.interrupt(), "interrupt editor toggle");
+                        if (weather) {
+                            click(client, togglesList.get(2), 0);
+                            check(config(client, id).mustBeOutside() != previous.mustBeOutside(), "outside editor toggle");
+                        }
+                        var plus = client.gui.screen().children().stream().filter(AbstractWidget.class::isInstance).map(AbstractWidget.class::cast)
+                                .filter(w -> w.getMessage().getString().equals("+")).findFirst().orElseThrow();
+                        var minus = client.gui.screen().children().stream().filter(AbstractWidget.class::isInstance).map(AbstractWidget.class::cast)
+                                .filter(w -> w.getMessage().getString().equals("−")).findFirst().orElseThrow();
+                        for (int i = 0; i < 12; i++) click(client, plus, 0);
+                        check(config(client, id).priority() == 10, "priority ceiling");
+                        for (int i = 0; i < 12; i++) click(client, minus, 0);
+                        check(config(client, id).priority() == 1, "priority floor");
+                    }
+                });
+                if (special == Special.THUNDER || special == Special.UNDERGROUND || special == Special.MENU)
+                    context.takeScreenshot("editor-" + special.name().toLowerCase(java.util.Locale.ROOT) + (narrow ? "-small" : "-normal"));
+            }
+        }
+        context.setScreen(() -> new ScenarioScreen(parent, WhoStoppedTheMusic.settings(), forest));
+        context.waitTicks(3);
+        fit(context);
+        context.takeScreenshot("editor-forest-small");
+        context.runOnClient(client -> client.gui.screen().onClose());
+        context.waitForScreen(MusicScreen.class);
+        org.slf4j.LoggerFactory.getLogger("whostoppedthemusic-test").info("SCENARIO EDITOR PASS: drag/duplicate/outside/modal weights, focused 1–100, forest Pigstep and own MP3/OGG native playback, remove-last silence, songs-only reset/copy, missing retained, shared popup cancel, all biome/special variants normal/narrow");
+    }
+
+    private static List<xyz.pyrehaven.whostoppedthemusic.ui.widget.TrackList> editorLists(Minecraft client) {
+        return client.gui.screen().children().stream().filter(xyz.pyrehaven.whostoppedthemusic.ui.widget.TrackList.class::isInstance)
+                .map(xyz.pyrehaven.whostoppedthemusic.ui.widget.TrackList.class::cast).toList();
+    }
+
+    private static void sliderKey(ClientGameTestContext context, int key) {
+        context.runOnClient(client -> click(client, client.gui.screen().children().stream()
+                .filter(xyz.pyrehaven.whostoppedthemusic.ui.widget.WeightSlider.class::isInstance).map(AbstractWidget.class::cast).findFirst().orElseThrow(), 0));
+        context.getInput().pressKey(key);
+        context.waitTicks(3);
+    }
+
+    private static void drag(ClientGameTestContext context, String query, boolean inside) {
+        search(context, query);
+        context.runOnClient(client -> {
+            var lists = editorLists(client);
+            var row = lists.getFirst().children().stream().flatMap(r -> r.children().stream()).filter(AbstractWidget.class::isInstance)
+                    .map(AbstractWidget.class::cast).filter(w -> w.getMessage().getString().toLowerCase(java.util.Locale.ROOT).contains(query.toLowerCase(java.util.Locale.ROOT).replace(".mp3", "").replace(".ogg", "")))
+                    .findFirst().orElseThrow(() -> new AssertionError("Missing drag row: " + query));
+            click(client, row, 0);
+            var target = lists.get(1);
+            var event = new MouseButtonEvent(inside ? target.getX() + target.getWidth() / 2.0 : 0,
+                    inside ? target.getY() + target.getHeight() / 2.0 : 0, new MouseButtonInfo(InputConstants.MOUSE_BUTTON_LEFT, 0));
+            client.gui.screen().mouseDragged(event, event.x() - row.getX(), event.y() - row.getY());
+            client.gui.screen().mouseReleased(event);
+        });
+        context.waitTicks(4);
     }
 
     private static void addLink(ClientGameTestContext context) {

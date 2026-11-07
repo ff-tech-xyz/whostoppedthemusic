@@ -25,6 +25,41 @@ public final class TrackList extends ContainerObjectSelectionList<TrackList.Row>
     private int rowHeight = Theme.TRACK_HEIGHT;
     private double targetScroll;
     private long lastFrame;
+    private java.util.function.Consumer<Track> drag;
+    private java.util.function.Predicate<String> contains;
+    private java.util.function.Supplier<List<xyz.pyrehaven.whostoppedthemusic.music.Deck.Entry>> songs;
+
+    private String focusedId;
+
+    /** Compact drag rows and cassette rows share the same search, scroll and input owner. */
+    public void library(java.util.function.Consumer<Track> drag, java.util.function.Predicate<String> contains) {
+        this.drag = drag;
+        this.contains = contains;
+        rowHeight = Theme.LIBRARY_ROW;
+        filter(query);
+    }
+
+    public void songs(java.util.function.Supplier<List<xyz.pyrehaven.whostoppedthemusic.music.Deck.Entry>> songs) {
+        this.songs = songs;
+        refresh();
+    }
+
+    public void refresh() {
+        double position = scrollAmount();
+        filter(query);
+        setScrollAmount(position);
+    }
+
+    public String focusedId() { return focusedId; }
+
+    public void selectSong(String id) {
+        focus(id);
+        children().stream().filter(r -> id.equals(r.songId)).findFirst().ifPresent(this::centerScrollOn);
+    }
+
+    private void focus(String id) {
+        focusedId = id;
+    }
 
     public TrackList(Minecraft client, Settings settings, int x, int y, int width, int height) {
         this(client, settings, x, y, width, height, null);
@@ -42,6 +77,17 @@ public final class TrackList extends ContainerObjectSelectionList<TrackList.Row>
     public void filter(String query) {
         this.query = query.trim();
         clearEntries();
+        if (songs != null) {
+            for (var entry : songs.get()) {
+                var track = WhoStoppedTheMusic.LIBRARY.tracks().stream().filter(t -> t.id().equals(entry.id())).findFirst().orElse(null);
+                addEntry(new Row(track, track == null ? Component.literal(entry.id()) : track.title(), entry.id()), rowHeight);
+            }
+            if (songs.get().stream().noneMatch(e -> e.id().equals(focusedId))) {
+                focus(songs.get().isEmpty() ? null : songs.get().getFirst().id());
+            }
+            setScrollAmount(0);
+            return;
+        }
         record Match(Track track, int rank) { }
         var matches = WhoStoppedTheMusic.LIBRARY.tracks().stream()
                 .filter(track -> remove == null || track.local() != null)
@@ -51,13 +97,15 @@ public final class TrackList extends ContainerObjectSelectionList<TrackList.Row>
                             new TrackNames.Metadata(metadata.title().getString(), metadata.artist().getString()), track.id()));
                 })
                 .filter(match -> match.rank() != Integer.MAX_VALUE)
-                .sorted(java.util.Comparator.comparingInt(Match::rank)).toList();
+                .sorted(java.util.Comparator.comparingInt(Match::rank).thenComparingInt(match ->
+                        drag != null && this.query.isEmpty() ? libraryKind(match.track()).ordinal() : 0)).toList();
         Track.Kind previous = null;
         for (var match : matches) {
             var track = match.track();
-            if (this.query.isEmpty() && previous != track.kind()) {
-                addEntry(new Row(null, Component.translatable("whostoppedthemusic.section." + track.kind().name().toLowerCase(Locale.ROOT))), Theme.TRACK_HEADER_HEIGHT);
-                previous = track.kind();
+            var kind = drag != null ? libraryKind(track) : track.kind();
+            if (this.query.isEmpty() && previous != kind) {
+                addEntry(new Row(null, Component.translatable("whostoppedthemusic.section." + kind.name().toLowerCase(Locale.ROOT))), Theme.TRACK_HEADER_HEIGHT);
+                previous = kind;
             }
             addEntry(new Row(track, track.title()), rowHeight);
         }
@@ -66,14 +114,18 @@ public final class TrackList extends ContainerObjectSelectionList<TrackList.Row>
 
     public void layout(int x, int y, int width, int height) {
         double position = scrollAmount() / rowHeight;
-        int newRowHeight = Math.max(height * 2 / 3, Theme.LABEL_MIN_TAPE_HEIGHT + Theme.GAP
-                + (width < Theme.TRACK_SIDE_CONTROLS_MIN ? Theme.ROW : 0));
+        int newRowHeight = drag != null ? Theme.LIBRARY_ROW : Math.max(height * 2 / 3, Theme.LABEL_MIN_TAPE_HEIGHT + Theme.GAP
+                + (songs == null && width < Theme.TRACK_SIDE_CONTROLS_MIN ? Theme.ROW : 0));
         updateSizeAndPosition(width, height, x, y);
         if (rowHeight != newRowHeight) {
             rowHeight = newRowHeight;
             filter(query);
         }
         setScrollAmount(position * rowHeight);
+    }
+
+    private static Track.Kind libraryKind(Track track) {
+        return !track.id().startsWith("minecraft:") ? Track.Kind.LOCAL : track.kind();
     }
 
     @Override public void setScrollAmount(double amount) {
@@ -103,13 +155,19 @@ public final class TrackList extends ContainerObjectSelectionList<TrackList.Row>
     public final class Row extends ContainerObjectSelectionList.Entry<Row> {
         private final Track track;
         private final Component title;
+        private final String songId;
         private final Button tick;
         private final Button play;
         private final Button tape;
 
         private Row(Track track, Component title) {
+            this(track, title, track == null ? null : track.id());
+        }
+
+        private Row(Track track, Component title, String songId) {
             this.track = track;
             this.title = title;
+            this.songId = songId;
             tick = Theme.button(0, 0, Theme.CONTROL_HEIGHT, Component.empty(), button -> {
                 settings.setTicked(track.id(), !settings.ticked(track.id()));
                 MusicDirector.get(minecraft).playlistChanged();
@@ -118,10 +176,24 @@ public final class TrackList extends ContainerObjectSelectionList<TrackList.Row>
                     () -> MusicDirector.get(minecraft).play(track))
                     : Theme.button(0, 0, Theme.TRACK_REMOVE_WIDTH, Component.translatable("whostoppedthemusic.remove"),
                             button -> remove.accept(track));
-            tape = new Button(0, 0, Theme.CONTROL_HEIGHT, Theme.CONTROL_HEIGHT, title, button -> { }, supplier -> supplier.get()) {
+            tape = new Button(0, 0, Theme.CONTROL_HEIGHT, Theme.CONTROL_HEIGHT, title, button -> {
+                if (songs != null) selectSong(songId);
+                else if (drag != null && !contains.test(songId)) drag.accept(track);
+            }, supplier -> supplier.get()) {
                 private final CassetteArtwork artwork = new CassetteArtwork();
+                private final xyz.pyrehaven.whostoppedthemusic.ui.OverflowText label = new xyz.pyrehaven.whostoppedthemusic.ui.OverflowText();
                 @Override protected void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
-                    artwork.drawTrack(graphics, this, track, MusicDirector.get(minecraft));
+                    if (drag != null) {
+                        graphics.fill(getX(), getY(), getRight(), getBottom(), Theme.SCENARIO_BOX);
+                        var text = title.copy();
+                        if (contains.test(songId)) text.append(Component.translatable("whostoppedthemusic.in_list"));
+                        setMessage(text);
+                        setTooltip(net.minecraft.client.gui.components.Tooltip.create(text));
+                        label.draw(graphics, minecraft.font, text, getX() + Theme.GAP, getRight() - Theme.GAP,
+                                getY() + Theme.GAP, Theme.SCENARIO_TEXT, false, false);
+                    } else if (track == null) artwork.drawMissing(graphics, this, title);
+                    else artwork.drawTrack(graphics, this, track, MusicDirector.get(minecraft));
+                    if (songs != null && songId.equals(focusedId)) graphics.outline(getX(), getY(), getWidth(), getHeight(), Theme.ORANGE);
                 }
             };
             if (track != null) {
@@ -134,8 +206,14 @@ public final class TrackList extends ContainerObjectSelectionList<TrackList.Row>
 
         @Override
         public void extractContent(GuiGraphicsExtractor graphics, int mouseX, int mouseY, boolean hovered, float delta) {
-            if (track == null) {
-                graphics.text(minecraft.font, title, getContentX(), getContentY() + Theme.GAP / 2, Theme.ORANGE);
+            if (songId == null) {
+                graphics.text(minecraft.font, title, getContentX(), getContentY() + Theme.GAP / 2,
+                        drag != null ? Theme.SCENARIO_TEXT : Theme.ORANGE, drag == null);
+                return;
+            }
+            if (songs != null || drag != null) {
+                tape.setRectangle(getContentWidth(), getContentHeight() - Theme.GAP, getContentX(), getContentY());
+                tape.extractRenderState(graphics, mouseX, mouseY, delta);
                 return;
             }
             boolean narrow = getContentWidth() < Theme.TRACK_SIDE_CONTROLS_MIN;
@@ -159,7 +237,7 @@ public final class TrackList extends ContainerObjectSelectionList<TrackList.Row>
             tape.extractRenderState(graphics, mouseX, mouseY, delta);
         }
 
-        @Override public List<? extends GuiEventListener> children() { return track == null ? List.of() : remove == null ? List.of(tick, tape, play) : List.of(tape, play); }
-        @Override public List<? extends NarratableEntry> narratables() { return track == null ? List.of() : remove == null ? List.of(tick, tape, play) : List.of(tape, play); }
+        @Override public List<? extends GuiEventListener> children() { return songId == null ? List.of() : songs != null || drag != null ? List.of(tape) : remove == null ? List.of(tick, tape, play) : List.of(tape, play); }
+        @Override public List<? extends NarratableEntry> narratables() { return songId == null ? List.of() : songs != null || drag != null ? List.of(tape) : remove == null ? List.of(tick, tape, play) : List.of(tape, play); }
     }
 }

@@ -11,6 +11,7 @@ import xyz.pyrehaven.whostoppedthemusic.ui.Theme;
 public final class Toggle extends Button {
     private final BooleanSupplier value;
     private final Component label;
+    private final xyz.pyrehaven.whostoppedthemusic.ui.OverflowText line = new xyz.pyrehaven.whostoppedthemusic.ui.OverflowText();
 
     public Toggle(Component label, BooleanSupplier value, Runnable change) {
         super(0, 0, Theme.TOGGLE_WIDTH, Theme.CONTROL_HEIGHT, label, button -> change.run(), supplier -> supplier.get());
@@ -24,6 +25,9 @@ public final class Toggle extends Button {
                 Component.translatable(on ? "options.on" : "options.off"));
         setMessage(description);
         setTooltip(Tooltip.create(description));
-        Theme.toggle(graphics, getX(), getY() + (getHeight() - Theme.TOGGLE_HEIGHT) / 2, on, isHoveredOrFocused());
+        if (getWidth() > Theme.TOGGLE_WIDTH) {
+            Theme.scenarioContents(graphics, this, label, line, getX() + Theme.GAP, getRight() - Theme.TOGGLE_WIDTH - Theme.GAP);
+        }
+        Theme.toggle(graphics, getRight() - Theme.TOGGLE_WIDTH, getY() + (getHeight() - Theme.TOGGLE_HEIGHT) / 2, on, isHoveredOrFocused());
     }
 }

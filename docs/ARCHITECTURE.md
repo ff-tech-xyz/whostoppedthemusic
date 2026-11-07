@@ -42,8 +42,8 @@ transport, Basic soundtrack/disc selection and playback, shared controls and one
 and nearby jukebox fade/hold in both modes. Imported MP3/OGG files play through
 the same Basic path. Add music manages those files through a shared screen;
 Custom's scenario resolver, loaded runtime defaults, playback integration and
-sparse settings v2 and the Custom main browser are implemented. The complete song
-editor and preview remain authorized work. The M screen cycles Vanilla/Basic/Custom; the
+sparse settings v2, Custom main browser and shared biome/special song editor are
+implemented. Midpoint preview remains authorized work. The M screen cycles Vanilla/Basic/Custom; the
 compact pause cassette retains live title/artist metadata and Next. Shared
 playback-driven reel artwork and empty-player spindle rods are implemented.
 
@@ -293,10 +293,9 @@ whostoppedthemusic/
     │   │   │   ├── BasicPanel.java          # collapsible song browser and placement of the shared player
     │   │   │   ├── custom/                 # shared components; Theme owns gray surfaces
     │   │   │   │   ├── ScenarioLabels.java # translated names shared by browser/player/editor
-    │   │   │   │   ├── ScenarioList.java   # grouped/filterable loaded scenarios, playing/edited state and active toggles
+    │   │   │   │   ├── ScenarioList.java   # grouped/filterable loaded scenarios; explicit no-toggle copy-picker mode
     │   │   │   │   ├── CustomPanel.java    # scenario search/list, active toggles and shared right player
-    │   │   │   │   ├── ScenarioScreen.java # navigation/shared scenario settings now; full library/song editor in function 15
-    │   │   │   │   ├── SongLibraryList.java # planned shared library search/list drag source
+    │   │   │   │   ├── ScenarioScreen.java # one biome/special settings/song editor, drag/drop, reset and shared-list copy picker
     │   │   │   │   ├── ApplyToAllPopup.java # right-click confirmation, all known/future scenarios
     │   │   │   │   └── Toggle.java         # shared pill toggle
     │   │   │   ├── AddSongsScreen.java      # shared Add music action, confirmed drops/removal, TrackList management, open folder
@@ -305,8 +304,8 @@ whostoppedthemusic/
     │   │   │   ├── CassetteWidget.java      # top compact cassette, live title and settings link
     │   │   │   └── widget/
     │   │   │       ├── SettingButton.java  # shared left-cycle/right-confirm control with full-label tooltip
-    │   │   │       ├── TrackList.java       # shared smooth clipped browser; ranked/sectioned rows, selection/play or local-only removal
-    │   │   │       └── WeightSlider.java    # planned 1–100 slider with weight/chance text
+    │   │   │       ├── TrackList.java       # sole smooth clipped browser: Basic, local removal, grouped drag-library and focused scenario cassettes
+    │   │   │       └── WeightSlider.java    # integer 1–100 mouse/keyboard editor with this list's weight/chance narration and tooltip
     │   │   └── mixin/
     │   │       ├── MusicManagerAccessor.java        # currentMusic/frequency/delay access and vanilla fade invoker
     │   │       ├── MusicManagerMixin.java           # owns director; observes automatic/manual starts and holds pause
@@ -343,7 +342,7 @@ whostoppedthemusic/
         │   ├── ClientSmokeGameTest.java # packaged UI/transport; controlsOnly/artworkOnly/ownSongsOnly/addSongsOnly focused selections
         │   ├── DiscoveryGameTest.java   # discoveryOnly: loaded discovery/default odds, 67 biomes, creative Deck, aliases/cycle/bounds/reload
         │   ├── CustomPlaybackGameTest.java # customOnly: packaged scenario playback/settings/transport/weather/jukebox/silence/LRU/mode regression
-        │   ├── CustomUiGameTest.java       # customUiOnly: main browser/shared player, tied silence/settings, popup persistence/cancel, both Add links and narrow bounds
+        │   ├── CustomUiGameTest.java       # customUiOnly: main/shared player plus editor drag/weights/reset/copy/missing/own-song playback and all narrow variants
         │   └── test/mixin/TransportStreamGate.java # holds decoded vanilla streams before source attachment
         └── resources/
             ├── fabric.mod.json         # development-only client test entrypoint
@@ -447,7 +446,7 @@ sound-engine reload behavior. A live Basic source survives world exit/entry;
 jukebox entries belong to the old level and cannot leak into the next one.
 
 ### Custom
-Implemented through function 14; full song editing and preview remain functions 15/16:
+Implemented through function 15; midpoint preview remains function 16:
 - Main left: searchable specials, then registry biomes grouped by vanilla dimension tags or namespace. Specials except menu/credits have active toggles. Rows show priority/song count, playing and edited distinctions. Right: the shared player/transport/cassette/volume and Add music action; frequency/jukebox labels name all current winners.
 - `SituationReader` captures camera-biome/sky/heightmap/precipitation and player underwater/creative state once per existing tick. Pure `ContextResolver` checks credits before menu, then highest-priority biome/active specials. Ties use sorted IDs, sum duplicate-song weights, strongest frequency, Pause music if any winner requests it, and interrupt if any newly winning scenario requests it. An empty active winner is silence, never fallback.
 - Implemented defaults use loaded runtime weights: creative adds six weight-1 files to game's 32 files weighted 1/2 (total 43). Nested aliases retain leaf weights and duplicate files add; only oversized reduced weights require approximation. Basic's flattening is unchanged. Pale garden/empty pools stay silent. Weather and underground start disabled; frequency starts Constant and jukebox starts Pause music.
@@ -492,8 +491,41 @@ Absent biomes remain in Settings but are hidden. Theme owns the gray panel/row
 colors and pill geometry; OverflowText also supports shadow-free black text.
 Each live row derives count/priority, edited state and winner outline from the
 existing settings/playback owners. A separate Toggle consumes its click without
-opening the row. Row clicks open ScenarioScreen's shared-settings entry point;
-the complete library/drag/weight/reset/copy editor is still function 15.
+opening the row. Row clicks open the same ScenarioScreen for every biome/special.
+
+ScenarioScreen places the supplied two-row settings grid above a grouped song
+library and the existing smooth clipped cassette list. It does not introduce a
+SongLibraryList look-alike: TrackList owns compact drag-source rows and scenario
+cassettes in addition to its existing Basic and file-management views. All views
+share search ranking, scrolling, row/focus/narration and cassette artwork. The
+editor library groups non-Minecraft IDs, including imported files, under Your
+Songs. Existing IDs display an in-list marker and cannot start a duplicate drag.
+The screen retains only the in-progress drag and focused entry identity; songs,
+weights and settings remain owned by Settings. A release inside the song viewport
+adds once, using the modal existing weight (lowest weight wins a frequency tie)
+or 10 for an empty list. A release outside only clears the drag.
+
+Clicking a cassette focuses/centers it. WeightSlider edits that entry from 1–100,
+including mouse drag, arrows and Home/End. Its label, tooltip and narration use
+the edited list's own total, not merged playback odds. Remove retains intentional
+empty silence. Missing IDs keep their weight and a gray Missing cassette; local
+decode failures retain the shared Can't play state. List/resource changes refresh
+the retained widgets without resetting the library query/scroll.
+
+The same Toggle handles standalone active/interrupt/outside cells, and the same
+MusicControls/SettingButton handles concise editor frequency/jukebox plus the
+existing apply-all popup. Theme's gray button variant uses the shared OverflowText
+without text shadows; it is not a second widget framework. Biomes omit Active;
+weather adds Must be outside; underground exposes an integer Y field with invalid
+text highlighted and unpersisted. Boss/aquatic/creative leave its cell empty;
+menu/credits omit active/priority/interrupt. Priority clamps to 1–10.
+
+Reset changes only songs to loaded defaults. CopyPicker is a nested navigation
+screen using ScenarioList's explicit picker mode (no toggles), with the shared
+search and scroll owner. Picking replaces songs/weights only; cancel is inert.
+The header and main rows derive edited state from Settings.songsEdited. Preview
+is visibly disabled in this slice, with a pending-step tooltip; function 16 must
+wire the real midpoint excerpt rather than substituting Basic's Play Now.
 
 MusicControls accepts a scenario-ID supplier: current resolution winners on the
 main screen (even when silent), or the edited ID on ScenarioScreen. It combines

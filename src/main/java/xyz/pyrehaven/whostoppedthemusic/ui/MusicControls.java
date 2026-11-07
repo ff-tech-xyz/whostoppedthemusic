@@ -29,6 +29,7 @@ public final class MusicControls {
     private SettingButton frequency;
     private SettingButton jukebox;
     private final Supplier<List<ScenarioId>> scenarios;
+    private boolean conciseSettings;
 
     public MusicControls(Minecraft client, Settings settings) {
         this(client, settings, () -> {
@@ -50,6 +51,11 @@ public final class MusicControls {
     }
 
     public void scenarioSettings(int x, int y, int width, Consumer<AbstractWidget> add) {
+        scenarioSettings(x, y, width, add, false);
+    }
+
+    public void scenarioSettings(int x, int y, int width, Consumer<AbstractWidget> add, boolean concise) {
+        conciseSettings = concise;
         frequency = new SettingButton(x, y, width, frequencyLabel(), button -> {
             if (custom()) {
                 var values = ScenarioConfig.Frequency.values();
@@ -77,6 +83,10 @@ public final class MusicControls {
             var value = currentJukebox();
             client.gui.setScreen(new ApplyToAllPopup(client.gui.screen(), jukebox, () -> settings.applyJukeboxToAll(value)));
         });
+        if (concise) {
+            frequency.gray();
+            jukebox.gray();
+        }
         add.accept(frequency);
         add.accept(jukebox);
     }
@@ -192,12 +202,14 @@ public final class MusicControls {
     }
 
     private Component frequencyLabel() {
+        if (custom() && conciseSettings) return text("frequency", net.minecraft.client.sounds.MusicManager.MusicFrequency.valueOf(currentFrequency().name()).caption());
         if (custom()) return text("frequency.scenario", ScenarioLabels.names(scenarios.get()),
                 net.minecraft.client.sounds.MusicManager.MusicFrequency.valueOf(currentFrequency().name()).caption());
         return Component.translatable("whostoppedthemusic.frequency", client.options.musicFrequency().get().caption());
     }
 
     private Component jukeboxLabel() {
+        if (custom() && conciseSettings) return text("jukebox", text("jukebox." + currentJukebox().name().toLowerCase(java.util.Locale.ROOT)));
         if (custom()) return text("jukebox.scenario", ScenarioLabels.names(scenarios.get()),
                 text("jukebox." + currentJukebox().name().toLowerCase(java.util.Locale.ROOT)));
         return Component.translatable("whostoppedthemusic.jukebox",
