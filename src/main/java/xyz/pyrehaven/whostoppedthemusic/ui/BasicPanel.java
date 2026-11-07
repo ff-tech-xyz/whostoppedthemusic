@@ -29,9 +29,7 @@ public final class BasicPanel {
         this.client = client;
         this.settings = settings;
         controls = new MusicControls(client, settings);
-        search = new EditBox(client.font, 0, 0, Theme.CONTROL_HEIGHT, Theme.CONTROL_HEIGHT, text("search"));
-        search.setHint(text("search"));
-        search.setMaxLength(Theme.SEARCH_LIMIT);
+        search = Theme.search(client.font);
         list = new TrackList(client, settings, 0, 0, Theme.TRACK_HEIGHT, Theme.TRACK_HEIGHT);
         all = Theme.button(0, 0, Theme.CONTROL_HEIGHT, text("all"), button -> setAll(true));
         none = Theme.button(0, 0, Theme.CONTROL_HEIGHT, text("none"), button -> setAll(false));

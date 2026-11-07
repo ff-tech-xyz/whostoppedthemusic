@@ -39,7 +39,8 @@ authorized Custom behavior; the sole remaining-work tracker is `plans/1.2.0.md`.
 Current implemented slice (2026-11-07): Settings and first-launch Constant, Vanilla
 transport, Basic soundtrack/disc selection and playback, shared controls and one SongToast in both modes,
 and nearby jukebox fade/hold in both modes. Imported MP3/OGG files play through
-the same Basic path. Custom and Add Songs remain authorized, unimplemented work.
+the same Basic path. Add music manages those files through a shared screen;
+Custom remains authorized, unimplemented work.
 The M screen cycles Vanilla/Basic; the
 compact pause cassette retains live title/artist metadata and Next. Shared
 playback-driven reel artwork and empty-player spindle rods are implemented.
@@ -156,9 +157,9 @@ whostoppedthemusic/
     │   │   ├── custom/
     │   │   │   └── MusicFolder.java
     │   │   │       # Game-directory music/: case-insensitive .mp3/.ogg scan, file-name identity/title; excludes links/directories.
-    │   │   │       # Copy/delete/open operations arrive with Add Songs. Never runs on a timer.
+    │   │   │       # Owns exclusive-create numbered copies and folder-confined removal; rejects links. Never runs on a timer.
     │   │   ├── ui/
-    │   │   │   ├── Theme.java               # PyreHaven colours, spacing and text styles in one place
+    │   │   │   ├── Theme.java               # PyreHaven colours, spacing, shared search construction and text styles
     │   │   │   ├── MusicControls.java       # shared settings and live transport; panels place Basic additions
     │   │   │   ├── TransportButton.java     # drawn transport symbols, accessible actions and shared button states
     │   │   │   ├── MusicScreen.java         # Vanilla layout; retains BasicPanel across resize/collapse rebuilds
@@ -171,12 +172,12 @@ whostoppedthemusic/
     │   │   │   │   ├── SongLibraryList.java # shared library search/list drag source
     │   │   │   │   ├── ApplyToAllPopup.java # right-click confirmation, all known/future scenarios
     │   │   │   │   └── Toggle.java         # shared pill toggle
-    │   │   │   ├── AddSongsScreen.java      # drop zone, your songs list, remove, open folder
+    │   │   │   ├── AddSongsScreen.java      # shared Add music action, confirmed drops/removal, TrackList management, open folder
     │   │   │   ├── SongToast.java           # title-first two-line Now Playing toast (vanilla Toast interface)
     │   │   │   ├── OverflowText.java        # per-line content clock and clipped fractional tape/toast rendering
     │   │   │   ├── CassetteWidget.java      # top compact cassette, live title and settings link
     │   │   │   └── widget/
-    │   │   │       ├── TrackList.java       # smooth clipped cassette browser; ranked results or sections; nested Row owns tick/tape/play
+    │   │   │       ├── TrackList.java       # shared smooth clipped browser; ranked/sectioned rows, selection/play or local-only removal
     │   │   │       └── WeightSlider.java    # planned 1–100 slider with weight/chance text
     │   │   └── mixin/
     │   │       ├── MusicManagerAccessor.java        # currentMusic read-only, truthful cassette status
@@ -205,12 +206,12 @@ whostoppedthemusic/
     │   ├── SettingsTest.java        # defaults, round trip, bad/unknown file, atomic write, first-run flag
     │   ├── TrackNamesTest.java      # metadata, translated names/fallback and search ranking
     │   ├── OverflowMotionTest.java  # waits, speed, reversal, fitting and content clocks
-    │   ├── MusicFolderTest.java     # game-directory ownership, filter, links, stable identities and disappearance
+    │   ├── MusicFolderTest.java     # folder/identity, numbered exact copies, source retention, remove and link/path boundaries
     │   └── LocalAudioTest.java      # full generated PCM duration/tone, EOF, empty/invalid MP3/OGG rejection
     ├── test/resources/audio/        # shared generated CC0 sine-wave MP3/OGG fixtures and provenance README
     └── gametest/
         ├── java/xyz/pyrehaven/whostoppedthemusic/
-        │   ├── ClientSmokeGameTest.java # packaged UI/transport; controlsOnly for controls/labels; artworkOnly for phase-3 pixels
+        │   ├── ClientSmokeGameTest.java # packaged UI/transport; controlsOnly/artworkOnly/ownSongsOnly/addSongsOnly focused selections
         │   ├── DiscoveryGameTest.java   # discoveryOnly: real loaded events, definition registries, dedupe, reload/world lifecycle
         │   └── test/mixin/TransportStreamGate.java # holds decoded vanilla streams before source attachment
         └── resources/
@@ -219,6 +220,43 @@ whostoppedthemusic/
             ├── assets/music_namespace/sounds.json # namespace-only rejection fixture
             └── whostoppedthemusic-test.mixins.json # development-only stream gate
 ```
+
+### Add music file-management path
+
+`AddSongsScreen.button(parent, settings, x, y, width)` is the common entry action.
+Basic places it beside Done; Custom places the same action when its panel arrives.
+Both lead to the same screen instance type. `Theme.search` constructs the same
+search widget used by Basic. `TrackList` owns local-only management rows via its
+remove callback, keeping cassette rendering, ranked search, smooth clipping,
+scrolling, focus and narration in the existing list. Management rows expose Remove
+instead of playlist ticks/Play; even an undecodable local file can be removed.
+
+The screen handles vanilla dropped-file events and uses vanilla ConfirmScreen
+before copying or permanent deletion, with AlertScreen reporting rejections and
+per-file results. A mixed drop containing unsupported files is rejected as a whole.
+No file changes precede Yes. Copies/deletes run on vanilla's IO executor;
+TrackLibrary publishes its refreshed library on the client thread before the
+screen reports completion. Busy actions and Escape are disabled during that work.
+The retained parent screen refreshes its view on return without losing its query.
+
+MusicFolder owns filesystem mutations. It accepts regular MP3/OGG files without
+following source links, uses exclusive creation for destination files, and keeps
+existing files intact by numbering duplicates (including case-only collisions).
+Failed transfers close the output before removing their partial copy. Removal
+accepts only a regular supported file directly inside the normalized music folder;
+outside paths, file links and a symlinked music directory are rejected. Open folder
+prepares that directory then calls the same `Blaze3D.openPath` as vanilla resource
+packs. File operation failures are reported and logged, rather than called success.
+
+Focused command:
+`xvfb-run -a ./gradlew jar test --tests '*MusicFolderTest' runClientGameTest -PaddSongsOnly --console=plain`.
+The four folder tests and packaged Add music check passed on 2026-11-07. The client
+injects the real dropped-file callback, confirms exact MP3/OGG copies and native
+playback, No/Yes, bad extensions, duplicate naming, cancel/delete, rescan/return
+and 320×240 bounds. Three captures were inspected. The evidence archive is
+`runtime/whostoppedthemusic/evidence/add-songs-evidence.zip`; the sole plan records
+the tested artifact hash and limitations. Native desktop drag delivery and the
+external file-manager window remain human integration checks.
 
 ## Key pieces
 

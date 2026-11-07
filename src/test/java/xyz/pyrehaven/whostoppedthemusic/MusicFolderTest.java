@@ -27,6 +27,46 @@ final class MusicFolderTest {
         assertEquals(1, folder.scan().size());
     }
 
+    @Test void copiesKeepSourcesAndNumberDuplicateNamesWithoutOverwriting() throws Exception {
+        var folder = new MusicFolder(game);
+        var source = Files.writeString(game.resolve("Signal.MP3"), "original");
+        var first = folder.importSong(source);
+        Files.writeString(source, "new copy");
+        var second = folder.importSong(source);
+        var lowerCase = Files.writeString(game.resolve("signal.mp3"), "case duplicate");
+        var third = folder.importSong(lowerCase);
+        assertEquals("Signal.MP3", first.file().getFileName().toString());
+        assertEquals("Signal (2).MP3", second.file().getFileName().toString());
+        assertEquals("signal (3).mp3", third.file().getFileName().toString());
+        assertEquals("original", Files.readString(first.file()));
+        assertEquals("new copy", Files.readString(second.file()));
+        assertEquals("new copy", Files.readString(source));
+        folder.remove(second);
+        assertFalse(Files.exists(second.file()));
+        assertTrue(Files.exists(first.file()));
+        assertTrue(Files.exists(source));
+    }
+
+    @Test void mutationsRejectOutsideFilesLinksDirectoriesAndUnsupportedFiles() throws Exception {
+        var folder = new MusicFolder(game);
+        folder.prepare();
+        var outside = Files.writeString(game.resolve("outside.ogg"), "outside");
+        var link = Files.createSymbolicLink(folder.directory().resolve("link.ogg"), outside);
+        var directory = Files.createDirectory(game.resolve("directory.mp3"));
+        var image = Files.writeString(game.resolve("image.png"), "png");
+        for (var invalid : List.of(link, directory, image)) assertThrows(java.io.IOException.class, () -> folder.importSong(invalid));
+        assertThrows(java.io.IOException.class, () -> folder.remove(new MusicFolder.Song(outside)));
+        assertThrows(java.io.IOException.class, () -> folder.remove(new MusicFolder.Song(link)));
+        assertEquals("outside", Files.readString(outside));
+        Files.delete(link);
+        Files.delete(folder.directory());
+        Files.createSymbolicLink(folder.directory(), game);
+        assertThrows(java.io.IOException.class, folder::scan);
+        assertThrows(java.io.IOException.class, () -> folder.importSong(outside));
+        assertThrows(java.io.IOException.class, () -> folder.remove(new MusicFolder.Song(folder.directory().resolve("outside.ogg"))));
+        assertTrue(Files.exists(outside));
+    }
+
     @Test void sameTitleDifferentExtensionKeepsDifferentSourceIdentity() throws Exception {
         var folder = new MusicFolder(game);
         folder.scan();

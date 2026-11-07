@@ -94,5 +94,6 @@ tasks.named('runClientGameTest') {
     systemProperty 'whostoppedthemusic.controlsOnly', project.hasProperty('controlsOnly')
     systemProperty 'whostoppedthemusic.artworkOnly', project.hasProperty('artworkOnly')
     systemProperty 'whostoppedthemusic.ownSongsOnly', project.hasProperty('ownSongsOnly')
+    systemProperty 'whostoppedthemusic.addSongsOnly', project.hasProperty('addSongsOnly')
     doFirst { file('../../runtime/whostoppedthemusic/evidence').mkdirs() }
 }

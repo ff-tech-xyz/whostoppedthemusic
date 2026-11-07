@@ -75,9 +75,17 @@ public final class MusicScreen extends Screen {
     }
 
     private void doneButton() {
-        addRenderableWidget(Theme.button(width / 2 - Theme.DONE_WIDTH / 2,
-                height - Theme.MARGIN - Theme.CONTROL_HEIGHT, Theme.DONE_WIDTH,
+        int y = height - Theme.MARGIN - Theme.CONTROL_HEIGHT;
+        boolean basic = settings.mode() == xyz.pyrehaven.whostoppedthemusic.Mode.BASIC;
+        int buttonWidth = basic ? Math.min(Theme.DONE_WIDTH, (contentWidth - Theme.PADDING * 2 - Theme.GAP) / 2) : Theme.DONE_WIDTH;
+        if (basic) addRenderableWidget(AddSongsScreen.button(this, settings, width / 2 - buttonWidth - Theme.GAP / 2, y, buttonWidth));
+        addRenderableWidget(Theme.button(basic ? width / 2 + Theme.GAP / 2 : width / 2 - buttonWidth / 2,
+                y, buttonWidth,
                 Component.translatable("gui.done"), button -> onClose()));
+    }
+
+    @Override public void added() {
+        if (basicPanel != null) basicPanel.refreshSongs();
     }
 
     private void updateTransport() {

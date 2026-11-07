@@ -52,7 +52,7 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
         if (Boolean.getBoolean("whostoppedthemusic.transportOnly") || Boolean.getBoolean("whostoppedthemusic.basicOnly")
                 || Boolean.getBoolean("whostoppedthemusic.basicUiOnly") || Boolean.getBoolean("whostoppedthemusic.discoveryOnly")
                 || Boolean.getBoolean("whostoppedthemusic.controlsOnly") || Boolean.getBoolean("whostoppedthemusic.artworkOnly")
-                || Boolean.getBoolean("whostoppedthemusic.ownSongsOnly")) {
+                || Boolean.getBoolean("whostoppedthemusic.ownSongsOnly") || Boolean.getBoolean("whostoppedthemusic.addSongsOnly")) {
             return;
         }
         // Entrypoint order is not guaranteed. Check after all startup callbacks,
@@ -66,6 +66,10 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
     @Override
     public void runTest(ClientGameTestContext context) {
         context.waitForScreen(TitleScreen.class);
+        if (Boolean.getBoolean("whostoppedthemusic.addSongsOnly")) {
+            checkAddSongs(context);
+            return;
+        }
         if (Boolean.getBoolean("whostoppedthemusic.ownSongsOnly")) {
             checkOwnSongs(context);
             return;
@@ -142,6 +146,137 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
         }
         LoggerFactory.getLogger("whostoppedthemusic-test").info(
                 "WHOSTOPPEDTHEMUSIC CLIENT PASS: first-run Constant, Vanilla UI, M/rebind, options/persistence, top cassette, live song/silence, Play/Next/Pause/Resume, music-only volume, inert mode, 320x240");
+    }
+
+    private static void checkAddSongs(ClientGameTestContext context) {
+        context.getInput().resizeWindow(960, 720);
+        var parent = context.computeOnClient(client -> client.gui.screen());
+        Path game = context.computeOnClient(client -> client.gameDirectory.toPath());
+        Path source = game.resolve("add-songs-inputs");
+        Path folder = game.resolve("music");
+        try {
+            java.nio.file.Files.createDirectories(source);
+            java.nio.file.Files.createDirectories(folder);
+            try (var files = java.nio.file.Files.list(folder)) {
+                for (var file : files.filter(p -> p.getFileName().toString().startsWith("Add-check")).toList()) java.nio.file.Files.delete(file);
+            }
+            for (var entry : java.util.Map.of("stereo.mp3", "Add-check.mp3", "mono.ogg", "Add-check.ogg").entrySet()) {
+                try (var input = ClientSmokeGameTest.class.getResourceAsStream("/audio/" + entry.getKey())) {
+                    java.nio.file.Files.copy(input, source.resolve(entry.getValue()), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                }
+            }
+            java.nio.file.Files.writeString(source.resolve("Add-check.png"), "not music");
+        } catch (java.io.IOException error) { throw new AssertionError(error); }
+        context.runOnClient(client -> {
+            WhoStoppedTheMusic.settings().setMode(Mode.BASIC);
+            MusicDirector.get(client).syncMode();
+            MusicDirector.get(client).stop();
+            client.gui.setScreen(new MusicScreen(parent, WhoStoppedTheMusic.settings()));
+            Screens.getWidgets(client.gui.screen()).stream().filter(EditBox.class::isInstance)
+                    .map(EditBox.class::cast).findFirst().orElseThrow().setValue("Add-check");
+        });
+        var basic = context.computeOnClient(client -> client.gui.screen());
+        context.clickScreenButton("whostoppedthemusic.add_music");
+        context.waitForScreen(xyz.pyrehaven.whostoppedthemusic.ui.AddSongsScreen.class);
+        context.waitFor(client -> namedWidgetOnClient(client.gui.screen(), "Done").active);
+        context.runOnClient(client -> {
+            var location = xyz.pyrehaven.whostoppedthemusic.ui.AddSongsScreen.class.getProtectionDomain().getCodeSource().getLocation().toString();
+            check(location.endsWith("whostoppedthemusic-1.2.0.jar"), "Add music screen comes from installable jar");
+            client.gui.screen().onFilesDrop(java.util.List.of(source.resolve("Add-check.mp3"), source.resolve("Add-check.ogg")));
+        });
+        context.waitForScreen(net.minecraft.client.gui.screens.ConfirmScreen.class);
+        check(!java.nio.file.Files.exists(folder.resolve("Add-check.mp3")), "drop waits for confirmation");
+        context.takeScreenshot("add-songs-confirm");
+        context.clickScreenButton("gui.no");
+        context.waitForScreen(xyz.pyrehaven.whostoppedthemusic.ui.AddSongsScreen.class);
+        check(!java.nio.file.Files.exists(folder.resolve("Add-check.mp3")), "No leaves folder unchanged");
+        context.runOnClient(client -> client.gui.screen().onFilesDrop(java.util.List.of(source.resolve("Add-check.png"))));
+        context.waitForScreen(net.minecraft.client.gui.screens.AlertScreen.class);
+        context.runOnClient(client -> check(client.gui.screen().getNarrationMessage().getString().contains("Only regular MP3"), "invalid extension explains rejection"));
+        context.clickScreenButton("gui.back");
+        context.waitForScreen(xyz.pyrehaven.whostoppedthemusic.ui.AddSongsScreen.class);
+        context.runOnClient(client -> client.gui.screen().onFilesDrop(java.util.List.of(source.resolve("Add-check.mp3"), source.resolve("Add-check.ogg"))));
+        context.waitForScreen(net.minecraft.client.gui.screens.ConfirmScreen.class);
+        context.clickScreenButton("gui.yes");
+        context.waitForScreen(net.minecraft.client.gui.screens.AlertScreen.class);
+        try {
+            check(java.nio.file.Files.mismatch(source.resolve("Add-check.mp3"), folder.resolve("Add-check.mp3")) == -1,
+                    "confirmed MP3 copy matches original bytes");
+            check(java.nio.file.Files.mismatch(source.resolve("Add-check.ogg"), folder.resolve("Add-check.ogg")) == -1,
+                    "confirmed OGG copy matches original bytes");
+        } catch (java.io.IOException error) { throw new AssertionError(error); }
+        var imported = context.computeOnClient(client -> WhoStoppedTheMusic.LIBRARY.tracks().stream()
+                .filter(t -> t.id().startsWith("custom:Add-check")).toList());
+        check(imported.size() == 2 && imported.stream().allMatch(Track::playable), "import refresh probes both files");
+        for (var track : imported) {
+            var sound = context.computeOnClient(client -> {
+                MusicDirector.get(client).play(track);
+                return MusicDirector.get(client).current();
+            });
+            context.waitFor(client -> channelState(client, sound, true).join());
+            context.runOnClient(client -> MusicDirector.get(client).stop());
+        }
+        context.clickScreenButton("gui.back");
+        context.waitForScreen(xyz.pyrehaven.whostoppedthemusic.ui.AddSongsScreen.class);
+        context.runOnClient(client -> client.gui.screen().onFilesDrop(java.util.List.of(source.resolve("Add-check.mp3"))));
+        context.waitForScreen(net.minecraft.client.gui.screens.ConfirmScreen.class);
+        context.clickScreenButton("gui.yes");
+        context.waitForScreen(net.minecraft.client.gui.screens.AlertScreen.class);
+        context.runOnClient(client -> check(client.gui.screen().getNarrationMessage().getString().contains("Add-check (2).mp3"), "numbered duplicate reported"));
+        try {
+            check(java.nio.file.Files.mismatch(source.resolve("Add-check.mp3"), folder.resolve("Add-check (2).mp3")) == -1, "duplicate gets independent exact copy");
+        } catch (java.io.IOException error) { throw new AssertionError(error); }
+        context.clickScreenButton("gui.back");
+        context.waitForScreen(xyz.pyrehaven.whostoppedthemusic.ui.AddSongsScreen.class);
+        context.runOnClient(client -> Screens.getWidgets(client.gui.screen()).stream().filter(EditBox.class::isInstance)
+                .map(EditBox.class::cast).findFirst().orElseThrow().setValue("Add-check"));
+        context.waitTicks(3);
+        assertWidgetsFit(context);
+        context.takeScreenshot("add-songs-list");
+        context.runOnClient(client -> searchBox(client.gui.screen()).setValue("Add-check (2)"));
+        context.waitTicks(3);
+        clickWidget(context, context.computeOnClient(client -> (AbstractWidget) trackList(client.gui.screen()).children().getFirst().children().getLast()));
+        context.waitForScreen(net.minecraft.client.gui.screens.ConfirmScreen.class);
+        context.runOnClient(client -> check(client.gui.screen().getNarrationMessage().getString().contains("Add-check (2).mp3"), "Remove names exact file before deletion"));
+        context.clickScreenButton("gui.cancel");
+        context.waitForScreen(xyz.pyrehaven.whostoppedthemusic.ui.AddSongsScreen.class);
+        check(java.nio.file.Files.exists(folder.resolve("Add-check (2).mp3")), "cancel keeps duplicate");
+        context.waitTicks(3);
+        clickWidget(context, context.computeOnClient(client -> (AbstractWidget) trackList(client.gui.screen()).children().getFirst().children().getLast()));
+        context.waitForScreen(net.minecraft.client.gui.screens.ConfirmScreen.class);
+        context.clickScreenButton("whostoppedthemusic.remove");
+        context.waitForScreen(net.minecraft.client.gui.screens.AlertScreen.class);
+        check(!java.nio.file.Files.exists(folder.resolve("Add-check (2).mp3")), "confirmed Remove deletes the named duplicate");
+        check(java.nio.file.Files.exists(source.resolve("Add-check.mp3")) && java.nio.file.Files.exists(folder.resolve("Add-check.mp3")), "source and first copy survive removal");
+        context.runOnClient(client -> check(WhoStoppedTheMusic.LIBRARY.tracks().stream().noneMatch(t -> t.id().equals("custom:Add-check (2).mp3")), "removal refreshes library"));
+        context.clickScreenButton("gui.back");
+        context.waitForScreen(xyz.pyrehaven.whostoppedthemusic.ui.AddSongsScreen.class);
+        context.clickScreenButton("whostoppedthemusic.open_music_folder");
+        context.runOnClient(client -> searchBox(client.gui.screen()).setValue("Add-check"));
+        context.getInput().resizeWindow(320, 240);
+        context.waitTicks(3);
+        assertWidgetsFit(context);
+        context.takeScreenshot("add-songs-small");
+        context.getInput().pressKey(InputConstants.KEY_ESCAPE);
+        context.waitForScreen(MusicScreen.class);
+        context.runOnClient(client -> {
+            check(client.gui.screen() == basic, "returns to same Basic screen");
+            var query = Screens.getWidgets(client.gui.screen()).stream().filter(EditBox.class::isInstance).map(EditBox.class::cast).findFirst().orElseThrow();
+            check(query.getValue().equals("Add-check"), "parent search retained");
+            check(trackList(client.gui.screen()).children().size() == 2, "parent library view refreshed after file operations");
+        });
+        context.clickScreenButton("whostoppedthemusic.add_music");
+        context.waitForScreen(xyz.pyrehaven.whostoppedthemusic.ui.AddSongsScreen.class);
+        context.waitFor(client -> namedWidgetOnClient(client.gui.screen(), "Done").active);
+        context.clickScreenButton("gui.done");
+        context.waitForScreen(MusicScreen.class);
+        context.clickScreenButton("gui.done");
+        context.waitForScreen(TitleScreen.class);
+        LoggerFactory.getLogger("whostoppedthemusic-test").info("ADD SONGS PASS: packaged shared screen, import No/Yes, exact MP3/OGG copies, bad extension, numbered duplicate, cancel/delete, source retention, library refresh, search/return/Done/Escape and 320x240");
+    }
+
+    private static AbstractWidget namedWidgetOnClient(net.minecraft.client.gui.screens.Screen screen, String name) {
+        return Screens.getWidgets(screen).stream().filter(w -> w.getMessage().getString().equals(name)).findFirst().orElseThrow();
     }
 
     private static void checkOwnSongs(ClientGameTestContext context) {

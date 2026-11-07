@@ -46,6 +46,8 @@ public final class Theme {
     public static final int TRACK_HEIGHT = 100;
     public static final int TRACK_HEADER_HEIGHT = 18;
     public static final int TRACK_PLAY_WIDTH = 24;
+    public static final int TRACK_REMOVE_WIDTH = 64;
+    public static final int IMPORT_HEADER_ROWS = 2;
     public static final int TRACK_SCROLLBAR_SPACE = 10;
     public static final int TRACK_TEXT_GAP = 4;
     public static final int TOAST_TITLE_Y = 5;
@@ -83,6 +85,14 @@ public final class Theme {
                                 getX() + GAP, getRight() - GAP, getY(), getBottom());
             }
         };
+    }
+
+    public static net.minecraft.client.gui.components.EditBox search(net.minecraft.client.gui.Font font) {
+        var text = Component.translatable("whostoppedthemusic.search");
+        var search = new net.minecraft.client.gui.components.EditBox(font, 0, 0, CONTROL_HEIGHT, CONTROL_HEIGHT, text);
+        search.setHint(text);
+        search.setMaxLength(SEARCH_LIMIT);
+        return search;
     }
 
     public static void buttonFrame(GuiGraphicsExtractor graphics, Button button) {
