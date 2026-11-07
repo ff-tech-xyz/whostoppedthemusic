@@ -43,7 +43,7 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
     @Override
     public void onInitializeClient() {
         if (Boolean.getBoolean("whostoppedthemusic.transportOnly") || Boolean.getBoolean("whostoppedthemusic.basicOnly")
-                || Boolean.getBoolean("whostoppedthemusic.basicUiOnly")) {
+                || Boolean.getBoolean("whostoppedthemusic.basicUiOnly") || Boolean.getBoolean("whostoppedthemusic.discoveryOnly")) {
             return;
         }
         // Entrypoint order is not guaranteed. Check after all startup callbacks,
@@ -57,6 +57,10 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
     @Override
     public void runTest(ClientGameTestContext context) {
         context.waitForScreen(TitleScreen.class);
+        if (Boolean.getBoolean("whostoppedthemusic.discoveryOnly")) {
+            DiscoveryGameTest.run(context);
+            return;
+        }
         if (Boolean.getBoolean("whostoppedthemusic.basicUiOnly")) {
             checkBasicUi(context);
             return;

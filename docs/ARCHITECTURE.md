@@ -103,7 +103,9 @@ whostoppedthemusic/
     │   │   │   ├── TrackNames.java          # pure: translated names/fallback and normalized title/artist/typo search ranking
     │   │   │   ├── TrackLibrary.java
     │   │   │   │   # Builds deduplicated soundtrack/disc tracks from loaded weighted sound entries,
-    │   │   │   │   # follows event references with cycle protection; rebuilt after SoundManager.apply.
+    │   │   │   │   # follows event references with cycle protection; rebuilt after SoundManager.apply
+    │   │   │   │   # and world registry changes. Matches music/theme in event paths and loaded
+    │   │   │   │   # biome/dimension/timeline music plus jukebox definitions; discs win file dedupe.
     │   │   │   │   # Tags and imported files remain planned.
     │   │   │   ├── Deck.java
     │   │   │   │   # Pure logic, no Minecraft classes: weighted shuffle "deck" with history
@@ -147,7 +149,8 @@ whostoppedthemusic/
     │   │       ├── ClientLevelAccessor.java         # current level's LevelEventHandler
     │   │       ├── SoundEventReferenceAccessor.java # event-reference Sound in vanilla's weighted wrapper
     │   │       ├── SoundLibraryMixin.java           # rebuild library after loaded sound registry applies
-    │   │       ├── MusicWorldMixin.java             # keep Basic source when Minecraft clears old-world sounds
+    │   │       ├── TimelineMusicAccessor.java        # read-only timeline attribute tracks for music keyframes
+    │   │       ├── MusicWorldMixin.java             # keep Basic source during world changes; rebuild library from new registries
     │   │       ├── LevelSoundMixin.java             # stop other world sources and clear scheduled/ticking sounds
     │   │       ├── NowPlayingToastMixin.java        # retire vanilla toast during Basic, including its slide-out
     │   │       └── WeighedSoundEventsAccessor.java  # read-only access to a pool's entries (accessor, no logic)
@@ -165,9 +168,12 @@ whostoppedthemusic/
     └── gametest/
         ├── java/xyz/pyrehaven/whostoppedthemusic/
         │   ├── ClientSmokeGameTest.java # packaged UI/transport; basicUiOnly selects browser/layout/row-play checks
+        │   ├── DiscoveryGameTest.java   # discoveryOnly: real loaded events, definition registries, dedupe, reload/world lifecycle
         │   └── test/mixin/TransportStreamGate.java # holds decoded vanilla streams before source attachment
         └── resources/
             ├── fabric.mod.json         # development-only client test entrypoint
+            ├── assets/discovery/sounds.json # event-name, arbitrary definition, nested/cyclic alias fixtures over vanilla audio
+            ├── assets/music_namespace/sounds.json # namespace-only rejection fixture
             └── whostoppedthemusic-test.mixins.json # development-only stream gate
 ```
 
@@ -281,7 +287,7 @@ Custom selection and custom-file streaming remain planned.
    - Both toast calls in `startPlaying` and `showNowPlayingToastIfNeeded()` delegate to the director. Basic reuses one `SongToast` through the toast manager, following `options.musicToast()`; Vanilla delegates unchanged. `NowPlayingToastMixin` hides the legacy toast in Basic, including a previous Vanilla toast and option callbacks. The replacement also retires on mode switch, stop or toast preference change.
 2. **`PauseScreenMixin`:** implemented: return false from `rendersNowPlayingToast()` for the full pause menu so the compact cassette owns the title. The cassette and Next are added through Fabric `ScreenEvents.AFTER_INIT`, not this mixin. `MusicChannelMixin` retains stop/pause intent on MusicManager-owned sources across asynchronous startup and global menu resume; accessors expose the existing channel without replacing the sound engine.
 3. **`ClientJukeboxMixin` / `ClientLevelAccessor`:** read `ClientLevel.levelEventHandler.playingJukeboxSongs`, which 26.3's `LevelEventHandler.playJukeboxSong` / `stopJukeboxSong` already own. The watcher verifies allocated live channels; no duplicate position map, timer or world lifecycle state exists.
-4. **`WeighedSoundEventsAccessor` / `SoundEventReferenceAccessor`:** read weighted files and event-reference entries recursively, preserving volume/pitch multipliers and stream flags. `SoundLibraryMixin` rebuilds after SoundManager applies the loaded registry; titles are translated components, resolved against the current language rather than a reload-order snapshot.
+4. **`WeighedSoundEventsAccessor` / `SoundEventReferenceAccessor`:** read weighted files and event-reference entries recursively, preserving volume/pitch multipliers and stream flags. `SoundLibraryMixin` rebuilds after SoundManager applies the loaded registry; `MusicWorldMixin` rebuilds with the arriving world's registries (or empty registries on exit). `TimelineMusicAccessor` exposes loaded attribute tracks so every music keyframe is discoverable without time sampling. Titles are translated components, resolved against the current language rather than a reload-order snapshot.
 5. **`MusicWorldMixin` / `LevelSoundMixin`:** the exact `updateLevelInEngines(ClientLevel, boolean)` sound-stop call keeps the active Basic source only. The sound engine retires other sources using existing channel stop intent, clears queued/ticking old-world sounds, and lets its normal cleanup release handles. Vanilla and resource-reload/device-reset stop paths are unchanged.
 
 Fabric API instead of mixins:
@@ -299,14 +305,15 @@ Fabric API instead of mixins:
 
 ## Tracks and names
 
-- **Tags:** every sound event whose path starts with `music.`, from `SoundManager.getAvailableSounds()`, plus any pool seen at runtime. This works on the title screen and picks up modded and resource-pack pools.
+- **Discovery:** loaded sound events whose path contains `music` or `theme` (namespace alone does not qualify), plus events referenced by built-in music and loaded biome/dimension background music (default, creative and underwater), timeline music keyframes and jukebox songs regardless of event name. Rebuild after sound resources apply and world registry transitions; server definitions become available after joining that server. Only referenced weighted sound entries are flattened, with cycle protection and file-id dedupe. Jukebox definitions and legacy `music_disc.` pools take DISC precedence over soundtrack aliases of the same file; jukebox descriptions supply their titles.
+- **Tags:** planned pool UI uses these discovered events.
   - Display name: lang key `whostoppedthemusic.tag.<namespace>.<path>` (vanilla ones written in `en_us.json`).
   - Fallback: prettified path, for example "Overworld · Cherry Grove".
 - **Soundtrack tracks:** the file entries inside those pools.
   - Title from vanilla's lang: the file path with `/` turned into `.`. For example, `music/game/sweden` → `music.game.sweden` → "C418 - Sweden".
   - Fallback: prettified file name.
   - The real `Sound` entry is reused, so volume and stream settings from `sounds.json` are kept.
-- **Discs:** sound events starting with `music_disc.`. Title from `jukebox_song.minecraft.<id>` ("Lena Raine - Pigstep"). 26.3 removes the old `item.minecraft.music_disc_<id>.desc` keys through `lang/deprecated.json`, even though they remain in en_us.json. Discs play on the Music channel as background music, not positional.
+- **Discs:** loaded jukebox-song sound events plus legacy `music_disc.` events. Definitions provide their description; legacy pools use `jukebox_song.minecraft.<id>` ("Lena Raine - Pigstep"). 26.3 removes the old `item.minecraft.music_disc_<id>.desc` keys through `lang/deprecated.json`, even though they remain in en_us.json. Discs play on the Music channel as background music, not positional.
 - **Your songs:** files in `.minecraft/music/` ending in `.mp3` or `.ogg`, not case-sensitive. The title is the file name without its extension.
   - OGG is decoded with vanilla's `JOrbisAudioStream`, MP3 with `Mp3AudioStream`.
   - Decoding starts on a background executor, never the render thread.
@@ -411,6 +418,11 @@ JUnit reports, missing UI screenshots or pass marker, and source-output loading
 instead of the packaged jar. No empty suite is called passed.
 
 ## How to build
+
+Focused discovery verification: `xvfb-run -a ./gradlew runClientGameTest -PdiscoveryOnly --console=plain`.
+This loads the packaged jar and test-only event aliases over vanilla audio, checks
+name/definition discovery and nested modifiers, then exercises world entry, resource
+reload and world exit. The original prefix filter fails the `forestmusic` assertion.
 
 Copy the Gradle setup from **RealSize** (`realsize-mod`, the newest 26.3 setup), then change it for a client-only mod.
 

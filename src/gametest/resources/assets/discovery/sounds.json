@@ -1,0 +1,13 @@
+{
+  "forestmusic": {"sounds": [{"name": "minecraft:entity.chicken.ambient", "type": "event"}]},
+  "forest_theme": {"sounds": [{"name": "discovery:relay", "type": "event", "volume": 0.5, "pitch": 0.5, "stream": true}]},
+  "relay": {"sounds": [{"name": "minecraft:entity.cow.ambient", "type": "event", "volume": 0.5, "pitch": 0.5}]},
+  "unnamed_biome": {"sounds": [{"name": "minecraft:entity.sheep.ambient", "type": "event"}]},
+  "unnamed_creative": {"sounds": [{"name": "minecraft:entity.pig.ambient", "type": "event"}]},
+  "unnamed_underwater": {"sounds": [{"name": "minecraft:entity.cat.ambient", "type": "event"}]},
+  "unnamed_dimension": {"sounds": [{"name": "minecraft:entity.horse.ambient", "type": "event"}]},
+  "unnamed_timeline": {"sounds": [{"name": "minecraft:entity.villager.ambient", "type": "event"}]},
+  "unnamed_disc": {"sounds": [{"name": "minecraft:block.note_block.harp", "type": "event"}]},
+  "aaa_music_alias": {"sounds": [{"name": "discovery:unnamed_disc", "type": "event"}]},
+  "music_disc.old": {"sounds": [{"name": "minecraft:block.note_block.bell", "type": "event"}]}
+}
