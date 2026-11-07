@@ -25,7 +25,7 @@ import xyz.pyrehaven.whostoppedthemusic.ui.CassetteArtwork;
 import xyz.pyrehaven.whostoppedthemusic.ui.MusicScreen;
 import xyz.pyrehaven.whostoppedthemusic.ui.MusicVolumeSlider;
 import xyz.pyrehaven.whostoppedthemusic.ui.Theme;
-import xyz.pyrehaven.whostoppedthemusic.ui.SongToast;
+import net.minecraft.client.gui.components.toasts.NowPlayingToast;
 import xyz.pyrehaven.whostoppedthemusic.ui.TransportButton;
 import net.minecraft.client.gui.components.toasts.Toast;
 import xyz.pyrehaven.whostoppedthemusic.ui.widget.TrackList;
@@ -279,7 +279,7 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
         });
     }
 
-    private static void checkMenuNotes(ClientGameTestContext context, String name, boolean playing) {
+    static void checkMenuNotes(ClientGameTestContext context, String name, boolean playing) {
         context.getInput().setCursorPos(0, 0);
         context.waitTicks(3);
         var tape = context.computeOnClient(client -> cassette(client.gui.screen()));
@@ -591,7 +591,7 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
                 WhoStoppedTheMusic.settings().setAllTicked(WhoStoppedTheMusic.LIBRARY.tracks().stream().map(t -> t.id()).toList(), true);
             });
             if (Boolean.getBoolean("whostoppedthemusic.artworkOnly")) {
-                checkCassetteArtwork(context);
+                CustomUiGameTest.artwork(context);
                 return;
             }
             var record = context.computeOnClient(client -> {
@@ -737,92 +737,6 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
         }
     }
 
-    private static void checkCassetteArtwork(ClientGameTestContext context) {
-        var original = context.computeOnClient(client -> WhoStoppedTheMusic.LIBRARY.tracks());
-        var tracks = original.stream().filter(track -> track.id().equals("minecraft:music/game/sweden")
-                || track.id().equals("minecraft:records/pigstep")).map(track -> new Track(track.id(), Track.Kind.SOUNDTRACK,
-                Component.literal("Same artist - Same title"), track.sound())).toList();
-        check(tracks.size() == 2 && !tracks.getFirst().id().equals(tracks.getLast().id()), "distinct file fixtures");
-        try {
-            context.runOnClient(client -> {
-                setTestTracks(tracks);
-                client.options.musicToast().set(MusicToastDisplayState.NEVER);
-            });
-            for (int[] window : new int[][]{{960, 720, 2}, {320, 240, 1}, {1280, 960, 4}}) {
-                context.getInput().resizeWindow(window[0], window[1]);
-                context.runOnClient(client -> client.options.guiScale().set(window[2]));
-                context.waitTicks(3);
-                context.runOnClient(client -> check(client.getWindow().getGuiScale() == window[2], "requested GUI scale applied"));
-                for (Mode mode : Mode.values()) {
-                    String name = "reels-" + window[0] + "-" + mode.name().toLowerCase(java.util.Locale.ROOT);
-                    context.runOnClient(client -> {
-                        WhoStoppedTheMusic.settings().setMode(mode);
-                        var director = MusicDirector.get(client);
-                        director.syncMode();
-                        client.options.getSoundSourceOptionInstance(SoundSource.MUSIC).set(0.7);
-                        if (mode == Mode.BASIC) director.play(tracks.getFirst());
-                        else director.next();
-                        client.gui.toastManager().clear();
-                        client.gui.setScreen(new MusicScreen(null, WhoStoppedTheMusic.settings()));
-                    });
-                    context.waitFor(client -> MusicDirector.get(client).advancing());
-                    context.waitTicks(2);
-                    assertWidgetsFit(context);
-                    if (mode == Mode.BASIC) {
-                        context.runOnClient(client -> {
-                            var director = MusicDirector.get(client);
-                            check(director.playing(tracks.getFirst()), "actual file row matches");
-                            check(!director.playing(tracks.getLast()), "same title is not playing identity");
-                        });
-                        checkLibraryReels(context, name, 1, true);
-                        checkLibraryReels(context, name, 2, false);
-                    }
-                    checkPlayerReels(context, name + "-moving", true, false);
-                    var source = context.computeOnClient(client -> MusicDirector.get(client).current());
-                    context.runOnClient(client -> MusicDirector.get(client).togglePlayback());
-                    context.waitFor(client -> !MusicDirector.get(client).advancing() && MusicDirector.get(client).paused());
-                    checkPlayerReels(context, name + "-paused", false, false);
-                    if (mode == Mode.BASIC) checkLibraryReels(context, name + "-paused", 1, false);
-                    context.runOnClient(client -> MusicDirector.get(client).togglePlayback());
-                    context.waitFor(client -> MusicDirector.get(client).advancing());
-                    context.runOnClient(client -> check(MusicDirector.get(client).current() == source, "resume retains source"));
-                    context.runOnClient(client -> client.options.getSoundSourceOptionInstance(SoundSource.MUSIC).set(0.0));
-                    context.waitTicks(2);
-                    checkPlayerReels(context, name + "-muted", true, false);
-                    context.runOnClient(client -> {
-                        client.options.getSoundSourceOptionInstance(SoundSource.MUSIC).set(0.7);
-                        client.gui.setScreen(new PauseScreen(true));
-                    });
-                    context.waitTicks(2);
-                    assertWidgetsFit(context);
-                    checkPlayerReels(context, name + "-pause-menu", true, true);
-                    context.runOnClient(client -> {
-                        if (mode == Mode.BASIC) MusicDirector.get(client).stop();
-                        else {
-                            client.getMusicManager().stopPlaying();
-                            ((MusicManagerAccessor) client.getMusicManager()).whostoppedthemusic$nextSongDelay(10000);
-                        }
-                    });
-                    context.waitFor(client -> !MusicDirector.get(client).active());
-                    checkEmptyPlayer(context, name + "-empty-pause", true);
-                    context.runOnClient(client -> client.gui.setScreen(new MusicScreen(null, WhoStoppedTheMusic.settings())));
-                    context.waitTicks(2);
-                    assertWidgetsFit(context);
-                    checkEmptyPlayer(context, name + "-empty-settings", false);
-                    context.runOnClient(client -> MusicDirector.get(client).next());
-                    context.waitFor(client -> MusicDirector.get(client).advancing());
-                    context.runOnClient(client -> check(MusicDirector.get(client).current() != source, "Next changes source and restarts motion"));
-                }
-            }
-        } finally {
-            context.runOnClient(client -> {
-                setTestTracks(original);
-                client.gui.setScreen(null);
-            });
-        }
-        LoggerFactory.getLogger("whostoppedthemusic-test").info(
-                "CASSETTE ARTWORK PASS: actual-channel motion, pause/freeze/same-source resume, mute, Next, silence/held Stop, empty red rods, matching-file-only library holes, normal/narrow and GUI scales 2/4");
-    }
 
     private static AbstractWidget playerTape(ClientGameTestContext context, boolean compact) {
         return context.computeOnClient(client -> compact ? cassette(client.gui.screen())
@@ -841,19 +755,8 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
         checkReelPixels(context, name, geometry, moves, Theme.SPINDLE);
     }
 
-    private static void checkLibraryReels(ClientGameTestContext context, String name, int rowIndex, boolean moves) {
-        var tape = context.computeOnClient(client -> {
-            var list = trackList(client.gui.screen());
-            var row = list.children().get(rowIndex);
-            list.setScrollAmount(list.scrollAmount() + row.getY() - list.getY());
-            return (AbstractWidget) row.children().get(1);
-        });
-        context.waitTicks(2);
-        var geometry = tapeGeometry(context, tape, false);
-        checkReelPixels(context, name + "-row" + rowIndex, geometry, moves, Theme.BACKGROUND);
-    }
 
-    private static void checkReelPixels(ClientGameTestContext context, String name, CassetteArtwork.Geometry geometry,
+    static void checkReelPixels(ClientGameTestContext context, String name, CassetteArtwork.Geometry geometry,
                                         boolean moves, int centerColor) {
         context.getInput().setCursorPos(0, 0);
         context.waitTicks(2);
@@ -924,17 +827,15 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
         context.runOnClient(client -> {
             checkSingleSongToast(client);
             var manager = client.gui.toastManager();
-            var toast = manager.getToast(SongToast.class, Toast.NO_TOKEN);
-            // Controlled elapsed times exercise the real toast's multiplier and duplicate callback.
-            MusicDirector.get(client).showToast(manager);
-            check(manager.getToast(SongToast.class, Toast.NO_TOKEN) == toast, "duplicate callback reuses same toast");
-            var timed = new SongToast(sound, MusicDirector.get(client).metadata());
-            timed.update(manager, 100000);
-            timed.replace(sound, MusicDirector.get(client).metadata());
-            timed.update(manager, 109999);
+            var toast = nowPlayingToast(client);
+            manager.showNowPlayingToast();
+            check(nowPlayingToast(client) == toast, "vanilla callback reuses its dedicated toast");
+            var timed = new NowPlayingToast();
+            timed.showToast(client.options);
+            timed.update(manager, 9999);
             check(timed.getWantedVisibility() == Toast.Visibility.SHOW, "2x notification lasts almost ten seconds");
-            timed.update(manager, 110001);
-            check(timed.getWantedVisibility() == Toast.Visibility.HIDE, "duplicate callback cannot extend duration");
+            timed.update(manager, 10001);
+            check(timed.getWantedVisibility() == Toast.Visibility.HIDE, "vanilla notification duration expires");
         });
         clickWidget(context, namedWidget(context, "Pause"));
         context.waitFor(client -> channelState(client, sound, false).join());
@@ -949,14 +850,14 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
         clickWidget(context, namedWidget(context, "Resume"));
         context.waitFor(client -> channelState(client, sound, true).join());
         context.runOnClient(client -> check(MusicDirector.get(client).current() == sound, "Resume preserves exact source"));
-        var toast = context.computeOnClient(client -> client.gui.toastManager().getToast(SongToast.class, Toast.NO_TOKEN));
+        var toast = context.computeOnClient(ClientSmokeGameTest::nowPlayingToast);
         clickWidget(context, namedWidget(context, "Pause"));
         clickWidget(context, namedWidget(context, "Next"));
         context.waitFor(client -> channelStopped(client, sound) && channelState(client, MusicDirector.get(client).current(), true).join());
         context.runOnClient(client -> {
             check(!MusicDirector.get(client).paused(), "Next clears pause");
             checkSingleSongToast(client);
-            check(client.gui.toastManager().getToast(SongToast.class, Toast.NO_TOKEN) == toast, "transition updates same notification");
+            check(nowPlayingToast(client) == toast, "transition updates same vanilla notification");
         });
         if (mode == Mode.BASIC) checkBasicStopAndRow(context, record, effect);
         var outgoing = context.computeOnClient(client -> MusicDirector.get(client).current());
@@ -970,8 +871,8 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
         clickWidget(context, namedWidget(context, "Next"));
         context.waitFor(client -> channelState(client, MusicDirector.get(client).current(), true).join());
         context.runOnClient(client -> {
-            var hidden = client.gui.toastManager().getToast(SongToast.class, Toast.NO_TOKEN);
-            check(hidden == null || hidden.getWantedVisibility() == Toast.Visibility.HIDE, "Never hides and prevents replacement toast");
+            var hidden = nowPlayingToast(client);
+            check(hidden == null || hidden.getWantedVisibility() == Toast.Visibility.HIDE, "Never hides vanilla toast");
         });
         context.clickScreenButton("gui.done");
         context.waitForScreen(null);
@@ -1289,8 +1190,6 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
             check(MusicDirector.get(client).status().getString().equals("Lena Raine - Pigstep"), "row Play uses disc title on Music source");
             check(MusicDirector.get(client).current().getSource() == SoundSource.MUSIC, "background disc uses Music");
             client.getMusicManager().showNowPlayingToastIfNeeded();
-            check(client.gui.toastManager().getToast(xyz.pyrehaven.whostoppedthemusic.ui.SongToast.class,
-                    net.minecraft.client.gui.components.toasts.Toast.NO_TOKEN) != null, "single replacement SongToast exists");
             checkSingleSongToast(client);
         });
         context.takeScreenshot("whostoppedthemusic-basic-disc");
@@ -1305,10 +1204,9 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
         });
         context.waitTicks(2);
         context.runOnClient(client -> {
-            var toast = client.gui.toastManager().getToast(xyz.pyrehaven.whostoppedthemusic.ui.SongToast.class,
-                    net.minecraft.client.gui.components.toasts.Toast.NO_TOKEN);
+            var toast = nowPlayingToast(client);
             check(toast == null || toast.getWantedVisibility() == net.minecraft.client.gui.components.toasts.Toast.Visibility.HIDE,
-                    "Music Toast Never hides replacement");
+                    "Music Toast Never hides vanilla notification");
             client.options.musicToast().set(MusicToastDisplayState.PAUSE_AND_TOAST);
         });
     }
@@ -1379,30 +1277,23 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
         context.waitFor(client -> channelState(client, MusicDirector.get(client).current(), true).join());
     }
 
-    private static void checkSingleSongToast(net.minecraft.client.Minecraft client) {
+    static void checkSingleSongToast(net.minecraft.client.Minecraft client) {
+        var toast = nowPlayingToast(client);
+        check(toast != null && toast.getWantedVisibility() == Toast.Visibility.SHOW, "vanilla notification is visible");
+        check(toast.xPos(client.getWindow().getGuiScaledWidth(), 1) == 0 && toast.yPos(0) == 0,
+                "song notification uses vanilla's top-left placement");
+    }
+
+    static NowPlayingToast nowPlayingToast(net.minecraft.client.Minecraft client) {
         try {
             var manager = client.gui.toastManager();
-            var queued = manager.getClass().getDeclaredField("queued");
-            var visible = manager.getClass().getDeclaredField("visibleToasts");
             var vanilla = manager.getClass().getDeclaredField("nowPlayingToast");
-            queued.setAccessible(true);
-            visible.setAccessible(true);
             vanilla.setAccessible(true);
-            long count = ((java.util.Collection<?>) queued.get(manager)).stream()
-                    .filter(xyz.pyrehaven.whostoppedthemusic.ui.SongToast.class::isInstance).count();
-            for (var instance : (java.util.List<?>) visible.get(manager)) {
-                var field = instance.getClass().getDeclaredField("toast");
-                field.setAccessible(true);
-                if (field.get(instance) instanceof xyz.pyrehaven.whostoppedthemusic.ui.SongToast) count++;
-            }
-            check(count == 1, "exactly one queued/visible SongToast");
             var instance = vanilla.get(manager);
-            if (instance != null) {
-                var field = instance.getClass().getDeclaredField("toast");
-                field.setAccessible(true);
-                check(((net.minecraft.client.gui.components.toasts.Toast) field.get(instance)).getWantedVisibility()
-                        == net.minecraft.client.gui.components.toasts.Toast.Visibility.HIDE, "vanilla duplicate hidden in both modes");
-            }
+            if (instance == null) return null;
+            var field = instance.getClass().getDeclaredField("toast");
+            field.setAccessible(true);
+            return (NowPlayingToast) field.get(instance);
         } catch (ReflectiveOperationException failure) { throw new AssertionError(failure); }
     }
 

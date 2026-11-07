@@ -13,7 +13,6 @@ import xyz.pyrehaven.whostoppedthemusic.mixin.SoundManagerAccessor;
 import xyz.pyrehaven.whostoppedthemusic.Mode;
 import xyz.pyrehaven.whostoppedthemusic.JukeboxSetting;
 import xyz.pyrehaven.whostoppedthemusic.WhoStoppedTheMusic;
-import xyz.pyrehaven.whostoppedthemusic.ui.SongToast;
 import net.minecraft.core.Holder;
 import net.minecraft.resources.Identifier;
 import net.minecraft.sounds.SoundEvent;
@@ -190,14 +189,6 @@ public final class MusicDirector {
         requested = null;
     }
 
-    public void showToast(net.minecraft.client.gui.components.toasts.ToastManager toasts) {
-        if (current() == null || manager.getCurrentMusicTranslationKey() == null
-                || !client.options.musicToast().get().renderToast()) return;
-        var toast = toasts.getToast(SongToast.class, net.minecraft.client.gui.components.toasts.Toast.NO_TOKEN);
-        if (toast == null) toasts.addToast(new SongToast(current(), metadata()));
-        else toast.replace(current(), metadata());
-    }
-
     public MusicDirector(Minecraft client, MusicManager manager) {
         this.client = client;
         this.manager = manager;
@@ -223,8 +214,8 @@ public final class MusicDirector {
 
     /** Sample native playback on the sound thread, including startup and jukebox fades. */
     private void observeChannel() {
-        var source = current();
-        var handle = channel();
+        var source = displaySource();
+        var handle = channel(source);
         if (handle == null || handle.isStopped()) advancing = null;
         else handle.execute(channel -> advancing = channel.playing() ? source : null);
     }
@@ -233,10 +224,24 @@ public final class MusicDirector {
         return advancing != null && advancing == current() && active() && !paused();
     }
 
+    /** The editor temporarily displays its preview instead of the held background source. */
+    public SoundInstance displaySource() {
+        return preview.active() ? preview.source() : current();
+    }
+
+    public boolean displayAdvancing() {
+        var source = displaySource();
+        var handle = channel(source);
+        return source != null && source == advancing && handle != null && !handle.isStopped()
+                && (source != current() || !paused());
+    }
+
     public boolean playing(Track track) {
-        if (current() instanceof TrackSoundInstance chosen) return active() && chosen.track().id().equals(track.id());
-        return active() && current().getSound() != null
-                && current().getSound().getLocation().toString().equals(track.id());
+        var source = displaySource();
+        var handle = channel(source);
+        if (handle == null || handle.isStopped()) return false;
+        if (source instanceof TrackSoundInstance chosen) return chosen.track().id().equals(track.id());
+        return source.getSound() != null && source.getSound().getLocation().toString().equals(track.id());
     }
 
     public boolean canNext() {
@@ -333,8 +338,12 @@ public final class MusicDirector {
     }
 
     private ChannelAccess.ChannelHandle channel() {
+        return channel(current());
+    }
+
+    private ChannelAccess.ChannelHandle channel(SoundInstance source) {
         var engine = ((SoundManagerAccessor) client.getSoundManager()).whostoppedthemusic$engine();
-        return ((SoundEngineAccessor) engine).whostoppedthemusic$channels().get(current());
+        return ((SoundEngineAccessor) engine).whostoppedthemusic$channels().get(source);
     }
 
 }

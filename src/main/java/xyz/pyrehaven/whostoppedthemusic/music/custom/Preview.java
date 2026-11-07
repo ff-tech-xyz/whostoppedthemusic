@@ -24,6 +24,7 @@ public final class Preview {
     }
 
     public boolean active() { return source != null; }
+    public SoundInstance source() { return source; }
     public boolean playing(String id) { return source != null && source.track().id().equals(id); }
 
     public void toggle(Track track) {

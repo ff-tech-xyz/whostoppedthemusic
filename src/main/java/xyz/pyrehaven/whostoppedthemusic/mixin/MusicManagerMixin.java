@@ -60,11 +60,6 @@ public abstract class MusicManagerMixin implements MusicDirector.Access {
         return whostoppedthemusic$director().choose(event);
     }
 
-    @Redirect(method = {"startPlaying", "showNowPlayingToastIfNeeded"}, at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gui/components/toasts/ToastManager;showNowPlayingToast()V"))
-    private void whostoppedthemusic$toast(net.minecraft.client.gui.components.toasts.ToastManager toasts) {
-        whostoppedthemusic$director().showToast(toasts);
-    }
-
     @Inject(method = "startPlaying", at = @At("RETURN"))
     private void whostoppedthemusic$observe(Music music, CallbackInfo ci) {
         whostoppedthemusic$director().started(music);

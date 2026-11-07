@@ -1,6 +1,6 @@
 # Music controls and configuration
 
-Press **M** while playing, or click the pause-menu cassette. Settings save as you change them. Music volume and Vanilla/Basic Frequency use Minecraft's options; Custom Frequency belongs to each scenario.
+Press **M**, or click the bottom-left title/pause cassette. Settings save as you change them. Music volume and Vanilla/Basic Frequency use Minecraft's options; Custom Frequency belongs to each scenario.
 
 ## Controls
 
@@ -19,9 +19,11 @@ Press **M** while playing, or click the pause-menu cassette. Settings save as yo
 
 Basic search matches titles, artists and file IDs, including approximate matches. Select All / Deselect All affect the whole library and are hidden while a nonblank search is active. All songs start selected, including newly discovered songs. A row's Play can play an unticked song without selecting it.
 
+Music Toast in Minecraft's sound options controls the vanilla left-side song-change notification in all modes. Imported files use their literal filename title; known artists appear with the title on one line. Minecraft owns notification timing and accessibility duration. The pause menu keeps its cassette instead of duplicating the vanilla pause song line. These choices add no mod settings or migration.
+
 ## Custom scenarios
 
-Join a world to load its biome registry. Specials are followed by Overworld, Nether, End and other namespace groups. Biomes with a vanilla dimension tag join that group even if supplied by a mod. Removed biomes disappear from the browser but keep their saved overrides.
+Overworld, Nether, End and other namespace groups start collapsed, followed by Misc scenarios. Click a header to expand it; search reveals matching rows. Vanilla biomes are available at the title menu. Joining replaces them with the world's exact biome registry. Biomes with a vanilla dimension tag join that group even if supplied by a mod. Removed biomes disappear from the browser but keep their saved overrides.
 
 The camera-block biome always competes. Specials compete only when enabled and their condition is true:
 
@@ -52,6 +54,8 @@ Each scenario starts with **Constant** frequency and **Pause music** for jukebox
 Drag from Soundtrack, Music Discs or Your Songs into the right cassette list. Duplicate adds do nothing. A new entry takes the most common weight in that list (the lower weight breaks a tie), or 10 for an empty list. Focus a cassette and use the slider or arrow keys; Home/End set 1/100. The displayed chance is the weight divided by this list's total, before any live tie merge. Deck draws are weighted without replacement, with history retained for up to 32 resolution keys.
 
 Preview plays up to three seconds from the midpoint on the Music channel, fades, and resumes the same background source. Press again to cancel. Previewing another song, removing the previewed song or leaving the editor also ends it. Manual pause, silence and jukebox hold remain in effect afterward. Preview doesn't enter playback history, and Music mute also mutes preview.
+
+The matching library case and scenario cassette use the actual background or preview source: red spindle dots identify the loaded track, reels turn while its native channel advances, and notes appear only during playback. Pausing freezes reels and hides notes; stopping clears the playing marker. Muting changes volume, not channel progress. Unrelated songs and the held drag cassette remain still.
 
 Reset restores only the loaded default songs. Copy songs opens the scenario picker and replaces only songs and weights. Both preserve priority, interrupt, frequency and other settings. The edited marker describes changes to songs, not changes to every setting.
 

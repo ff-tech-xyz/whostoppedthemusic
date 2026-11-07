@@ -21,12 +21,25 @@ public final class CassetteArtwork {
     public void drawPlayer(GuiGraphicsExtractor graphics, AbstractWidget widget, MusicDirector director) {
         draw(graphics, widget, director.metadata(), director.playbackStatus(),
                 true, director.active(), director.active(), reelAngle(director));
+        if (widget instanceof CassetteWidget && director.advancing()) {
+            notes(graphics, widget.getX(), widget.getY() - Theme.GAP,
+                    widget.getWidth() - Theme.PAUSE_NEXT_WIDTH - Theme.GAP, Theme.NOTE_RISE);
+        }
     }
 
     public void drawTrack(GuiGraphicsExtractor graphics, AbstractWidget widget, Track track, MusicDirector director) {
+        boolean current = director.playing(track);
         draw(graphics, widget, track.metadata(), track.playable() ? Component.empty()
                         : Component.translatable("whostoppedthemusic.cant_play_short"),
-                false, true, director.playing(track), reelAngle(director));
+                current, true, current, reelAngle(director));
+        if (current && director.displayAdvancing()) {
+            var geometry = geometry(widget.getX(), widget.getY(), widget.getWidth(), widget.getHeight());
+            graphics.enableScissor(geometry.x(), geometry.labelY() + geometry.labelHeight(),
+                    geometry.x() + geometry.width(), geometry.y() + geometry.height());
+            notes(graphics, geometry.x(), geometry.y() + geometry.height() - Theme.GAP,
+                    geometry.width(), Math.max(1, geometry.height() / 6));
+            graphics.disableScissor();
+        }
     }
 
     public void drawMissing(GuiGraphicsExtractor graphics, AbstractWidget widget, Component title) {
@@ -43,6 +56,9 @@ public final class CassetteArtwork {
         int w = widget.getWidth();
         int h = widget.getHeight();
         var full = track.metadata().description();
+        var director = MusicDirector.get(net.minecraft.client.Minecraft.getInstance());
+        boolean current = director.playing(track);
+        double angle = reelAngle(director);
         if (included) full = full.copy().append(Component.translatable("whostoppedthemusic.in_list"));
         widget.setMessage(full);
         widget.setTooltip(Tooltip.create(full));
@@ -51,13 +67,24 @@ public final class CassetteArtwork {
         graphics.fill(x + Theme.CASE_SPINE, y + Theme.ACCENT, x + w - Theme.ACCENT, y + h - Theme.ACCENT, Theme.CARD);
         graphics.fill(x + Theme.ACCENT, y + Theme.ACCENT, x + Theme.CASE_SPINE - Theme.BORDER,
                 y + h - Theme.ACCENT, included ? Theme.GLOW : Theme.ORANGE);
-        graphics.fill(x + w - Theme.GAP, y + h / 3, x + w - Theme.ACCENT, y + h * 2 / 3, Theme.BLUE);
+        int playbackWidth = Theme.SMALL_REEL * 2 + Theme.GAP * 5;
+        if (current) {
+            for (int offset : new int[]{Theme.SMALL_REEL + Theme.GAP, Theme.SMALL_REEL * 2 + Theme.GAP * 2}) {
+                int reelX = x + w - offset;
+                int reelY = y + (h - Theme.SMALL_REEL) / 2;
+                reel(graphics, reelX, reelY, Theme.SMALL_REEL, angle);
+                graphics.fill(reelX + Theme.SMALL_REEL / 2 - 1, reelY + Theme.SMALL_REEL / 2 - 1,
+                        reelX + Theme.SMALL_REEL / 2 + 1, reelY + Theme.SMALL_REEL / 2 + 1, Theme.SPINDLE);
+            }
+            if (director.displayAdvancing()) notes(graphics, x + w - playbackWidth, y + h - Theme.ACCENT,
+                    Theme.GAP * 2, Math.max(1, h / 3));
+        } else graphics.fill(x + w - Theme.GAP, y + h / 3, x + w - Theme.ACCENT, y + h * 2 / 3, Theme.BLUE);
         title.draw(graphics, font, track.title(), x + Theme.CASE_SPINE + Theme.LABEL_PADDING,
-                x + w - Theme.GAP - Theme.LABEL_PADDING, y + (h - font.lineHeight) / 2,
+                x + w - (current ? playbackWidth : Theme.GAP) - Theme.LABEL_PADDING, y + (h - font.lineHeight) / 2,
                 included ? Theme.ARTIST : Theme.TEXT, false, false, widget.isHovered());
     }
 
-    /** Loose cassettes have open holes; red rods belong exclusively to a player. */
+    /** Held drag cassettes stay detached from playback. */
     public void drawLoose(GuiGraphicsExtractor graphics, AbstractWidget widget, Track track) {
         draw(graphics, widget, track.metadata(), Component.empty(), false, true, false, 0);
     }
@@ -65,14 +92,14 @@ public final class CassetteArtwork {
     /** Shared across widgets and screen rebuilds; transport remains owned by the director. */
     public static double reelAngle(MusicDirector director) {
         long now = System.nanoTime();
-        Object source = director.active() ? director.current() : null;
-        boolean advancing = director.advancing();
+        Object source = director.displaySource();
+        boolean advancing = director.displayAdvancing();
         if (source != reelSource) elapsed = 0;
-        else if (advancing && wasAdvancing) elapsed = (elapsed + now - sampledAt) % Theme.REEL_PERIOD_NANOS;
+        else if (advancing && wasAdvancing) elapsed += now - sampledAt;
         reelSource = source;
         sampledAt = now;
         wasAdvancing = advancing;
-        return elapsed * (Math.PI * 2 / Theme.REEL_PERIOD_NANOS);
+        return (elapsed % Theme.REEL_PERIOD_NANOS) * (Math.PI * 2 / Theme.REEL_PERIOD_NANOS);
     }
 
     public record Geometry(int x, int y, int width, int height, int labelX, int labelY,
@@ -178,6 +205,21 @@ public final class CassetteArtwork {
         int right = geometry.rightSpindleX();
         graphics.fill(left, y, left + 2, y + 2, color);
         graphics.fill(right, y, right + 2, y + 2, color);
+    }
+
+    /** Notes share the reel clock, so duplicate views never invent their own playback state. */
+    private static void notes(GuiGraphicsExtractor graphics, int left, int bottom, int width, int rise) {
+        double time = (elapsed % Theme.NOTE_PERIOD_NANOS) / (double) Theme.NOTE_PERIOD_NANOS;
+        for (int i = 0; i < Theme.NOTE_COUNT; i++) {
+            double phase = (time + i / (double) Theme.NOTE_COUNT) % 1;
+            int x = left + width * (i + 1) / (Theme.NOTE_COUNT + 1)
+                    + (int) (Math.sin(phase * Math.PI * 2) * Theme.ACCENT);
+            int y = bottom - (int) (phase * rise);
+            int color = i % 2 == 0 ? Theme.GLOW : Theme.ORANGE;
+            graphics.fill(x, y, x + Theme.ACCENT, y + Theme.ACCENT, color);
+            graphics.fill(x + Theme.ACCENT, y - Theme.GAP, x + Theme.ACCENT + Theme.BORDER, y + Theme.ACCENT, color);
+            graphics.fill(x + Theme.ACCENT, y - Theme.GAP, x + Theme.GAP, y - Theme.GAP + Theme.ACCENT, color);
+        }
     }
 
     private static void reel(GuiGraphicsExtractor graphics, int x, int y, int size, double angle) {

@@ -74,8 +74,6 @@ public final class Theme {
     public static final int IMPORT_HEADER_ROWS = 2;
     public static final int TRACK_SCROLLBAR_SPACE = 10;
     public static final int TRACK_TEXT_GAP = 4;
-    public static final int TOAST_TITLE_Y = 5;
-    public static final int TOAST_SONG_Y = 18;
     public static final int TRANSPORT_RADIUS = 4;
     public static final int TRANSPORT_BAR = 2;
     public static final int BASIC_STOP_WIDTH = 44;

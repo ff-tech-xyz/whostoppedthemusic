@@ -85,7 +85,7 @@ jobs:
                      'basicUiOnly': 'BASIC UI PASS:', 'discoveryOnly': 'MUSIC DISCOVERY PASS:',
                      'customOnly': 'CUSTOM PLAYBACK PASS:', 'customUiOnly': 'CUSTOM UI PASS:',
                      'previewOnly': 'MIDPOINT PREVIEW PASS:', 'controlsOnly': 'SHARED CONTROLS PASS:',
-                     'artworkOnly': 'CASSETTE ARTWORK PASS:', 'ownSongsOnly': 'OWN SONGS PASS:',
+                     'artworkOnly': 'SCENARIO ARTWORK / VANILLA NOTIFICATION PASS:', 'ownSongsOnly': 'OWN SONGS PASS:',
                      'addSongsOnly': 'ADD SONGS PASS:'}
           jar = f' source: file:{runtime}/build/libs/whostoppedthemusic-1.2.0.jar'
           for selection, marker in markers.items():

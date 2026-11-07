@@ -2,7 +2,7 @@
 
 Choose what Minecraft plays without replacing its music player. Keep vanilla's choices, make one song list for the whole game, or give each biome and situation its own soundtrack. Music discs and your own MP3 and OGG files work as background music too.
 
-Press **M** in a world, or click the cassette at the top of the pause menu. The mode button cycles **Vanilla → Basic → Custom**. M can be rebound in Controls → Who Stopped The Music.
+Press **M**, or click the bottom-left cassette on the title or pause menu. The mode button cycles **Vanilla → Basic → Custom**. M can be rebound in Controls → Who Stopped The Music.
 
 ## One list, everywhere
 
@@ -14,9 +14,11 @@ Tick songs to include them, or press a row's Play button to hear it immediately.
 
 **Vanilla** keeps Minecraft's song selection and offers Play, Pause/Resume and Next. In every mode, Pause/Resume keeps the current song's position. The Music slider changes only background music; Master and Music Toast stay in Minecraft's sound options.
 
+Song changes use Minecraft's left-side Now Playing notification in every mode, including your imported songs. The title and pause menus keep their cassette player and Next button.
+
 ## Music for each place
 
-**Custom** lists specials first, then the biomes from the world you joined, including modded and datapack biomes. Open Forest to choose its songs, or enable Thunder and give storms their own soundtrack.
+**Custom** groups biomes under collapsed Overworld, Nether, End and other namespace sections, followed by Misc scenarios. Click a section or search to find a biome. Vanilla biomes are available from the title menu; joining a world loads its exact biome registry, including modded and datapack biomes. Open Forest to choose its songs, or enable Thunder and give storms their own soundtrack.
 
 ![Custom specials beside the current Swamp music player](docs/images/custom.png)
 
@@ -25,6 +27,8 @@ The highest-priority active scenario wins. Equal priorities combine song lists a
 ![Forest editor with song library, cassette weights, preview and removal](docs/images/forest-editor.png)
 
 Drag a song from the library into the right-hand list. Focus a cassette to change its weight from 1–100, preview up to three seconds from its midpoint, or remove it. Preview pauses background music and then resumes the same song. Reset restores only the songs; Copy songs replaces only the songs and weights, leaving that scenario's other settings alone.
+
+The playing song's library case and scenario cassette show red spindle dots, turning reels and music notes. They follow actual playback, including previews; paused tapes stop turning and silence emits no notes. A tape held while dragging stays detached from the player.
 
 On the main Custom screen, Frequency and Jukebox name the current winning scenarios and edit those scenarios together. Right-click either setting and confirm Yes to apply its current value to every scenario, including biomes discovered later.
 
