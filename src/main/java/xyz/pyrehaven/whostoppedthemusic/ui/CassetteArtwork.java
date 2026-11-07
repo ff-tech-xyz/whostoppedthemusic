@@ -24,7 +24,8 @@ public final class CassetteArtwork {
     }
 
     public void drawTrack(GuiGraphicsExtractor graphics, AbstractWidget widget, Track track, MusicDirector director) {
-        draw(graphics, widget, track.metadata(), Component.empty(), false,
+        draw(graphics, widget, track.metadata(), track.playable() ? Component.empty()
+                        : Component.translatable("whostoppedthemusic.cant_play_short"), false,
                 false, true, director.playing(track), reelAngle(director));
     }
 

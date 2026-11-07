@@ -27,8 +27,40 @@ import xyz.pyrehaven.whostoppedthemusic.mixin.WeighedSoundEventsAccessor;
 
 public final class TrackLibrary {
     private List<Track> tracks = List.of();
+    private int scanRevision;
 
     public List<Track> tracks() { return tracks; }
+
+    /** File IO and decoder probes stay on vanilla's IO executor; publication belongs to the client. */
+    public java.util.concurrent.CompletableFuture<Void> refreshSongs() {
+        var client = Minecraft.getInstance();
+        int revision = ++scanRevision;
+        return java.util.concurrent.CompletableFuture.supplyAsync(() -> {
+            var folder = new xyz.pyrehaven.whostoppedthemusic.custom.MusicFolder(client.gameDirectory.toPath());
+            try {
+                return folder.scan().stream().map(song -> {
+                    var local = new LocalSong(song);
+                    local.probe();
+                    var location = Identifier.fromNamespaceAndPath("whostoppedthemusic", "local/"
+                            + java.util.HexFormat.of().formatHex(song.file().getFileName().toString().getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+                    var sound = new Sound(location, net.minecraft.util.valueproviders.ConstantFloat.of(1),
+                            net.minecraft.util.valueproviders.ConstantFloat.of(1), 1, Sound.Type.FILE, true, false, 16);
+                    var title = Component.literal(song.title());
+                    return new Track(song.id(), Track.Kind.LOCAL, title, sound,
+                            new Track.Metadata(title, Component.empty()), local);
+                }).toList();
+            } catch (java.io.IOException error) {
+                org.slf4j.LoggerFactory.getLogger("whostoppedthemusic").warn("Can't scan music folder", error);
+                return List.<Track>of();
+            }
+        }, net.minecraft.util.Util.nonCriticalIoPool()).thenAcceptAsync(local -> {
+            if (revision != scanRevision) return;
+            var merged = new ArrayList<>(tracks.stream().filter(t -> t.local() == null).toList());
+            merged.addAll(local);
+            tracks = List.copyOf(merged);
+            MusicDirector.get(client).libraryChanged();
+        }, client::execute);
+    }
 
     public void rebuild(SoundManager sounds) {
         var level = Minecraft.getInstance().level;
@@ -77,6 +109,7 @@ public final class TrackLibrary {
                 unique.putIfAbsent(id, new Track(id, disc ? Track.Kind.DISC : Track.Kind.SOUNDTRACK, title, sound));
             }
         }
+        for (var track : tracks) if (track.local() != null) unique.put(track.id(), track);
         tracks = unique.values().stream().sorted(Comparator.comparing(Track::kind).thenComparing(Track::id)).toList();
     }
 

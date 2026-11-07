@@ -58,7 +58,12 @@ public final class MusicScreen extends Screen {
     }
 
     private void initBasic() {
-        if (basicPanel == null) basicPanel = new BasicPanel(minecraft, settings);
+        if (basicPanel == null) {
+            basicPanel = new BasicPanel(minecraft, settings);
+            xyz.pyrehaven.whostoppedthemusic.WhoStoppedTheMusic.LIBRARY.refreshSongs().thenRun(() -> {
+                if (minecraft.gui.screen() == this) basicPanel.refreshSongs();
+            });
+        }
         basicPanel.layout(left, contentWidth, height, this::addRenderableWidget, this::rebuildWidgets, this::changeMode);
     }
 

@@ -12,5 +12,6 @@ public abstract class SoundLibraryMixin {
     @Inject(method = "apply(Lnet/minecraft/client/sounds/SoundManager$Preparations;Lnet/minecraft/server/packs/resources/ResourceManager;Lnet/minecraft/util/profiling/ProfilerFiller;)V", at = @At("RETURN"))
     private void whostoppedthemusic$reload(CallbackInfo ci) {
         WhoStoppedTheMusic.LIBRARY.rebuild((SoundManager) (Object) this);
+        WhoStoppedTheMusic.LIBRARY.refreshSongs();
     }
 }

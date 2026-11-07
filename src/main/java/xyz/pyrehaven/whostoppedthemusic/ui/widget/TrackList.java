@@ -136,6 +136,12 @@ public final class TrackList extends ContainerObjectSelectionList<TrackList.Row>
             tick.setPosition(getContentX(), controlY);
             play.setPosition(getContentRight() - Theme.TRACK_PLAY_WIDTH, controlY);
             tick.setMessage(Component.literal(settings.ticked(track.id()) ? "x" : ""));
+            play.active = track.playable();
+            if (!track.playable()) {
+                var unavailable = Component.translatable("whostoppedthemusic.cant_play", track.title());
+                play.setMessage(unavailable);
+                play.setTooltip(net.minecraft.client.gui.components.Tooltip.create(unavailable));
+            }
             tick.extractRenderState(graphics, mouseX, mouseY, delta);
             play.extractRenderState(graphics, mouseX, mouseY, delta);
             tape.extractRenderState(graphics, mouseX, mouseY, delta);

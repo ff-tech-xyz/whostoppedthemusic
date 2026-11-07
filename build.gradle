@@ -47,6 +47,8 @@ dependencies {
     testImplementation "net.fabricmc:fabric-loader-junit:${project.loader_version}"
 }
 
+sourceSets.gametest.resources.srcDir('src/test/resources')
+
 java {
     toolchain.languageVersion = JavaLanguageVersion.of(25)
 }
@@ -58,6 +60,7 @@ tasks.withType(JavaCompile).configureEach {
 tasks.named('test') {
     useJUnitPlatform()
     def testTemp = file('../../runtime/whostoppedthemusic/test-temp')
+    workingDir testTemp
     systemProperty 'java.io.tmpdir', testTemp.absolutePath
     doFirst { testTemp.mkdirs() }
 }
@@ -90,5 +93,6 @@ tasks.named('runClientGameTest') {
     systemProperty 'whostoppedthemusic.discoveryOnly', project.hasProperty('discoveryOnly')
     systemProperty 'whostoppedthemusic.controlsOnly', project.hasProperty('controlsOnly')
     systemProperty 'whostoppedthemusic.artworkOnly', project.hasProperty('artworkOnly')
+    systemProperty 'whostoppedthemusic.ownSongsOnly', project.hasProperty('ownSongsOnly')
     doFirst { file('../../runtime/whostoppedthemusic/evidence').mkdirs() }
 }

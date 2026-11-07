@@ -3,10 +3,13 @@ package xyz.pyrehaven.whostoppedthemusic.music;
 import net.minecraft.client.resources.sounds.Sound;
 import net.minecraft.network.chat.Component;
 
-public record Track(String id, Kind kind, Component title, Sound sound, Metadata explicitMetadata) {
-    public enum Kind { SOUNDTRACK, DISC }
+public record Track(String id, Kind kind, Component title, Sound sound, Metadata explicitMetadata, LocalSong local) {
+    public enum Kind { SOUNDTRACK, DISC, LOCAL }
 
-    public Track(String id, Kind kind, Component title, Sound sound) { this(id, kind, title, sound, null); }
+    public Track(String id, Kind kind, Component title, Sound sound) { this(id, kind, title, sound, null, null); }
+    public Track(String id, Kind kind, Component title, Sound sound, Metadata metadata) { this(id, kind, title, sound, metadata, null); }
+
+    public boolean playable() { return local == null || local.playable(); }
 
     public record Metadata(Component title, Component artist) {
         public Component description() {

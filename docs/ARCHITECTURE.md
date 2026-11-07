@@ -38,8 +38,9 @@ authorized Custom behavior; the sole remaining-work tracker is `plans/1.2.0.md`.
 
 Current implemented slice (2026-11-07): Settings and first-launch Constant, Vanilla
 transport, Basic soundtrack/disc selection and playback, shared controls and one SongToast in both modes,
-and nearby jukebox fade/hold in both modes. Custom, imported files and Add Songs
-remain authorized, unimplemented work. The M screen cycles Vanilla/Basic; the
+and nearby jukebox fade/hold in both modes. Imported MP3/OGG files play through
+the same Basic path. Custom and Add Songs remain authorized, unimplemented work.
+The M screen cycles Vanilla/Basic; the
 compact pause cassette retains live title/artist metadata and Next. Shared
 playback-driven reel artwork and empty-player spindle rods are implemented.
 
@@ -132,7 +133,7 @@ whostoppedthemusic/
     │   │   │   │   # follows event references with cycle protection; rebuilt after SoundManager.apply
     │   │   │   │   # and world registry changes. Matches music/theme in event paths and loaded
     │   │   │   │   # biome/dimension/timeline music plus jukebox definitions; discs win file dedupe.
-    │   │   │   │   # Exact-odds Custom poolEntries and imported files remain planned.
+    │   │   │   │   # Owns asynchronous folder scans/probes and client-thread publication; Custom poolEntries remains planned.
     │   │   │   ├── Deck.java
     │   │   │   │   # Pure logic, no Minecraft classes: weighted shuffle "deck" with history
     │   │   │   │   # for previous/next. Fully unit tested.
@@ -142,8 +143,9 @@ whostoppedthemusic/
     │   │   │   ├── TrackSoundInstance.java
     │   │   │   │   # The sound instance for a chosen track. Its identifier stays the pool id so
     │   │   │   │   # vanilla's pool-change logic keeps working. Resolves to the chosen file.
-    │   │   │   │   # Reuses the loaded Sound on non-positional Music; custom streams remain planned.
+    │   │   │   │   # Reuses loaded Sound on non-positional Music; Fabric getAudioStream opens local MP3/OGG on vanilla IO executor.
     │   │   │   ├── Mp3AudioStream.java      # AudioStream over jlayer-decoder (16-bit PCM)
+    │   │   │   ├── LocalSong.java           # scanned file, decode availability, probe/open, late read failures end the stream
     │   │   │   ├── JukeboxWatcher.java      # reads vanilla's event-driven map and live channels near the camera
     │   │   │   └── custom/                 # planned scenario implementation, supplied spec §7
     │   │   │       ├── Special.java, ScenarioId.java, ScenarioConfig.java
@@ -153,8 +155,8 @@ whostoppedthemusic/
     │   │   │       └── Preview.java         # existing-channel pause, midpoint excerpt, fade/resume
     │   │   ├── custom/
     │   │   │   └── MusicFolder.java
-    │   │   │       # .minecraft/music/: scan for .mp3/.ogg, copy dropped files in, delete a song,
-    │   │   │       # open the folder. Never runs on a timer.
+    │   │   │       # Game-directory music/: case-insensitive .mp3/.ogg scan, file-name identity/title; excludes links/directories.
+    │   │   │       # Copy/delete/open operations arrive with Add Songs. Never runs on a timer.
     │   │   ├── ui/
     │   │   │   ├── Theme.java               # PyreHaven colours, spacing and text styles in one place
     │   │   │   ├── MusicControls.java       # shared settings and live transport; panels place Basic additions
@@ -203,7 +205,9 @@ whostoppedthemusic/
     │   ├── SettingsTest.java        # defaults, round trip, bad/unknown file, atomic write, first-run flag
     │   ├── TrackNamesTest.java      # metadata, translated names/fallback and search ranking
     │   ├── OverflowMotionTest.java  # waits, speed, reversal, fitting and content clocks
-    │   └── MusicFolderTest.java     # file filter, copy, duplicate names, delete
+    │   ├── MusicFolderTest.java     # game-directory ownership, filter, links, stable identities and disappearance
+    │   └── LocalAudioTest.java      # full generated PCM duration/tone, EOF, empty/invalid MP3/OGG rejection
+    ├── test/resources/audio/        # shared generated CC0 sine-wave MP3/OGG fixtures and provenance README
     └── gametest/
         ├── java/xyz/pyrehaven/whostoppedthemusic/
         │   ├── ClientSmokeGameTest.java # packaged UI/transport; controlsOnly for controls/labels; artworkOnly for phase-3 pixels
@@ -244,7 +248,7 @@ whostoppedthemusic/
 - Stop holds silence until the player presses Play, Next or a row's Play, or restarts the game. It is not saved.
 - Defaults: every soundtrack song and every disc ticked. A newly added custom song starts ticked.
 
-The implemented Basic body has Soundtrack and Music Discs only. OG Moo-cow's
+The implemented Basic body has Soundtrack, Music Discs and Your Songs. OG Moo-cow's
 2026-11-07 browser sketch supersedes the earlier full-width list. Left: search,
 a smoothly scrolling cassette viewport, then Select All / Deselect All. Each song
 has a selection toggle and Play Now, with a full central cassette and clipped
@@ -264,7 +268,7 @@ library order and no headings appear. Select All / Deselect All are hidden,
 inactive and action-guarded while a trimmed query is nonempty. With an empty
 query they affect the whole library. Settings stores mode, shuffle and unticked
 ids; Stop and bounded transport history stay in memory. Previous is unavailable
-during Stop. Your Songs and Add Songs arrive with functions 9–10.
+during Stop. Your Songs is implemented; Add Songs arrives with function 10.
 
 Basic selects through vanilla's startPlaying sound-instance seam and tick pool
 lookup, using one non-replacing Music with GAME delays. Biome volume fades do not
@@ -347,7 +351,13 @@ Fabric API instead of mixins:
   content clock: fitting text stays still; overflow waits 1 second at each endpoint
   and travels at 20 GUI pixels/second in alternating directions. Only changed line
   content restarts its clock; resizing and unrelated metadata/status changes do not.
-- The music folder is scanned when a screen opens, after a drop and on resource reload. Never on a timer.
+- The music folder is scanned on Basic's first initialization and resource reload,
+  on vanilla's IO executor. Later Add Songs actions explicitly request refresh after
+  copy/removal. Never on a timer. A revision rejects superseded scans; publication
+  merges with the current resource library on the client thread. Rebuilds retain
+  existing local tracks while a new scan runs. A rescan preserves a valid playing
+  source, including unticked row-play and held Pause; missing/unplayable current
+  local tracks stop through the director.
 
 ## Tracks and names
 
@@ -370,9 +380,26 @@ immediately, followed by artist, sharing the same independent overflow renderer.
   - The real `Sound` entry is reused, so volume and stream settings from `sounds.json` are kept.
 - **Discs:** loaded jukebox-song sound events plus legacy `music_disc.` events. Definitions provide their description; legacy pools use `jukebox_song.minecraft.<id>` ("Lena Raine - Pigstep"). 26.3 removes the old `item.minecraft.music_disc_<id>.desc` keys through `lang/deprecated.json`, even though they remain in en_us.json. Discs play on the Music channel as background music, not positional.
 - **Your songs:** files in `.minecraft/music/` ending in `.mp3` or `.ogg`, not case-sensitive. The title is the file name without its extension.
+  - `MusicFolder` resolves `music/` against the actual game directory, not a fixed launcher path.
+    Discovery is flat, deterministic, and excludes symlinks and directories.
+    File-name titles remain literal (including `Artist - Title`); artist stays blank.
   - OGG is decoded with vanilla's `JOrbisAudioStream`, MP3 with `Mp3AudioStream`.
-  - Decoding starts on a background executor, never the render thread.
-  - A file that fails to decode is skipped with one log line and marked "Can't play" in the UI.
+    Mono/stereo audio uses native format; MP3 emits incremental interleaved signed
+    16-bit PCM in native byte order, retaining partial frames between reads.
+  - Decoder probes and playback opens use vanilla's IO executor, never the render
+    thread. A probe reads an initial sample block, not the whole song. Playback
+    stays streamed and vanilla owns channel/stream cleanup, pause and gain.
+  - A file that fails decoding is marked unavailable and logged once per scanned
+    `LocalSong`. Rescanning reprobes it, allowing repaired files to recover.
+    Unavailable selections remain saved but are excluded from the deck. The existing
+    cassette status renderer shows "Can't play" with tooltip/narration; row Play is
+    disabled. Late read errors mark the file and end its stream instead of escaping
+    onto the sound thread. Failed asynchronous opens release their INITIAL native
+    source through the director, even if the file disappeared after discovery.
+  - `Track.local` carries the file/open capability for later Custom and previews;
+    no second player, scheduler or UI playback map exists. The sound uses a
+    collision-free UTF-8 hex file-name identifier under `whostoppedthemusic:local/`;
+    display/settings identity remains the literal `custom:<file name>`.
 - **Track ids** in settings:
   - Vanilla files use their file id (`minecraft:music/game/sweden`).
   - Discs use the disc's file id (`minecraft:records/pigstep`).

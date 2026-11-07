@@ -19,6 +19,23 @@ public final class TrackSoundInstance extends SimpleSoundInstance {
 
     public Track track() { return track; }
 
+    @Override public boolean canPlaySound() { return track.playable(); }
+
+    @Override
+    public java.util.concurrent.CompletableFuture<net.minecraft.client.sounds.AudioStream> getAudioStream(
+            net.minecraft.client.sounds.SoundBufferLibrary library, Identifier id, boolean looping) {
+        if (track.local() == null) return library.getStream(id, looping);
+        return java.util.concurrent.CompletableFuture.supplyAsync(() -> {
+            try { return track.local().open(); }
+            catch (java.io.IOException | RuntimeException error) {
+                track.local().failed(error);
+                var client = net.minecraft.client.Minecraft.getInstance();
+                client.execute(() -> MusicDirector.get(client).failed(this));
+                throw new java.util.concurrent.CompletionException(error);
+            }
+        }, net.minecraft.util.Util.nonCriticalIoPool());
+    }
+
     @Override
     public WeighedSoundEvents getOrResolve(SoundManager manager) {
         sound = track.sound();

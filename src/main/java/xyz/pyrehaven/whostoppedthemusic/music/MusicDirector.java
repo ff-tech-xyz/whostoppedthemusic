@@ -64,7 +64,7 @@ public final class MusicDirector {
 
     public java.util.List<Track> selected() {
         var settings = WhoStoppedTheMusic.settings();
-        return WhoStoppedTheMusic.LIBRARY.tracks().stream().filter(t -> settings.ticked(t.id())).toList();
+        return WhoStoppedTheMusic.LIBRARY.tracks().stream().filter(Track::playable).filter(t -> settings.ticked(t.id())).toList();
     }
 
     private void configureDeck() {
@@ -75,6 +75,14 @@ public final class MusicDirector {
     public void playlistChanged() {
         configureDeck();
         if (basic() && selected().isEmpty()) manager.stopPlaying();
+    }
+
+    public void libraryChanged() {
+        configureDeck();
+        if (current() instanceof TrackSoundInstance chosen && chosen.track().local() != null
+                && WhoStoppedTheMusic.LIBRARY.tracks().stream().noneMatch(t -> t.id().equals(chosen.track().id()) && t.playable())) {
+            manager.stopPlaying();
+        }
     }
 
     public boolean holdTick() {
@@ -121,6 +129,7 @@ public final class MusicDirector {
     }
 
     public void play(Track track) {
+        if (!track.playable()) return;
         configureDeck();
         deck.played(track.id());
         playSelected(track.id());
@@ -177,6 +186,7 @@ public final class MusicDirector {
     }
 
     public boolean playing(Track track) {
+        if (current() instanceof TrackSoundInstance chosen) return active() && chosen.track().id().equals(track.id());
         return active() && current().getSound() != null
                 && current().getSound().getLocation().toString().equals(track.id());
     }
@@ -260,6 +270,14 @@ public final class MusicDirector {
 
     public void stopped() {
         paused = null;
+    }
+
+    /** An asynchronously failed open must release its INITIAL native source as well. */
+    public void failed(TrackSoundInstance source) {
+        var engine = ((SoundManagerAccessor) client.getSoundManager()).whostoppedthemusic$engine();
+        var handle = ((SoundEngineAccessor) engine).whostoppedthemusic$channels().get(source);
+        if (handle != null) handle.execute(com.mojang.blaze3d.audio.Channel::destroy);
+        if (current() == source) manager.stopPlaying();
     }
 
     private ChannelAccess.ChannelHandle channel() {

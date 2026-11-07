@@ -113,6 +113,8 @@ public final class BasicPanel {
         previous.active = director.canPrevious();
     }
 
+    public void refreshSongs() { list.filter(search.getValue()); }
+
     private void updateBrowserVisibility() {
         search.visible = search.active = !collapsed;
         list.visible = list.active = !collapsed;
