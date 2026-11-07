@@ -142,6 +142,6 @@ Made by [PyreHaven](https://pyrehaven.xyz).
 
 ---
 
-[Configuration reference](docs/CONFIGURATION.md) · [Changelog](CHANGELOG.md) · [Architecture and build instructions](docs/ARCHITECTURE.md) · [Development plan](docs/plans/1.2.0.md)
+[Configuration reference](docs/CONFIGURATION.md) · [Changelog](CHANGELOG.md) · [Architecture and build instructions](docs/ARCHITECTURE.md)
 
 Our code is CC0-1.0. The unmodified bundled JLayer decoder retains its [LGPL 2.1 license](LICENSE_jlayer).

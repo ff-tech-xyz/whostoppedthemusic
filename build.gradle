@@ -9,7 +9,9 @@ base {
     archivesName = project.archives_base_name
 }
 
-layout.buildDirectory = file('../../runtime/whostoppedthemusic/build')
+layout.buildDirectory = file(providers.gradleProperty('buildDir').getOrElse('build'))
+def runtimeDir = file(providers.gradleProperty('runtimeDir').getOrElse('.'))
+def evidenceDir = new File(layout.buildDirectory.get().asFile, 'evidence')
 
 loom {
     clientOnlyMinecraftJar()
@@ -29,9 +31,9 @@ fabricApi {
     }
 }
 
-// configureTests supplies a checkout-local default; keep disposable data outside source.
+// Optional runtime root keeps local operator data separate without imposing a checkout layout.
 loom.runs.configureEach {
-    runDirectory.set(file("../../runtime/whostoppedthemusic/run/${name}"))
+    runDirectory.set(new File(runtimeDir, "run/${name}"))
 }
 
 repositories {
@@ -59,7 +61,8 @@ tasks.withType(JavaCompile).configureEach {
 
 tasks.named('test') {
     useJUnitPlatform()
-    def testTemp = file('../../runtime/whostoppedthemusic/test-temp')
+    failOnNoDiscoveredTests = true
+    def testTemp = new File(layout.buildDirectory.get().asFile, 'test-temp')
     workingDir testTemp
     systemProperty 'java.io.tmpdir', testTemp.absolutePath
     doFirst { testTemp.mkdirs() }
@@ -86,7 +89,8 @@ tasks.named('runClientGameTest') {
     dependsOn tasks.named('jar'), tasks.named('gametestClasses')
     classpath = files(classpath.files).minus(sourceSets.main.output)
             .plus(files(tasks.named('jar').flatMap { it.archiveFile }))
-    jvmArgs "-Xlog:class+load=info:file=${file('../../runtime/whostoppedthemusic/evidence/client-classes.log')}"
+    jvmArgs "-Xlog:class+load=info:file=${new File(evidenceDir, 'client-classes.log')}"
+    systemProperty 'fabric.client.gametest.modid', 'whostoppedthemusic-test'
     systemProperty 'whostoppedthemusic.transportOnly', project.hasProperty('transportOnly')
     systemProperty 'whostoppedthemusic.basicOnly', project.hasProperty('basicOnly')
     systemProperty 'whostoppedthemusic.basicUiOnly', project.hasProperty('basicUiOnly')
@@ -94,11 +98,12 @@ tasks.named('runClientGameTest') {
     systemProperty 'whostoppedthemusic.customOnly', project.hasProperty('customOnly')
     systemProperty 'whostoppedthemusic.customUiOnly', project.hasProperty('customUiOnly')
     systemProperty 'whostoppedthemusic.biomeUiOnly', project.hasProperty('biomeUiOnly')
+    systemProperty 'whostoppedthemusic.toggleOnly', project.hasProperty('toggleOnly')
     systemProperty 'whostoppedthemusic.previewOnly', project.hasProperty('previewOnly')
     systemProperty 'whostoppedthemusic.controlsOnly', project.hasProperty('controlsOnly')
     systemProperty 'whostoppedthemusic.artworkOnly', project.hasProperty('artworkOnly')
     systemProperty 'whostoppedthemusic.menuOnly', project.hasProperty('menuOnly')
     systemProperty 'whostoppedthemusic.ownSongsOnly', project.hasProperty('ownSongsOnly')
     systemProperty 'whostoppedthemusic.addSongsOnly', project.hasProperty('addSongsOnly')
-    doFirst { file('../../runtime/whostoppedthemusic/evidence').mkdirs() }
+    doFirst { evidenceDir.mkdirs() }
 }

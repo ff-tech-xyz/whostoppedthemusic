@@ -1,5 +1,0 @@
-What: Launches whostoppedthemusic Gradle tasks in Java on POSIX, forwarding all supplied arguments, including publishing tasks.
-Touches: Repository build scripts and gradle/wrapper/; Java process; GRADLE_USER_HOME (default ~/.gradle) distributions/caches; project caches and configured build/task outputs.
-Sends: May download Gradle from services.gradle.org and dependencies/plugins from configured repositories; forwarded publishing tasks may send artifacts and credentials to configured services.
-Why: Maintains script documentation for OG Moo-cow's active-project inventory.
-Flags: Hidden code: shell eval assembles escaped JVM options before exec of Java; additional approval tags depend on forwarded tasks/arguments.

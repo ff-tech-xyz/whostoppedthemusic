@@ -2,32 +2,53 @@ package xyz.pyrehaven.whostoppedthemusic;
 
 import com.mojang.serialization.Lifecycle;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Random;
+import java.util.TreeMap;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.resources.sounds.Sound;
+import net.minecraft.client.sounds.SoundEngine;
 import net.minecraft.client.sounds.SoundManager;
+import net.minecraft.client.sounds.Weighted;
 import net.minecraft.core.Holder;
 import net.minecraft.core.MappedRegistry;
 import net.minecraft.core.Registry;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.locale.Language;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.FormattedText;
+import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.resources.Identifier;
+import net.minecraft.sounds.Music;
+import net.minecraft.sounds.Musics;
 import net.minecraft.sounds.SoundEvent;
+import net.minecraft.tags.BiomeTags;
+import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.attribute.BackgroundMusic;
-import net.minecraft.world.attribute.EnvironmentAttributes;
 import net.minecraft.world.attribute.EnvironmentAttributeMap;
+import net.minecraft.world.attribute.EnvironmentAttributes;
 import net.minecraft.world.clock.WorldClock;
 import net.minecraft.world.item.JukeboxSong;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.biome.BiomeGenerationSettings;
 import net.minecraft.world.level.biome.BiomeSpecialEffects;
+import net.minecraft.world.level.dimension.BuiltinDimensionTypes;
 import net.minecraft.world.level.dimension.DimensionType;
 import net.minecraft.world.timeline.Timeline;
 import org.slf4j.LoggerFactory;
+import xyz.pyrehaven.whostoppedthemusic.mixin.SoundEventReferenceAccessor;
+import xyz.pyrehaven.whostoppedthemusic.mixin.WeighedSoundEventsAccessor;
+import xyz.pyrehaven.whostoppedthemusic.music.Deck;
 import xyz.pyrehaven.whostoppedthemusic.music.Track;
 import xyz.pyrehaven.whostoppedthemusic.music.TrackLibrary;
+import xyz.pyrehaven.whostoppedthemusic.music.TrackNames;
+import xyz.pyrehaven.whostoppedthemusic.music.custom.CustomDefaults;
+import xyz.pyrehaven.whostoppedthemusic.music.custom.ScenarioConfig;
+import xyz.pyrehaven.whostoppedthemusic.music.custom.Special;
 
 final class DiscoveryGameTest {
     static void checkLiveNames(Minecraft client) {
@@ -37,24 +58,24 @@ final class DiscoveryGameTest {
         var disc = library.tracks().stream().filter(t -> t.id().equals("minecraft:records/pigstep")).findFirst().orElseThrow();
         check(song.title().getString().equals("C418 - Sweden"), "production library translates soundtrack");
         check(disc.title().getString().equals("Lena Raine - Pigstep"), "production library translates legacy disc");
-        var fallback = library.tracks().stream().filter(t -> t.title().getContents() instanceof net.minecraft.network.chat.contents.TranslatableContents c
-                && !net.minecraft.locale.Language.getInstance().has(c.getKey())).findFirst().orElseThrow();
-        check(fallback.title().getString().equals(xyz.pyrehaven.whostoppedthemusic.music.TrackNames.prettify(fallback.id())), "production library missing translation fallback");
-        var language = net.minecraft.locale.Language.getInstance();
+        var fallback = library.tracks().stream().filter(t -> t.title().getContents() instanceof TranslatableContents c
+                && !Language.getInstance().has(c.getKey())).findFirst().orElseThrow();
+        check(fallback.title().getString().equals(TrackNames.prettify(fallback.id())), "production library missing translation fallback");
+        var language = Language.getInstance();
         try {
-            net.minecraft.locale.Language.inject(new net.minecraft.locale.Language() {
+            Language.inject(new Language() {
                 @Override public String getOrDefault(String key, String fallback) {
                     return key.equals("music.game.sweden") ? "Test Artist - Changed Song" : language.getOrDefault(key, fallback);
                 }
                 @Override public boolean has(String key) { return language.has(key); }
                 @Override public boolean isDefaultRightToLeft() { return language.isDefaultRightToLeft(); }
-                @Override public net.minecraft.util.FormattedCharSequence getVisualOrder(net.minecraft.network.chat.FormattedText text) {
+                @Override public FormattedCharSequence getVisualOrder(FormattedText text) {
                     return language.getVisualOrder(text);
                 }
             });
             check(song.title().getString().equals("Test Artist - Changed Song") && song.metadata().title().getString().equals("Changed Song")
                     && song.metadata().artist().getString().equals("Test Artist"), "retained library track resolves new language without rebuild");
-        } finally { net.minecraft.locale.Language.inject(language); }
+        } finally { Language.inject(language); }
         check(song.title().getString().equals("C418 - Sweden"), "retained component resolves restored language");
         LoggerFactory.getLogger("whostoppedthemusic-test").info("LIVE NAMING PASS: production soundtrack/disc/fallback and retained component language switch");
     }
@@ -96,17 +117,17 @@ final class DiscoveryGameTest {
     private static void checkDefaults(Minecraft client) {
         var library = WhoStoppedTheMusic.LIBRARY;
         var sounds = client.getSoundManager();
-        var defaults = new xyz.pyrehaven.whostoppedthemusic.music.custom.CustomDefaults(library);
+        var defaults = new CustomDefaults(library);
         var game = library.poolEntries(Identifier.parse("minecraft:music.game"));
-        var creative = defaults.special(xyz.pyrehaven.whostoppedthemusic.music.custom.Special.CREATIVE).config().songs();
+        var creative = defaults.special(Special.CREATIVE).config().songs();
         check(game.size() == 32 && game.stream().mapToInt(e -> e.weight()).sum() == 37, "loaded 26.3 game is 32 files / 37 weight");
         check(creative.size() == 38 && creative.stream().mapToInt(e -> e.weight()).sum() == 43, "creative adds six unit files, not six weight-32 files");
         check(creative.containsAll(game), "creative preserves game file weights 1/2");
         check(library.poolEntries(Identifier.parse("discovery:odds_reference")).equals(game), "loaded alias ignores declared weight 97, including after reload");
         checkOdds(sounds, Identifier.parse("minecraft:music.creative"), creative);
-        var deck = new xyz.pyrehaven.whostoppedthemusic.music.Deck(new java.util.Random(12));
+        var deck = new Deck(new Random(12));
         deck.configure(creative, true);
-        var drawn = new java.util.TreeMap<String, Integer>();
+        var drawn = new TreeMap<String, Integer>();
         for (int i = 0; i < 43; i++) drawn.merge(deck.next(), 1, Integer::sum);
         for (var entry : creative) check(drawn.get(entry.id()) == entry.weight(), "Deck keeps creative odds: " + entry.id());
 
@@ -116,29 +137,29 @@ final class DiscoveryGameTest {
         for (var biome : registries.lookupOrThrow(Registries.BIOME).listElements().toList()) {
             var id = biome.key().identifier();
             if (!id.getNamespace().equals("minecraft")) continue;
-            var dimensionKey = biome.is(net.minecraft.tags.BiomeTags.IS_NETHER)
-                    ? net.minecraft.world.level.dimension.BuiltinDimensionTypes.NETHER
-                    : biome.is(net.minecraft.tags.BiomeTags.IS_END)
-                    ? net.minecraft.world.level.dimension.BuiltinDimensionTypes.END
-                    : net.minecraft.world.level.dimension.BuiltinDimensionTypes.OVERWORLD;
+            var dimensionKey = biome.is(BiomeTags.IS_NETHER)
+                    ? BuiltinDimensionTypes.NETHER
+                    : biome.is(BiomeTags.IS_END)
+                    ? BuiltinDimensionTypes.END
+                    : BuiltinDimensionTypes.OVERWORLD;
             var dimension = dimensions.getOrThrow(dimensionKey).value();
             var result = defaults.biome(id, biome.value(), dimension);
             var attribute = EnvironmentAttributes.BACKGROUND_MUSIC;
             var expected = biome.value().getAttributes().applyModifier(attribute,
                     dimension.attributes().applyModifier(attribute, attribute.defaultValue())).defaultMusic();
             check(result.music().equals(expected), "biome retains source delay/replace metadata: " + id);
-            check(result.config().interrupt() == expected.map(net.minecraft.sounds.Music::replaceCurrentMusic).orElse(false), "biome interrupt: " + id);
+            check(result.config().interrupt() == expected.map(Music::replaceCurrentMusic).orElse(false), "biome interrupt: " + id);
             if (id.getPath().equals("pale_garden") || id.getPath().equals("warped_forest")) {
                 check(result.config().songs().isEmpty(), "vanilla silence: " + id);
             } else if (expected.isPresent()) {
                 checkOdds(sounds, expected.get().sound().value().location(), result.config().songs());
             } else check(result.config().songs().isEmpty(), "absent music is silence: " + id);
-            check(result.config().frequency() == xyz.pyrehaven.whostoppedthemusic.music.custom.ScenarioConfig.Frequency.CONSTANT
+            check(result.config().frequency() == ScenarioConfig.Frequency.CONSTANT
                     && result.config().jukebox() == JukeboxSetting.PAUSE_MUSIC, "scenario setting defaults: " + id);
             checked++;
         }
         check(checked > 60, "all loaded vanilla biomes checked");
-        for (var special : xyz.pyrehaven.whostoppedthemusic.music.custom.Special.values()) {
+        for (var special : Special.values()) {
             var result = defaults.special(special);
             if (result.music().isPresent()) checkOdds(sounds, result.music().get().sound().value().location(), result.config().songs());
             else check(!result.config().active() && result.config().songs().isEmpty(), "empty optional specials start off");
@@ -150,8 +171,8 @@ final class DiscoveryGameTest {
         LoggerFactory.getLogger("whostoppedthemusic-test").info("CUSTOM DEFAULTS PASS: {} loaded vanilla biomes, pale garden/warped silence, special metadata, creative 38 files/43 Deck draws, nested/duplicate aliases", checked);
     }
 
-    private static void checkOdds(SoundManager sounds, Identifier event, List<xyz.pyrehaven.whostoppedthemusic.music.Deck.Entry> entries) {
-        var expected = new java.util.TreeMap<String, Double>();
+    private static void checkOdds(SoundManager sounds, Identifier event, List<Deck.Entry> entries) {
+        var expected = new TreeMap<String, Double>();
         runtimeOdds(sounds, event, 1, expected);
         int total = entries.stream().mapToInt(e -> e.weight()).sum();
         check(entries.size() == expected.size(), "same file set: " + event);
@@ -159,45 +180,45 @@ final class DiscoveryGameTest {
                 "runtime probability: " + event + " / " + entry.id());
     }
 
-    private static void runtimeOdds(SoundManager sounds, Identifier event, double chance, java.util.Map<String, Double> result) {
+    private static void runtimeOdds(SoundManager sounds, Identifier event, double chance, Map<String, Double> result) {
         var pool = sounds.getSoundEvent(event);
-        for (var entry : ((xyz.pyrehaven.whostoppedthemusic.mixin.WeighedSoundEventsAccessor) pool).whostoppedthemusic$entries()) {
+        for (var entry : ((WeighedSoundEventsAccessor) pool).whostoppedthemusic$entries()) {
             double probability = chance * entry.getWeight() / pool.getWeight();
-            if (entry instanceof net.minecraft.client.resources.sounds.Sound file) result.merge(file.getLocation().toString(), probability, Double::sum);
-            else if (entry instanceof xyz.pyrehaven.whostoppedthemusic.mixin.SoundEventReferenceAccessor reference)
+            if (entry instanceof Sound file) result.merge(file.getLocation().toString(), probability, Double::sum);
+            else if (entry instanceof SoundEventReferenceAccessor reference)
                 runtimeOdds(sounds, reference.whostoppedthemusic$reference().getLocation(), probability, result);
         }
     }
 
-    private record Cycle(net.minecraft.client.resources.sounds.Sound whostoppedthemusic$reference)
-            implements xyz.pyrehaven.whostoppedthemusic.mixin.SoundEventReferenceAccessor,
-            net.minecraft.client.sounds.Weighted<net.minecraft.client.resources.sounds.Sound> {
+    private record Cycle(Sound whostoppedthemusic$reference)
+            implements SoundEventReferenceAccessor,
+            Weighted<Sound> {
         public int getWeight() { throw new AssertionError("cycle must not recurse through runtime getWeight"); }
-        public net.minecraft.client.resources.sounds.Sound getSound(RandomSource random) { throw new AssertionError(); }
-        public void preloadIfRequired(net.minecraft.client.sounds.SoundEngine engine) { throw new AssertionError(); }
+        public Sound getSound(RandomSource random) { throw new AssertionError(); }
+        public void preloadIfRequired(SoundEngine engine) { throw new AssertionError(); }
     }
 
     private static void checkPoolChanges(Minecraft client) {
         var library = WhoStoppedTheMusic.LIBRARY;
         var id = Identifier.parse("discovery:odds_reference");
         var pool = client.getSoundManager().getSoundEvent(id);
-        var entries = ((xyz.pyrehaven.whostoppedthemusic.mixin.WeighedSoundEventsAccessor) pool).whostoppedthemusic$entries();
+        var entries = ((WeighedSoundEventsAccessor) pool).whostoppedthemusic$entries();
         var before = List.copyOf(entries);
         var base = library.poolEntries(id);
         var file = pool.getSound(RandomSource.create(0));
         try {
-            var cycle = new net.minecraft.client.resources.sounds.Sound(id, file.getVolume(), file.getPitch(), 1,
-                    net.minecraft.client.resources.sounds.Sound.Type.SOUND_EVENT, false, false, 16);
+            var cycle = new Sound(id, file.getVolume(), file.getPitch(), 1,
+                    Sound.Type.SOUND_EVENT, false, false, 16);
             pool.addSound(new Cycle(cycle));
             check(library.poolEntries(id).equals(base), "cyclic branch stops without losing valid siblings");
             entries.clear();
-            pool.addSound(new net.minecraft.client.resources.sounds.Sound(file.getLocation(), file.getVolume(), file.getPitch(), 600,
-                    net.minecraft.client.resources.sounds.Sound.Type.FILE, false, false, 16));
+            pool.addSound(new Sound(file.getLocation(), file.getVolume(), file.getPitch(), 600,
+                    Sound.Type.FILE, false, false, 16));
             check(library.poolEntries(id).getFirst().weight() == 1, "exact gcd reduction when max exceeds 100");
             var other = Identifier.parse(file.getLocation().toString().equals("minecraft:music/game/sweden")
                     ? "minecraft:music/game/clark" : "minecraft:music/game/sweden");
-            pool.addSound(new net.minecraft.client.resources.sounds.Sound(other, file.getVolume(), file.getPitch(), 7,
-                    net.minecraft.client.resources.sounds.Sound.Type.FILE, false, false, 16));
+            pool.addSound(new Sound(other, file.getVolume(), file.getPitch(), 7,
+                    Sound.Type.FILE, false, false, 16));
             var scaled = library.poolEntries(id);
             check(scaled.size() == 2 && scaled.stream().mapToInt(e -> e.weight()).max().orElseThrow() == 100
                     && scaled.stream().mapToInt(e -> e.weight()).min().orElseThrow() == 1, "oversized coprime pool scales/rounds within scenario bound");
@@ -260,9 +281,9 @@ final class DiscoveryGameTest {
 
     private static RegistryAccess definitions(DimensionType base) {
         var biomes = new MappedRegistry<Biome>(Registries.BIOME, Lifecycle.stable());
-        var background = new BackgroundMusic(Optional.of(net.minecraft.sounds.Musics.createGameMusic(sound("unnamed_biome"))),
-                Optional.of(net.minecraft.sounds.Musics.createGameMusic(sound("unnamed_creative"))),
-                Optional.of(net.minecraft.sounds.Musics.createGameMusic(sound("unnamed_underwater"))));
+        var background = new BackgroundMusic(Optional.of(Musics.createGameMusic(sound("unnamed_biome"))),
+                Optional.of(Musics.createGameMusic(sound("unnamed_creative"))),
+                Optional.of(Musics.createGameMusic(sound("unnamed_underwater"))));
         Registry.register(biomes, Identifier.parse("discovery:forest"), new Biome.BiomeBuilder()
                 .temperature(0.5f).downfall(0.5f).specialEffects(new BiomeSpecialEffects.Builder().waterColor(0).build())
                 .generationSettings(BiomeGenerationSettings.EMPTY).setAttribute(EnvironmentAttributes.BACKGROUND_MUSIC, background).build());

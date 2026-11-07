@@ -16,8 +16,4 @@ Jar SHA-256: `02f813d07293c9c579e5710a2f511aa8cc571f8706e62a0bebe753a7444c2e1c`.
 | `forest-editor.png` | `-PcustomUiOnly` | `0003_editor-forest-normal.png` | `4977f28ff14440084903eb46869d24e74d0bfc72227d710b7a182f0004dc8c9c` |
 | `add-music.png` | `-PaddSongsOnly` | `0001_add-songs-list.png` | `683f2b822d281126f780a824871dca6d4e9b173ff0e148578618c63eed43d059` |
 
-All four captures were visually inspected and copied byte-for-byte. Full capture
-sets, commands, client logs, Settings XML and the exact jar are retained under
-`/home/p-h-r-e-d/phred2.0/runtime/whostoppedthemusic/evidence/docs-settings/`.
-The [sole plan](../plans/1.2.0.md) distinguishes automated evidence from pending
-human visual/listening acceptance and the final independent checkpoint.
+All four captures were visually inspected and copied byte-for-byte. These are historical captures from the jar identified above, not a claim of current visual or listening acceptance.

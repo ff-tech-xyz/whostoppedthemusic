@@ -1,18 +1,28 @@
 package xyz.pyrehaven.whostoppedthemusic;
 
-import static xyz.pyrehaven.whostoppedthemusic.ClientSmokeGameTest.channelState;
-import static xyz.pyrehaven.whostoppedthemusic.ClientSmokeGameTest.channelGain;
+import static xyz.pyrehaven.whostoppedthemusic.GameTestSupport.channelGain;
+import static xyz.pyrehaven.whostoppedthemusic.GameTestSupport.channelState;
 
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestServerContext;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.TitleScreen;
+import net.minecraft.client.gui.screens.WinScreen;
 import net.minecraft.client.sounds.MusicManager.MusicFrequency;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.protocol.game.ClientboundBossEventPacket;
+import net.minecraft.server.level.ServerBossEvent;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.world.BossEvent;
+import net.minecraft.world.item.JukeboxSongs;
+import org.slf4j.LoggerFactory;
 import xyz.pyrehaven.whostoppedthemusic.mixin.MusicManagerAccessor;
 import xyz.pyrehaven.whostoppedthemusic.music.Deck;
+import xyz.pyrehaven.whostoppedthemusic.music.JukeboxWatcher;
 import xyz.pyrehaven.whostoppedthemusic.music.MusicDirector;
 import xyz.pyrehaven.whostoppedthemusic.music.TrackSoundInstance;
 import xyz.pyrehaven.whostoppedthemusic.music.custom.*;
@@ -99,13 +109,13 @@ final class CustomPlaybackGameTest {
         context.waitForScreen(TitleScreen.class);
         awaitWinner(context, ScenarioId.special(Special.MENU));
         awaitAudio(context);
-        context.setScreen(() -> new net.minecraft.client.gui.screens.WinScreen(false, () -> {}));
+        context.setScreen(() -> new WinScreen(false, () -> {}));
         awaitWinner(context, ScenarioId.special(Special.CREDITS));
         awaitAudio(context);
         context.setScreen(TitleScreen::new);
         awaitWinner(context, ScenarioId.special(Special.MENU));
         awaitAudio(context);
-        org.slf4j.LoggerFactory.getLogger("whostoppedthemusic-test").info("CUSTOM PLAYBACK PASS: menu/world/credits/menu, registry catalog, swamp/Nether/End defaults/delay/frequency, transport/history, thunder/roof and paused transition, per-scenario jukebox, empty/missing silence, pale garden edited volume, boss overlay, 32-key LRU, unchanged Basic/Vanilla");
+        LoggerFactory.getLogger("whostoppedthemusic-test").info("CUSTOM PLAYBACK PASS: menu/world/credits/menu, registry catalog, swamp/Nether/End defaults/delay/frequency, transport/history, thunder/roof and paused transition, per-scenario jukebox, empty/missing silence, pale garden edited volume, boss overlay, 32-key LRU, unchanged Basic/Vanilla");
     }
 
     private static void checkWeather(ClientGameTestContext context, TestServerContext server, ScenarioId swamp) {
@@ -133,10 +143,10 @@ final class CustomPlaybackGameTest {
         awaitAudio(context);
         var pos = context.computeOnClient(client -> client.gameRenderer.mainCamera().blockPosition().immutable());
         context.runOnClient(client -> {
-            var registry = client.level.registryAccess().lookupOrThrow(net.minecraft.core.registries.Registries.JUKEBOX_SONG);
-            client.level.levelEvent(null, 1010, pos, registry.getId(registry.getValueOrThrow(net.minecraft.world.item.JukeboxSongs.CAT)));
+            var registry = client.level.registryAccess().lookupOrThrow(Registries.JUKEBOX_SONG);
+            client.level.levelEvent(null, 1010, pos, registry.getId(registry.getValueOrThrow(JukeboxSongs.CAT)));
         });
-        context.waitFor(client -> xyz.pyrehaven.whostoppedthemusic.music.JukeboxWatcher.nearby(client));
+        context.waitFor(client -> JukeboxWatcher.nearby(client));
         context.waitTicks(10);
         context.runOnClient(client -> check(MusicDirector.get(client).active(), "scenario Play over ignores jukebox"));
         context.runOnClient(client -> edit(client, thunder, true, true, JukeboxSetting.PAUSE_MUSIC, List.of(new Deck.Entry("minecraft:records/pigstep", 1))));
@@ -229,18 +239,18 @@ final class CustomPlaybackGameTest {
     }
 
     private static void checkBoss(ClientGameTestContext context) {
-        var id = java.util.UUID.randomUUID();
+        var id = UUID.randomUUID();
         context.runOnClient(client -> {
-            var event = new net.minecraft.server.level.ServerBossEvent(id, net.minecraft.network.chat.Component.literal("Dragon"),
-                    net.minecraft.world.BossEvent.BossBarColor.PURPLE, net.minecraft.world.BossEvent.BossBarOverlay.PROGRESS);
+            var event = new ServerBossEvent(id, Component.literal("Dragon"),
+                    BossEvent.BossBarColor.PURPLE, BossEvent.BossBarOverlay.PROGRESS);
             event.setPlayBossMusic(true);
-            client.gui.hud.getBossOverlay().update(net.minecraft.network.protocol.game.ClientboundBossEventPacket.createAddPacket(event));
+            client.gui.hud.getBossOverlay().update(ClientboundBossEventPacket.createAddPacket(event));
         });
         awaitWinner(context, ScenarioId.special(Special.BOSS));
         context.runOnClient(client -> {
             var p = MusicDirector.get(client).customPlayback();
             check(p.music().replaceCurrentMusic() && p.resolution().entries().equals(p.defaults(ScenarioId.special(Special.BOSS)).config().songs()), "boss overlay uses dragon defaults and interrupts");
-            client.gui.hud.getBossOverlay().update(net.minecraft.network.protocol.game.ClientboundBossEventPacket.createRemovePacket(id));
+            client.gui.hud.getBossOverlay().update(ClientboundBossEventPacket.createRemovePacket(id));
         });
     }
 
