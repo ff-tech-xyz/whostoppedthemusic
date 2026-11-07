@@ -1,6 +1,5 @@
 package xyz.pyrehaven.whostoppedthemusic.music;
 
-import com.mojang.blaze3d.audio.Channel;
 import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.client.Minecraft;
@@ -8,6 +7,7 @@ import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.client.resources.sounds.Sound;
 import net.minecraft.client.resources.sounds.SoundInstance;
 import net.minecraft.client.sounds.MusicManager;
+import net.minecraft.client.sounds.ChannelAccess;
 import net.minecraft.client.sounds.SoundManager;
 import net.minecraft.client.sounds.WeighedSoundEvents;
 import net.minecraft.network.chat.Component;
@@ -23,6 +23,11 @@ import xyz.pyrehaven.whostoppedthemusic.mixin.SoundManagerAccessor;
 public final class MusicDirector {
     public interface Access {
         MusicDirector whostoppedthemusic$director();
+    }
+
+    public interface ChannelControl {
+        void whostoppedthemusic$manage();
+        void whostoppedthemusic$pause(boolean paused);
     }
 
     private record Played(Music music, Sound sound) { }
@@ -75,9 +80,13 @@ public final class MusicDirector {
                 : Component.translatable("whostoppedthemusic.muted", title);
     }
 
-    /** Called after vanilla has resolved and started a real sound. */
+    /** Vanilla has resolved the sound and allocated its channel; stream loading may still be pending. */
     public void started(Music music) {
         paused = null;
+        var handle = channel();
+        if (handle != null) {
+            handle.execute(channel -> ((ChannelControl) channel).whostoppedthemusic$manage());
+        }
         if (replay != null || !active() || current().getSound() == null) {
             return;
         }
@@ -121,26 +130,19 @@ public final class MusicDirector {
         }
         boolean resume = paused();
         paused = resume ? null : current();
-        channel(resume);
+        var handle = channel();
+        if (handle != null) {
+            handle.execute(channel -> ((ChannelControl) channel).whostoppedthemusic$pause(!resume));
+        }
     }
 
     public void stopped() {
         paused = null;
     }
 
-    /** Vanilla resumes all channels on leaving a menu; preserve only our music pause. */
-    public void reapplyPause() {
-        if (paused()) {
-            channel(false);
-        }
-    }
-
-    private void channel(boolean resume) {
+    private ChannelAccess.ChannelHandle channel() {
         var engine = ((SoundManagerAccessor) client.getSoundManager()).whostoppedthemusic$engine();
-        var handle = ((SoundEngineAccessor) engine).whostoppedthemusic$channels().get(current());
-        if (handle != null) {
-            handle.execute(resume ? Channel::unpause : Channel::pause);
-        }
+        return ((SoundEngineAccessor) engine).whostoppedthemusic$channels().get(current());
     }
 
     private static final class HistoricalSound extends SimpleSoundInstance {

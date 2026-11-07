@@ -46,13 +46,23 @@ option or in-game toast. Clicking the tape opens MusicScreen. Both tape views
 put one scrolling/clipped title between two reels and report silence, pause or
 mute truthfully.
 
-`MusicDirector` belongs to each vanilla MusicManager. It observes successfully
-started, resolved sounds, retains up to 64 history entries, and disables Previous
+`MusicDirector` belongs to each vanilla MusicManager. It observes resolved sounds
+with allocated channels, retains up to 64 history entries, and disables Previous
 without history. Previous replays that exact Sound with its original pool identity;
 Next calls vanilla startPlaying with the current situational Music. Pause/Resume
 uses only currentMusic's channel and preserves its playback position. A held pause
-freezes MusicManager.tick; SoundEngine.resume reapplies it after vanilla resumes
-menu audio. No extra tick loop, deck, global mute or Records/SFX control exists.
+freezes MusicManager.tick. MusicChannelMixin owns transport intent on that source,
+on the sound thread: a stopped source cannot start when its asynchronous stream
+finally attaches; a paused source starts paused and ignores global menu resume.
+No extra tick loop, deck, global mute or Records/SFX control exists.
+
+Vanilla's `startPlaying` returns before stream decoding/attachment and `Channel.play`.
+OpenAL stop/pause on an INITIAL source does nothing. Issuing those commands only
+once therefore left outgoing audio able to start after Next and lost early Pause.
+The channel retains stop/pause intent across startup. A stopped late-start channel
+is destroyed after attachment, closing its stream without issuing alSourcePlay;
+vanilla's normal channel cleanup then releases its handle. Only MusicManager's
+own channels are managed; Records and effects retain vanilla behavior.
 
 ```text
 whostoppedthemusic/
@@ -129,7 +139,7 @@ whostoppedthemusic/
     │   │       ├── PauseScreenMixin.java            # hides duplicate vanilla pause-menu song line
     │   │       ├── SoundManagerAccessor.java        # read-only sound engine access for current music channel
     │   │       ├── SoundEngineAccessor.java         # read-only instance/channel map
-    │   │       ├── SoundEngineMixin.java            # reapplies music-only pause after vanilla resume
+    │   │       ├── MusicChannelMixin.java           # music source stop/pause intent across async startup and menu resume
     │   │       ├── ClientJukeboxMixin.java          # client-side jukebox start/stop -> JukeboxWatcher
     │   │       └── WeighedSoundEventsAccessor.java  # read-only access to a pool's entries (accessor, no logic)
     │   └── resources/
@@ -145,8 +155,11 @@ whostoppedthemusic/
     │   └── MusicFolderTest.java     # file filter, copy, duplicate names, delete
     └── gametest/
         ├── java/xyz/pyrehaven/whostoppedthemusic/
-        │   └── ClientSmokeGameTest.java # packaged Vanilla UI, first-run Constant, options/persistence, keys, cassette, small window
-        └── resources/fabric.mod.json   # development-only client test entrypoint
+        │   ├── ClientSmokeGameTest.java # packaged UI, real channel transport, history, Records/effects isolation
+        │   └── test/mixin/TransportStreamGate.java # holds decoded vanilla streams before source attachment
+        └── resources/
+            ├── fabric.mod.json         # development-only client test entrypoint
+            └── whostoppedthemusic-test.mixins.json # development-only stream gate
 ```
 
 ## Key pieces
@@ -229,7 +242,7 @@ method names marked **(confirm)** still need checking when those features begin.
      - **Vanilla:** normal starts unchanged; Previous uses its resolved historical sound.
      - **Basic / Custom:** ask `MusicDirector` for a track for this pool. Build a `TrackSoundInstance` whose identifier is the pool id. If there's no track, start nothing.
    - `showNowPlayingToastIfNeeded()`: in Basic/Custom, cancel vanilla's toast and show `SongToast` instead, following `options.musicToast()`. This is how the player never sees two toasts.
-2. **`PauseScreenMixin`:** implemented: return false from `rendersNowPlayingToast()` for the full pause menu so the compact cassette owns the title. The cassette and Next are added through Fabric `ScreenEvents.AFTER_INIT`, not this mixin. `SoundEngineMixin` reapplies only a held music pause after `resume`; accessors expose its existing channel without replacing the sound engine.
+2. **`PauseScreenMixin`:** implemented: return false from `rendersNowPlayingToast()` for the full pause menu so the compact cassette owns the title. The cassette and Next are added through Fabric `ScreenEvents.AFTER_INIT`, not this mixin. `MusicChannelMixin` retains stop/pause intent on MusicManager-owned sources across asynchronous startup and global menu resume; accessors expose the existing channel without replacing the sound engine.
 3. **`ClientJukeboxMixin`:** the client method that starts and stops a jukebox song at a block position (confirm the class in 26.3; it was `LevelRenderer.playJukeboxSong` / `stopJukeboxSong` in 1.21). It tells `JukeboxWatcher`.
 4. **`WeighedSoundEventsAccessor`:** reads a pool's weighted entries so `TrackLibrary` can list them. Entries that point to another event are followed recursively.
 
@@ -336,6 +349,12 @@ extends that same test to first-launch Constant (after all startup callbacks),
 M/rebinding, real vanilla options and disk reload, Jukebox persistence, top cassette
 navigation, exact historical Previous, situational Next, channel Pause/Resume,
 Records/non-Music isolation, active song/silence and 320×240 placement/bounds/non-overlap.
+The transport regression holds real decoded vanilla streams before channel attachment:
+the original transport leaves the outgoing OpenAL source playing after Next and
+loses Pause before startup. The fixed source stops without late playback and starts
+paused until explicitly resumed. UI Previous and both Next paths also assert outgoing
+source shutdown and incoming playback, including Next from paused music. These are
+source-state checks, not a claim of human listening verification.
 Four `SettingsTest` cases cover
 defaults, first-run idempotence, round trip/unknown keys/temp cleanup, corrupt
 file recovery and failed first-run initialization. CI rejects missing/empty/skipped

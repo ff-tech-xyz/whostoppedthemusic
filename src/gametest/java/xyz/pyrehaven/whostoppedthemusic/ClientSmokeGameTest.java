@@ -33,6 +33,8 @@ import java.util.concurrent.CompletableFuture;
 
 public final class ClientSmokeGameTest implements FabricClientGameTest, ClientModInitializer {
     private static volatile boolean firstRunObserved;
+    public static volatile CompletableFuture<Void> streamGate;
+    public static volatile CompletableFuture<Void> streamReady;
 
     @Override
     public void onInitializeClient() {
@@ -172,6 +174,7 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
     }
 
     private static void checkTransport(ClientGameTestContext context) {
+        checkDelayedTransport(context);
         context.runOnClient(client -> {
             check(!new MusicDirector(client, new net.minecraft.client.sounds.MusicManager(client)).canPrevious(),
                     "Previous disabled without observed history");
@@ -179,10 +182,14 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
         });
         context.waitFor(client -> MusicDirector.get(client).active());
         var old = context.computeOnClient(client -> MusicDirector.get(client).current());
+        context.waitFor(client -> channelState(client, old, true).join());
         var file = old.getSound().getLocation();
         var topNext = context.computeOnClient(client -> Screens.getWidgets(client.gui.screen()).stream()
                 .filter(w -> w.getMessage().getString().equals(">") && w.getY() == 11).findFirst().orElseThrow());
         clickWidget(context, topNext);
+        context.waitFor(client -> channelStopped(client, old));
+        context.waitFor(client -> channelState(client, MusicDirector.get(client).current(), true).join());
+        var next = context.computeOnClient(client -> MusicDirector.get(client).current());
         context.runOnClient(client -> {
             var director = MusicDirector.get(client);
             check(director.current() != old, "top Next replaces actual sound instance");
@@ -192,6 +199,9 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
         clickWidget(context, context.computeOnClient(client -> cassette(client.gui.screen())));
         context.waitForScreen(MusicScreen.class);
         clickWidget(context, widget(context, 4));
+        context.waitFor(client -> channelStopped(client, next));
+        var previous = context.computeOnClient(client -> MusicDirector.get(client).current());
+        context.waitFor(client -> channelState(client, previous, true).join());
         context.runOnClient(client -> check(MusicDirector.get(client).current().getSound().getLocation().equals(file),
                 "Previous restores the actual resolved historical song, not a random pool entry"));
         context.waitTicks(10);
@@ -231,9 +241,16 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
         context.waitFor(client -> channelState(client, music, true).join());
         context.runOnClient(client -> check(MusicDirector.get(client).current() == music
                 && !MusicDirector.get(client).paused(), "Resume continues the same channel, not a restart"));
+        clickWidget(context, widget(context, 5));
+        context.waitFor(client -> channelState(client, music, false).join());
         clickWidget(context, widget(context, 6));
+        context.waitFor(client -> channelStopped(client, music));
+        context.waitFor(client -> channelState(client, MusicDirector.get(client).current(), true).join());
         context.runOnClient(client -> {
             check(MusicDirector.get(client).current() != music, "screen Next starts actual next music");
+            check(!MusicDirector.get(client).paused(), "Next clears the outgoing song's pause");
+            check(channelState(client, record, true).join(), "Next never stops Records");
+            check(channelState(client, effect, true).join(), "Next never stops non-music effects");
             client.getSoundManager().stop(record);
             client.getSoundManager().stop(effect);
         });
@@ -244,16 +261,74 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
         context.waitForScreen(PauseScreen.class);
     }
 
+    private static void checkDelayedTransport(ClientGameTestContext context) {
+        var stopGate = new CompletableFuture<Void>();
+        var old = context.computeOnClient(client -> {
+            client.getMusicManager().stopPlaying();
+            streamGate = stopGate;
+            streamReady = new CompletableFuture<>();
+            client.getMusicManager().startPlaying(Musics.MENU);
+            return MusicDirector.get(client).current();
+        });
+        context.waitFor(client -> streamReady.isDone());
+        context.runOnClient(client -> {
+            check(streamGate == null, "vanilla stream startup is held before channel.play");
+            MusicDirector.get(client).next();
+            stopGate.complete(null);
+        });
+        context.waitFor(client -> channelState(client, MusicDirector.get(client).current(), true).join());
+        boolean stopped = context.computeOnClient(client -> channelStopped(client, old));
+        var pauseGate = new CompletableFuture<Void>();
+        var music = context.computeOnClient(client -> {
+            client.getMusicManager().stopPlaying();
+            streamGate = pauseGate;
+            streamReady = new CompletableFuture<>();
+            client.getMusicManager().startPlaying(Musics.MENU);
+            return MusicDirector.get(client).current();
+        });
+        context.waitFor(client -> streamReady.isDone());
+        context.runOnClient(client -> {
+            MusicDirector.get(client).togglePause();
+            pauseGate.complete(null);
+        });
+        context.waitTicks(20);
+        boolean held = context.computeOnClient(client -> channelState(client, music, false).join());
+        LoggerFactory.getLogger("whostoppedthemusic-test").info(
+                "Delayed real-channel results: outgoingStopped={}, incomingPaused={}", stopped, held);
+        check(stopped, "Next must stop the outgoing source even when its stream finishes after stop");
+        check(held, "Pause before stream startup must hold the actual source paused");
+        context.runOnClient(client -> MusicDirector.get(client).togglePause());
+        context.waitFor(client -> channelState(client, music, true).join());
+        context.runOnClient(client -> client.getMusicManager().stopPlaying());
+        LoggerFactory.getLogger("whostoppedthemusic-test").info(
+                "TRANSPORT CHANNEL PASS: delayed outgoing stream stopped; delayed incoming stream paused then resumed");
+    }
+
+    private static boolean channelStopped(net.minecraft.client.Minecraft client, SoundInstance sound) {
+        var engine = ((SoundManagerAccessor) client.getSoundManager()).whostoppedthemusic$engine();
+        var handle = ((SoundEngineAccessor) engine).whostoppedthemusic$channels().get(sound);
+        if (handle == null || handle.isStopped()) {
+            return true;
+        }
+        var result = new CompletableFuture<Boolean>();
+        handle.execute(channel -> {
+            LoggerFactory.getLogger("whostoppedthemusic-test").info("Outgoing source playing={}, stopped={}",
+                    channel.playing(), channel.stopped());
+            result.complete(!channel.playing() && channel.stopped());
+        });
+        return result.orTimeout(5, java.util.concurrent.TimeUnit.SECONDS).join();
+    }
+
     private static CompletableFuture<Boolean> channelState(net.minecraft.client.Minecraft client,
                                                           SoundInstance sound, boolean playing) {
         var engine = ((SoundManagerAccessor) client.getSoundManager()).whostoppedthemusic$engine();
         var handle = ((SoundEngineAccessor) engine).whostoppedthemusic$channels().get(sound);
-        if (handle == null) {
+        if (handle == null || handle.isStopped()) {
             return CompletableFuture.completedFuture(false);
         }
         var result = new CompletableFuture<Boolean>();
         handle.execute(channel -> result.complete(playing ? channel.playing() : !channel.playing() && !channel.stopped()));
-        return result;
+        return result.orTimeout(5, java.util.concurrent.TimeUnit.SECONDS);
     }
 
     private static AbstractWidget widget(ClientGameTestContext context, int index) {
