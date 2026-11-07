@@ -42,6 +42,17 @@ public final class Theme {
     public static final int TRACK_TEXT_GAP = 4;
     public static final int TOAST_TITLE_Y = 5;
     public static final int TOAST_SONG_Y = 18;
+    public static final int TRANSPORT_RADIUS = 4;
+    public static final int TRANSPORT_BAR = 2;
+    public static final int BASIC_STOP_WIDTH = 44;
+    public static final int PAUSE_NEXT_WIDTH = 28;
+    public static final int PAUSE_NEXT_Y = 11;
+    public static final int PAUSE_NEXT_GAP = 4;
+    public static final int VANILLA_NARROW_THRESHOLD = 360;
+    public static final int VANILLA_CONTROLS_WIDTH = 170;
+    public static final int VANILLA_TOP = 44;
+    public static final int VANILLA_TAPE_MIN_HEIGHT = 80;
+    public static final int VANILLA_TAPE_MAX_HEIGHT = 160;
 
     private Theme() {
     }
@@ -58,13 +69,19 @@ public final class Theme {
         return new Button(x, y, width, CONTROL_HEIGHT, label, action, supplier -> supplier.get()) {
             @Override
             protected void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
-                graphics.fill(getX(), getY(), getRight(), getBottom(), CARD);
-                graphics.outline(getX(), getY(), getWidth(), getHeight(), isHoveredOrFocused() ? GLOW : BLUE);
-                graphics.fill(getX(), getY(), getX() + ACCENT, getBottom(), ORANGE);
+                buttonFrame(graphics, this);
                 graphics.textRendererForWidget(this, GuiGraphicsExtractor.HoveredTextEffects.NONE)
                         .acceptScrollingWithDefaultCenter(getMessage().copy().withColor(active ? TEXT : BLUE),
                                 getX() + GAP, getRight() - GAP, getY(), getBottom());
             }
         };
+    }
+
+    public static void buttonFrame(GuiGraphicsExtractor graphics, Button button) {
+        graphics.fill(button.getX(), button.getY(), button.getRight(), button.getBottom(), CARD);
+        graphics.outline(button.getX(), button.getY(), button.getWidth(), button.getHeight(),
+                button.active && button.isHoveredOrFocused() ? GLOW : BLUE);
+        graphics.fill(button.getX(), button.getY(), button.getX() + ACCENT, button.getBottom(),
+                button.active ? ORANGE : BLUE);
     }
 }

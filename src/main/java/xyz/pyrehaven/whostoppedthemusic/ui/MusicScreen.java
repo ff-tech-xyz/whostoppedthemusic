@@ -2,7 +2,6 @@ package xyz.pyrehaven.whostoppedthemusic.ui;
 
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
-import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import xyz.pyrehaven.whostoppedthemusic.Settings;
@@ -13,8 +12,7 @@ public final class MusicScreen extends Screen {
     private final Settings settings;
     private int left;
     private int contentWidth;
-    private Button pause;
-    private Button next;
+    private MusicControls controls;
     private BasicPanel basicPanel;
 
     public MusicScreen(Screen parent, Settings settings) {
@@ -34,13 +32,13 @@ public final class MusicScreen extends Screen {
         }
         int x = left + Theme.PADDING;
         int available = contentWidth - Theme.PADDING * 2;
-        int controlsWidth = available < 360 ? 122 : 170;
-        int tapeWidth = available - controlsWidth - 30 - Theme.GAP * 3;
+        int controlsWidth = available < Theme.VANILLA_NARROW_THRESHOLD ? Theme.BASIC_PLAYER_MIN : Theme.VANILLA_CONTROLS_WIDTH;
+        int tapeWidth = available - controlsWidth - Theme.BASIC_VOLUME_SPACE - Theme.GAP * 3;
         int controlsX = x + tapeWidth + Theme.GAP * 2;
-        int y = Math.max(44, (height - 120) / 2);
+        int y = Math.max(Theme.VANILLA_TOP, (height - Theme.VOLUME_HEIGHT) / 2);
         var director = MusicDirector.get(minecraft);
-        int tapeHeight = Math.min(160, Math.max(80, tapeWidth * 3 / 5));
-        var tape = new Button(x, y + (120 - tapeHeight) / 2, tapeWidth, tapeHeight,
+        int tapeHeight = Math.min(Theme.VANILLA_TAPE_MAX_HEIGHT, Math.max(Theme.VANILLA_TAPE_MIN_HEIGHT, tapeWidth * 3 / 5));
+        var tape = new Button(x, y + (Theme.VOLUME_HEIGHT - tapeHeight) / 2, tapeWidth, tapeHeight,
                 director.status(), button -> { }, supplier -> supplier.get()) {
             @Override
             protected void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
@@ -49,26 +47,12 @@ public final class MusicScreen extends Screen {
             }
         };
         addRenderableWidget(tape);
-        addRenderableWidget(Theme.button(controlsX, y, controlsWidth,
-                Component.translatable("whostoppedthemusic.mode.vanilla"), button -> changeMode()));
-        addRenderableWidget(Theme.button(controlsX, y + Theme.ROW, controlsWidth, frequencyLabel(), button -> {
-            var option = minecraft.options.musicFrequency();
-            var values = net.minecraft.client.sounds.MusicManager.MusicFrequency.values();
-            option.set(values[(option.get().ordinal() + 1) % values.length]);
-            button.setMessage(frequencyLabel());
-        }));
-        var jukebox = Theme.button(controlsX, y + Theme.ROW * 2, controlsWidth, jukeboxLabel(), button -> {
-            settings.setJukebox(settings.jukebox().next());
-            button.setMessage(jukeboxLabel());
-        });
-        addRenderableWidget(jukebox);
+        controls = new MusicControls(minecraft, settings);
+        controls.settings(controlsX, y, controlsWidth, this::addRenderableWidget, this::changeMode);
         int transportWidth = (controlsWidth - Theme.GAP) / 2;
         int transportY = y + Theme.ROW * 3 + Theme.GAP;
-        pause = transport(controlsX, transportY, transportWidth,
-                "||", "pause", director::togglePlayback);
-        next = transport(controlsX + transportWidth + Theme.GAP, transportY, transportWidth,
-                ">", "next", director::next);
-        addRenderableWidget(new MusicVolumeSlider(minecraft, controlsX + controlsWidth + Theme.GAP, y, 120));
+        controls.transport(controlsX, transportY, transportWidth, this::addRenderableWidget);
+        addRenderableWidget(new MusicVolumeSlider(minecraft, controlsX + controlsWidth + Theme.GAP, y, Theme.VOLUME_HEIGHT));
         updateTransport();
         doneButton();
     }
@@ -91,35 +75,13 @@ public final class MusicScreen extends Screen {
                 Component.translatable("gui.done"), button -> onClose()));
     }
 
-    private Button transport(int x, int y, int width, String icon, String action, Runnable press) {
-        var button = Theme.button(x, y, width, Component.literal(icon), ignored -> {
-            press.run();
-            updateTransport();
-        });
-        button.setTooltip(Tooltip.create(Component.translatable("whostoppedthemusic." + action)));
-        return addRenderableWidget(button);
-    }
-
     private void updateTransport() {
         var director = MusicDirector.get(minecraft);
         if (settings.mode() == xyz.pyrehaven.whostoppedthemusic.Mode.BASIC) {
             basicPanel.update(director);
             return;
         }
-        pause.active = director.active() || director.canNext();
-        pause.setMessage(Component.literal(!director.active() || director.paused() ? ">" : "||"));
-        pause.setTooltip(Tooltip.create(Component.translatable(
-                "whostoppedthemusic." + (!director.active() ? "play" : director.paused() ? "resume" : "pause"))));
-        next.active = director.canNext();
-    }
-
-    private Component frequencyLabel() {
-        return Component.translatable("whostoppedthemusic.frequency", minecraft.options.musicFrequency().get().caption());
-    }
-
-    private Component jukeboxLabel() {
-        return Component.translatable("whostoppedthemusic.jukebox",
-                Component.translatable("whostoppedthemusic.jukebox." + settings.jukebox().name().toLowerCase(java.util.Locale.ROOT)));
+        controls.update();
     }
 
     @Override

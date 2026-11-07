@@ -16,6 +16,7 @@ import xyz.pyrehaven.whostoppedthemusic.music.Track;
 import xyz.pyrehaven.whostoppedthemusic.music.TrackNames;
 import xyz.pyrehaven.whostoppedthemusic.ui.CassetteArtwork;
 import xyz.pyrehaven.whostoppedthemusic.ui.Theme;
+import xyz.pyrehaven.whostoppedthemusic.ui.TransportButton;
 
 public final class TrackList extends ContainerObjectSelectionList<TrackList.Row> {
     private final Settings settings;
@@ -100,13 +101,15 @@ public final class TrackList extends ContainerObjectSelectionList<TrackList.Row>
                 settings.setTicked(track.id(), !settings.ticked(track.id()));
                 MusicDirector.get(minecraft).playlistChanged();
             });
-            play = Theme.button(0, 0, Theme.TRACK_PLAY_WIDTH, Component.literal(">"), button -> MusicDirector.get(minecraft).play(track));
+            play = new TransportButton(0, 0, Theme.TRACK_PLAY_WIDTH, TransportButton.Action.PLAY,
+                    () -> MusicDirector.get(minecraft).play(track));
             tape = new Button(0, 0, Theme.CONTROL_HEIGHT, Theme.CONTROL_HEIGHT, title, button -> { }, supplier -> supplier.get()) {
                 @Override protected void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
                     CassetteArtwork.draw(graphics, this, title, false);
                 }
             };
             if (track != null) {
+                play.setMessage(Component.translatable("whostoppedthemusic.play_track", title));
                 tick.setTooltip(net.minecraft.client.gui.components.Tooltip.create(Component.translatable("whostoppedthemusic.select_track", title)));
                 play.setTooltip(net.minecraft.client.gui.components.Tooltip.create(Component.translatable("whostoppedthemusic.play_track", title)));
             }

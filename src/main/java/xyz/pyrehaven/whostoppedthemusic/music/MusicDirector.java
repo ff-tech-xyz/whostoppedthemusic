@@ -133,11 +133,11 @@ public final class MusicDirector {
     }
 
     public void showToast(net.minecraft.client.gui.components.toasts.ToastManager toasts) {
-        if (!basic()) { toasts.showNowPlayingToast(); return; }
-        if (!(current() instanceof TrackSoundInstance track) || !client.options.musicToast().get().renderToast()) return;
+        if (current() == null || manager.getCurrentMusicTranslationKey() == null
+                || !client.options.musicToast().get().renderToast()) return;
         var toast = toasts.getToast(SongToast.class, net.minecraft.client.gui.components.toasts.Toast.NO_TOKEN);
-        if (toast == null) toasts.addToast(new SongToast(current(), track.track().title()));
-        else toast.replace(current(), track.track().title());
+        if (toast == null) toasts.addToast(new SongToast(current(), title()));
+        else toast.replace(current(), title());
     }
 
     public MusicDirector(Minecraft client, MusicManager manager) {
@@ -171,13 +171,17 @@ public final class MusicDirector {
         if (!active() || key == null) {
             return Component.translatable("whostoppedthemusic.cassette.silence");
         }
-        Component title = current() instanceof TrackSoundInstance track ? track.track().title()
-                : Component.translatable(key.replace('/', '.'));
+        Component title = title();
         if (paused()) {
             return Component.translatable("whostoppedthemusic.paused", title);
         }
         return client.options.getFinalSoundSourceVolume(SoundSource.MUSIC) > 0 ? title
                 : Component.translatable("whostoppedthemusic.muted", title);
+    }
+
+    private Component title() {
+        return current() instanceof TrackSoundInstance track ? track.track().title()
+                : Component.translatable(manager.getCurrentMusicTranslationKey().replace('/', '.'));
     }
 
     /** Vanilla has resolved the sound and allocated its channel; stream loading may still be pending. */
@@ -200,13 +204,6 @@ public final class MusicDirector {
     }
 
     public void togglePlayback() {
-        if (basic()) {
-            if (active()) {
-                stopped = true;
-                manager.stopPlaying();
-            } else next();
-            return;
-        }
         if (!active()) {
             next();
             return;
@@ -217,6 +214,12 @@ public final class MusicDirector {
         if (handle != null) {
             handle.execute(channel -> ((ChannelControl) channel).whostoppedthemusic$pause(!resume));
         }
+    }
+
+    public void stop() {
+        if (!basic()) return;
+        stopped = true;
+        manager.stopPlaying();
     }
 
     public void stopped() {

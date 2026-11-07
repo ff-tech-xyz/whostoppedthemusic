@@ -5,7 +5,7 @@
 Who Stopped The Music is a client-side Fabric mod that lets players choose what music Minecraft plays. It plugs into vanilla's own music player instead of running a second one next to it. It has three modes:
 
 - **Vanilla:** Minecraft selects the music. Play, Pause/Resume and Next control its active background music without affecting Records or sound effects.
-- **Basic:** one song list for the whole game. Tick the songs you want and get play, stop, previous, next and shuffle controls.
+- **Basic:** one song list for the whole game. Tick the songs you want and get Play/Pause/Resume, separate Stop, Previous, Next and Shuffle controls.
 - **Custom:** every place music can play (each biome pool, the Nether, the End, underwater, creative, the title screen and so on) is a button. Inside each one you choose the songs and give each a weight from 1 to 30.
 
 Players can also drop their own `.mp3` and `.ogg` files into a `music` folder, or drag them onto the Add Songs screen, and use them in Basic or Custom. Music discs can be used too.
@@ -34,7 +34,7 @@ A **tag** in this mod is one of those pools. Our hooks sit inside steps 1, 4 and
 ## Structure
 
 Current implemented slice (2026-11-07): Settings and first-launch Constant, Vanilla
-transport, Basic soundtrack/disc selection and playback, Basic's single SongToast,
+transport, Basic soundtrack/disc selection and playback, shared controls and one SongToast in both modes,
 and nearby jukebox fade/hold in both modes. Custom, imported files and Add Songs
 remain planned. The M screen cycles Vanilla/Basic; the compact pause cassette
 retains one live title and Next.
@@ -42,7 +42,7 @@ retains one live title and Next.
 The compact cassette retains its player housing, main's centered width/30-pixel
 height and y=6 placement. Its title always comes from the actual music instance;
 the duplicate vanilla pause song line is suppressed without changing the toast
-option or in-game toast. Clicking the tape opens MusicScreen. Both tape views
+option. SongToast replaces the in-game notification in both modes. Clicking the tape opens MusicScreen. Both tape views
 put one scrolling/clipped title between two reels and report silence, pause or
 mute truthfully.
 
@@ -125,10 +125,12 @@ whostoppedthemusic/
     │   │   │       # open the folder. Never runs on a timer.
     │   │   ├── ui/
     │   │   │   ├── Theme.java               # PyreHaven colours, spacing and text styles in one place
+    │   │   │   ├── MusicControls.java       # shared settings and live transport; panels place Basic additions
+    │   │   │   ├── TransportButton.java     # drawn transport symbols, accessible actions and shared button states
     │   │   │   ├── MusicScreen.java         # Vanilla layout; retains BasicPanel across resize/collapse rebuilds
     │   │   │   ├── CassetteArtwork.java     # shared port of main's shell, label and crossed reels
     │   │   │   ├── MusicVolumeSlider.java   # vertical view of vanilla's Music option; keyboard and drag
-    │   │   │   ├── BasicPanel.java          # collapsible browser and centered/expanded player; owns query/widgets and Basic controls
+    │   │   │   ├── BasicPanel.java          # collapsible browser, player placement and Basic-only Previous/Stop/Shuffle
     │   │   │   ├── CustomPanel.java         # Custom body: grid of tag buttons
     │   │   │   ├── TagEditorScreen.java     # picker | songs in tag | song settings
     │   │   │   ├── AddSongsScreen.java      # drop zone, your songs list, remove, open folder
@@ -152,7 +154,7 @@ whostoppedthemusic/
     │   │       ├── TimelineMusicAccessor.java        # read-only timeline attribute tracks for music keyframes
     │   │       ├── MusicWorldMixin.java             # keep Basic source during world changes; rebuild library from new registries
     │   │       ├── LevelSoundMixin.java             # stop other world sources and clear scheduled/ticking sounds
-    │   │       ├── NowPlayingToastMixin.java        # retire vanilla toast during Basic, including its slide-out
+    │   │       ├── NowPlayingToastMixin.java        # suppress vanilla duplicate in both modes, including its slide-out
     │   │       └── WeighedSoundEventsAccessor.java  # read-only access to a pool's entries (accessor, no logic)
     │   └── resources/
     │       ├── fabric.mod.json
@@ -167,7 +169,7 @@ whostoppedthemusic/
     │   └── MusicFolderTest.java     # file filter, copy, duplicate names, delete
     └── gametest/
         ├── java/xyz/pyrehaven/whostoppedthemusic/
-        │   ├── ClientSmokeGameTest.java # packaged UI/transport; basicUiOnly selects browser/layout/row-play checks
+        │   ├── ClientSmokeGameTest.java # packaged UI/transport; controlsOnly selects shared transport/toast/held Stop/isolation
         │   ├── DiscoveryGameTest.java   # discoveryOnly: real loaded events, definition registries, dedupe, reload/world lifecycle
         │   └── test/mixin/TransportStreamGate.java # holds decoded vanilla streams before source attachment
         └── resources/
@@ -192,7 +194,7 @@ whostoppedthemusic/
 ## Modes in detail
 
 ### Vanilla
-- Song selection and in-game toast stay vanilla. The compact cassette replaces the pause song line.
+- Song selection stays vanilla. The shared SongToast replaces the in-game notification; the compact cassette replaces the pause song line.
 - Left: enlarged bare tape, with one live title between two reels. Right: Vanilla/Basic mode button, Frequency, Jukebox and Play/Pause/Resume/Next. A vertical Music volume slider is at the far right.
 - Master and Music Toast remain in vanilla Options, not this screen. Music and Frequency write the existing vanilla options; Jukebox is saved in Settings and used by the director.
 
@@ -201,7 +203,7 @@ whostoppedthemusic/
 - The song list has three sections: **Soundtrack**, **Music Discs** and **Your Songs**. Tick a song to put it in the deck.
 - Every ticked song has weight 1. Shuffle on: the deck is shuffled. Shuffle off: songs play in list order. When the deck is used up it refills and repeats.
 - No songs ticked: nothing plays.
-- Controls: Play on each row (plays that song now, then the deck carries on), Play/Stop, Previous, Next, Shuffle, Select All, Deselect All, search, and Add Songs.
+- Controls: Play on each row (plays that song now, then the deck carries on), Play/Pause/Resume, separate Stop, Previous, Next, Shuffle, Select All, Deselect All, search, and Add Songs.
 - Stop holds silence until the player presses Play, Next or a row's Play, or restarts the game. It is not saved.
 - Defaults: every soundtrack song and every disc ticked. A newly added custom song starts ticked.
 
@@ -211,7 +213,7 @@ a smoothly scrolling cassette viewport, then Select All / Deselect All. Each son
 has a selection toggle and Play Now, with a full central cassette and clipped
 neighbours above/below as the list scrolls. Narrow rows put their controls below
 the tape. Right: stacked Basic mode, Frequency and Jukebox, then Previous /
-Play-or-Stop / Next, Shuffle and a live current-song cassette underneath. Music
+Play/Pause/Resume / Next, separate labeled Stop beside Shuffle, and a live current-song cassette underneath. Music
 volume is at the far right; Done remains below both columns.
 
 The inward arrow removes the browser from rendering, input and keyboard traversal
@@ -250,8 +252,12 @@ jukebox entries belong to the old level and cannot leak into the next one.
 
 OG Moo-cow's supplied sketches and revised contract govern this screen. The
 mode button cycles exactly “Vanilla” and “Basic”. Custom arrives with its playback.
-Theme owns the settings/transport controls
-as well as the surrounding dark surfaces; no player housing surrounds the large tape.
+MusicControls builds the shared mode/Frequency/Jukebox settings and primary/Next
+transport for both panels. Panels place them; Basic adds Previous, labeled Stop
+and Shuffle. TransportButton draws Play/Resume, Pause and distinct Next/Previous
+symbols, with translated narration and tooltips. The pause-menu Next and browser
+row Play use this same button. Theme owns their dimensions, button frames and
+colors as well as surrounding dark surfaces; no player housing surrounds the large tape.
 
 ```text
 ┌────────────────────────────────────────────────────────────┐
@@ -259,7 +265,7 @@ as well as the surrounding dark surfaces; no player housing surrounds the large 
 │                               [ Vanilla             ] Music│
 │  ┌──── bare tape ──────────┐   [ Frequency: Constant  ]   │  │
 │  │ [reel] song title [reel]│   [ Jukebox: Pause music ]   ●  │
-│  └────────────────────────┘   [ > / || ] [ > ]          │  │
+│  └────────────────────────┘   [Play/Pause] [Next]        │  │
 │                                                        70% │
 │                         [ Done ]                           │
 └────────────────────────────────────────────────────────────┘
@@ -284,7 +290,7 @@ Custom selection and custom-file streaming remain planned.
    - `startPlaying(Music)`: the verified `SimpleSoundInstance.forMusic` call is the existing sound-selection seam.
      - **Vanilla:** normal starts and sound resolution are unchanged.
      - **Basic:** ask `MusicDirector` for the next deck/history/row track. Build a `TrackSoundInstance` whose identifier is the Basic pool id. If there's no track or playback is held, cancel before sound creation. Custom remains planned.
-   - Both toast calls in `startPlaying` and `showNowPlayingToastIfNeeded()` delegate to the director. Basic reuses one `SongToast` through the toast manager, following `options.musicToast()`; Vanilla delegates unchanged. `NowPlayingToastMixin` hides the legacy toast in Basic, including a previous Vanilla toast and option callbacks. The replacement also retires on mode switch, stop or toast preference change.
+   - Both toast calls in `startPlaying` and `showNowPlayingToastIfNeeded()` delegate to the director. Both modes reuse one `SongToast` through the toast manager, following `options.musicToast()` and the notification duration multiplier. New sound identities replace its title and reset its duration; repeated callbacks for the same sound leave the timer alone. `NowPlayingToastMixin` suppresses the legacy duplicate in both modes, including option callbacks and slide-out. The replacement hides when its sound stops, is replaced or Music Toast disallows notifications.
 2. **`PauseScreenMixin`:** implemented: return false from `rendersNowPlayingToast()` for the full pause menu so the compact cassette owns the title. The cassette and Next are added through Fabric `ScreenEvents.AFTER_INIT`, not this mixin. `MusicChannelMixin` retains stop/pause intent on MusicManager-owned sources across asynchronous startup and global menu resume; accessors expose the existing channel without replacing the sound engine.
 3. **`ClientJukeboxMixin` / `ClientLevelAccessor`:** read `ClientLevel.levelEventHandler.playingJukeboxSongs`, which 26.3's `LevelEventHandler.playJukeboxSong` / `stopJukeboxSong` already own. The watcher verifies allocated live channels; no duplicate position map, timer or world lifecycle state exists.
 4. **`WeighedSoundEventsAccessor` / `SoundEventReferenceAccessor`:** read weighted files and event-reference entries recursively, preserving volume/pitch multipliers and stream flags. `SoundLibraryMixin` rebuilds after SoundManager applies the loaded registry; `MusicWorldMixin` rebuilds with the arriving world's registries (or empty registries on exit). `TimelineMusicAccessor` exposes loaded attribute tracks so every music keyframe is discoverable without time sampling. Titles are translated components, resolved against the current language rather than a reload-order snapshot.
@@ -418,6 +424,15 @@ JUnit reports, missing UI screenshots or pass marker, and source-output loading
 instead of the packaged jar. No empty suite is called passed.
 
 ## How to build
+
+Focused shared-controls verification: `xvfb-run -a ./gradlew jar runClientGameTest -PcontrolsOnly --console=plain`.
+The existing packaged-client harness exercises both modes' Play/Pause/same-source
+Resume and Next from pause, pause-menu Next, Basic row Play and held Stop, one
+updated SongToast on manual/automatic transitions, Music Toast Never, notification
+duration scaling and Records/effects isolation during pause and Stop. It also
+checks browser query retention through collapse/resize and 320×240 bounds.
+The outgoing-source assertion inspects the handle on the sound executor: vanilla
+ChannelHandle.execute intentionally skips callbacks after channel release.
 
 Focused discovery verification: `xvfb-run -a ./gradlew runClientGameTest -PdiscoveryOnly --console=plain`.
 This loads the packaged jar and test-only event aliases over vanilla audio, checks

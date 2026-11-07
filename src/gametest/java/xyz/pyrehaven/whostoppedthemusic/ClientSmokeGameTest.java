@@ -24,6 +24,9 @@ import xyz.pyrehaven.whostoppedthemusic.ui.CassetteWidget;
 import xyz.pyrehaven.whostoppedthemusic.ui.MusicScreen;
 import xyz.pyrehaven.whostoppedthemusic.ui.MusicVolumeSlider;
 import xyz.pyrehaven.whostoppedthemusic.ui.Theme;
+import xyz.pyrehaven.whostoppedthemusic.ui.SongToast;
+import xyz.pyrehaven.whostoppedthemusic.ui.TransportButton;
+import net.minecraft.client.gui.components.toasts.Toast;
 import xyz.pyrehaven.whostoppedthemusic.ui.widget.TrackList;
 import xyz.pyrehaven.whostoppedthemusic.music.MusicDirector;
 import xyz.pyrehaven.whostoppedthemusic.mixin.SoundManagerAccessor;
@@ -43,7 +46,8 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
     @Override
     public void onInitializeClient() {
         if (Boolean.getBoolean("whostoppedthemusic.transportOnly") || Boolean.getBoolean("whostoppedthemusic.basicOnly")
-                || Boolean.getBoolean("whostoppedthemusic.basicUiOnly") || Boolean.getBoolean("whostoppedthemusic.discoveryOnly")) {
+                || Boolean.getBoolean("whostoppedthemusic.basicUiOnly") || Boolean.getBoolean("whostoppedthemusic.discoveryOnly")
+                || Boolean.getBoolean("whostoppedthemusic.controlsOnly")) {
             return;
         }
         // Entrypoint order is not guaranteed. Check after all startup callbacks,
@@ -57,6 +61,10 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
     @Override
     public void runTest(ClientGameTestContext context) {
         context.waitForScreen(TitleScreen.class);
+        if (Boolean.getBoolean("whostoppedthemusic.controlsOnly")) {
+            checkUnifiedControls(context);
+            return;
+        }
         if (Boolean.getBoolean("whostoppedthemusic.discoveryOnly")) {
             DiscoveryGameTest.run(context);
             return;
@@ -125,6 +133,155 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
         }
         LoggerFactory.getLogger("whostoppedthemusic-test").info(
                 "WHOSTOPPEDTHEMUSIC CLIENT PASS: first-run Constant, Vanilla UI, M/rebind, options/persistence, top cassette, live song/silence, Play/Next/Pause/Resume, music-only volume, inert mode, 320x240");
+    }
+
+    private static void checkUnifiedControls(ClientGameTestContext context) {
+        context.getInput().resizeWindow(960, 720);
+        try (var world = context.worldBuilder().create()) {
+            context.waitForScreen(null);
+            context.runOnClient(client -> {
+                client.options.guiScale().set(2);
+                client.options.getSoundSourceOptionInstance(SoundSource.MASTER).set(0.7);
+                client.options.getSoundSourceOptionInstance(SoundSource.MUSIC).set(0.7);
+                client.options.musicFrequency().set(MusicFrequency.CONSTANT);
+                WhoStoppedTheMusic.settings().setJukebox(JukeboxSetting.PLAY_OVER);
+                WhoStoppedTheMusic.settings().setAllTicked(WhoStoppedTheMusic.LIBRARY.tracks().stream().map(t -> t.id()).toList(), true);
+            });
+            var record = context.computeOnClient(client -> {
+                var sound = SimpleSoundInstance.forJukeboxSong(SoundEvent.createVariableRangeEvent(
+                        Identifier.withDefaultNamespace("music_disc.cat")), Vec3.ZERO);
+                client.getSoundManager().play(sound);
+                return sound;
+            });
+            var effect = context.computeOnClient(client -> {
+                var sound = new SimpleSoundInstance(Identifier.withDefaultNamespace("music_disc.cat"), SoundSource.AMBIENT,
+                        0.5f, 1, SoundInstance.createUnseededRandom(), true, 0, SoundInstance.Attenuation.NONE, 0, 0, 0, true);
+                client.getSoundManager().play(sound);
+                return sound;
+            });
+            context.waitFor(client -> channelState(client, record, true).join() && channelState(client, effect, true).join());
+            for (Mode mode : Mode.values()) {
+                checkModeControls(context, mode, record, effect);
+                context.runOnClient(client -> check(channelState(client, record, true).join() && channelState(client, effect, true).join(),
+                        mode + " controls leave Records and effects advancing"));
+            }
+            context.runOnClient(client -> {
+                client.getSoundManager().stop(record);
+                client.getSoundManager().stop(effect);
+            });
+        }
+        LoggerFactory.getLogger("whostoppedthemusic-test").info(
+                "SHARED CONTROLS PASS: Vanilla/Basic Play/Pause/same-source Resume/paused Next, pause-menu Next, row Play, held Basic Stop, automatic transitions, single reused toast, duration multiplier, Never, Records/effects isolation, browser state and 320x240");
+    }
+
+    private static void checkModeControls(ClientGameTestContext context, Mode mode, SoundInstance record, SoundInstance effect) {
+        context.runOnClient(client -> {
+            var settings = WhoStoppedTheMusic.settings();
+            settings.setMode(mode);
+            MusicDirector.get(client).syncMode();
+            client.getMusicManager().stopPlaying();
+            client.options.musicToast().set(MusicToastDisplayState.PAUSE_AND_TOAST);
+            client.options.notificationDisplayTime().set(2.0);
+            client.gui.toastManager().clear();
+            client.gui.setScreen(new MusicScreen(null, settings));
+        });
+        context.waitForScreen(MusicScreen.class);
+        clickWidget(context, namedWidget(context, "Play"));
+        context.waitFor(client -> channelState(client, MusicDirector.get(client).current(), true).join());
+        var sound = context.computeOnClient(client -> MusicDirector.get(client).current());
+        context.runOnClient(client -> {
+            checkSingleSongToast(client);
+            var manager = client.gui.toastManager();
+            var toast = manager.getToast(SongToast.class, Toast.NO_TOKEN);
+            // Controlled elapsed times exercise the real toast's multiplier and duplicate callback.
+            MusicDirector.get(client).showToast(manager);
+            check(manager.getToast(SongToast.class, Toast.NO_TOKEN) == toast, "duplicate callback reuses same toast");
+            var timed = new SongToast(sound, MusicDirector.get(client).status());
+            timed.update(manager, 100000);
+            timed.replace(sound, MusicDirector.get(client).status());
+            timed.update(manager, 109999);
+            check(timed.getWantedVisibility() == Toast.Visibility.SHOW, "2x notification lasts almost ten seconds");
+            timed.update(manager, 110001);
+            check(timed.getWantedVisibility() == Toast.Visibility.HIDE, "duplicate callback cannot extend duration");
+        });
+        clickWidget(context, namedWidget(context, "Pause"));
+        context.waitFor(client -> channelState(client, sound, false).join());
+        context.runOnClient(client -> client.getSoundManager().resume());
+        context.waitTicks(30);
+        context.runOnClient(client -> {
+            check(MusicDirector.get(client).paused() && MusicDirector.get(client).current() == sound
+                    && channelState(client, sound, false).join(), mode + " held Pause survives ticks/global resume");
+            check(channelState(client, record, true).join() && channelState(client, effect, true).join(),
+                    "Records/effects keep advancing during held Pause");
+        });
+        clickWidget(context, namedWidget(context, "Resume"));
+        context.waitFor(client -> channelState(client, sound, true).join());
+        context.runOnClient(client -> check(MusicDirector.get(client).current() == sound, "Resume preserves exact source"));
+        var toast = context.computeOnClient(client -> client.gui.toastManager().getToast(SongToast.class, Toast.NO_TOKEN));
+        clickWidget(context, namedWidget(context, "Pause"));
+        clickWidget(context, namedWidget(context, "Next"));
+        context.waitFor(client -> channelStopped(client, sound) && channelState(client, MusicDirector.get(client).current(), true).join());
+        context.runOnClient(client -> {
+            check(!MusicDirector.get(client).paused(), "Next clears pause");
+            checkSingleSongToast(client);
+            check(client.gui.toastManager().getToast(SongToast.class, Toast.NO_TOKEN) == toast, "transition updates same notification");
+        });
+        if (mode == Mode.BASIC) checkBasicStopAndRow(context, record, effect);
+        var outgoing = context.computeOnClient(client -> MusicDirector.get(client).current());
+        context.runOnClient(client -> client.getSoundManager().stop(outgoing));
+        context.waitFor(client -> MusicDirector.get(client).current() != outgoing
+                && channelState(client, MusicDirector.get(client).current(), true).join());
+        context.runOnClient(client -> checkSingleSongToast(client));
+        context.takeScreenshot("shared-controls-" + mode.name().toLowerCase(java.util.Locale.ROOT));
+        context.runOnClient(client -> client.options.musicToast().set(MusicToastDisplayState.NEVER));
+        context.waitTicks(2);
+        clickWidget(context, namedWidget(context, "Next"));
+        context.waitFor(client -> channelState(client, MusicDirector.get(client).current(), true).join());
+        context.runOnClient(client -> {
+            var hidden = client.gui.toastManager().getToast(SongToast.class, Toast.NO_TOKEN);
+            check(hidden == null || hidden.getWantedVisibility() == Toast.Visibility.HIDE, "Never hides and prevents replacement toast");
+        });
+        context.clickScreenButton("gui.done");
+        context.waitForScreen(null);
+        context.getInput().pressKey(InputConstants.KEY_ESCAPE);
+        context.waitForScreen(PauseScreen.class);
+        var beforeTop = context.computeOnClient(client -> MusicDirector.get(client).current());
+        clickWidget(context, namedWidget(context, "Next", Theme.PAUSE_NEXT_Y));
+        context.waitFor(client -> channelStopped(client, beforeTop) && channelState(client, MusicDirector.get(client).current(), true).join());
+        context.runOnClient(client -> client.options.notificationDisplayTime().set(1.0));
+    }
+
+    private static void checkBasicStopAndRow(ClientGameTestContext context, SoundInstance record, SoundInstance effect) {
+        clickWidget(context, namedWidget(context, "Stop"));
+        context.waitTicks(40);
+        context.runOnClient(client -> {
+            var director = MusicDirector.get(client);
+            check(!director.active() && !director.canPrevious(), "Basic Stop holds through Constant ticks");
+            director.previous();
+            check(!director.active(), "Previous cannot escape held Stop");
+            check(channelState(client, record, true).join() && channelState(client, effect, true).join(),
+                    "Records/effects keep advancing during held Stop");
+        });
+        clickWidget(context, namedWidget(context, "Play"));
+        context.waitFor(client -> channelState(client, MusicDirector.get(client).current(), true).join());
+        context.runOnClient(client -> {
+            searchBox(client.gui.screen()).setValue("Pigstep");
+            check(trackList(client.gui.screen()).children().getFirst().children().getLast() instanceof TransportButton,
+                    "row Play shares drawn transport widget");
+        });
+        context.waitTicks(2);
+        clickWidget(context, context.computeOnClient(client -> (AbstractWidget) trackList(client.gui.screen()).children().getFirst().children().getLast()));
+        context.waitFor(client -> channelState(client, MusicDirector.get(client).current(), true).join());
+        context.runOnClient(client -> check(MusicDirector.get(client).status().getString().equals("Lena Raine - Pigstep"), "row Play starts selected track"));
+        clickWidget(context, namedWidget(context, "<", Theme.BASIC_TOP));
+        clickWidget(context, namedWidget(context, ">", Theme.BASIC_TOP));
+        context.getInput().resizeWindow(320, 240);
+        context.waitTicks(3);
+        assertWidgetsFit(context);
+        context.runOnClient(client -> check(searchBox(client.gui.screen()).getValue().equals("Pigstep"), "query survives collapse and resize"));
+        context.takeScreenshot("shared-controls-basic-small");
+        context.getInput().resizeWindow(960, 720);
+        context.waitTicks(3);
     }
 
     private static void checkBasicUi(ClientGameTestContext context) {
@@ -271,7 +428,7 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
 
     private static AbstractWidget basicNext(ClientGameTestContext context) {
         return context.computeOnClient(client -> Screens.getWidgets(client.gui.screen()).stream()
-                .filter(w -> w.getY() == Theme.BASIC_TOP + Theme.ROW * 3 && w.getMessage().getString().equals(">"))
+                .filter(w -> w.getY() == Theme.BASIC_TOP + Theme.ROW * 3 && w.getMessage().getString().equals("Next"))
                 .max(java.util.Comparator.comparingInt(AbstractWidget::getX)).orElseThrow());
     }
 
@@ -366,16 +523,16 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
             check(loaded.mode() == Mode.BASIC && !loaded.shuffle(), "Basic settings reload");
             check(WhoStoppedTheMusic.LIBRARY.tracks().stream().filter(t -> loaded.ticked(t.id())).count() == 2, "only two saved ticks");
         });
-        clickWidget(context, namedWidget(context, ">", Theme.BASIC_TOP + Theme.ROW * 3));
+        clickWidget(context, namedWidget(context, "Play", Theme.BASIC_TOP + Theme.ROW * 3));
         context.waitFor(client -> channelState(client, MusicDirector.get(client).current(), true).join());
         var first = context.computeOnClient(client -> MusicDirector.get(client).current().getSound().getLocation());
         clickWidget(context, basicNext(context));
         context.waitFor(client -> channelState(client, MusicDirector.get(client).current(), true).join());
         context.runOnClient(client -> check(!MusicDirector.get(client).current().getSound().getLocation().equals(first), "ordered Next uses other ticked track"));
-        clickWidget(context, namedWidget(context, "<", Theme.BASIC_TOP + Theme.ROW * 3));
+        clickWidget(context, namedWidget(context, "Previous", Theme.BASIC_TOP + Theme.ROW * 3));
         context.waitFor(client -> channelState(client, MusicDirector.get(client).current(), true).join());
         context.runOnClient(client -> check(MusicDirector.get(client).current().getSound().getLocation().equals(first), "Previous restores exact historical track"));
-        clickWidget(context, namedWidget(context, "[]", Theme.BASIC_TOP + Theme.ROW * 3));
+        clickWidget(context, namedWidget(context, "Stop", Theme.BASIC_TOP + Theme.ROW * 4));
         context.waitTicks(40);
         context.runOnClient(client -> {
             var director = MusicDirector.get(client);
@@ -511,7 +668,7 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
                 var field = instance.getClass().getDeclaredField("toast");
                 field.setAccessible(true);
                 check(((net.minecraft.client.gui.components.toasts.Toast) field.get(instance)).getWantedVisibility()
-                        == net.minecraft.client.gui.components.toasts.Toast.Visibility.HIDE, "vanilla toast hidden in Basic");
+                        == net.minecraft.client.gui.components.toasts.Toast.Visibility.HIDE, "vanilla duplicate hidden in both modes");
             }
         } catch (ReflectiveOperationException failure) { throw new AssertionError(failure); }
     }
@@ -625,7 +782,7 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
         var old = context.computeOnClient(client -> MusicDirector.get(client).current());
         context.waitFor(client -> channelState(client, old, true).join());
         var topNext = context.computeOnClient(client -> Screens.getWidgets(client.gui.screen()).stream()
-                .filter(w -> w.getMessage().getString().equals(">") && w.getY() == 11).findFirst().orElseThrow());
+                .filter(w -> w.getMessage().getString().equals("Next") && w.getY() == Theme.PAUSE_NEXT_Y).findFirst().orElseThrow());
         clickWidget(context, topNext);
         context.waitFor(client -> channelStopped(client, old));
         context.waitFor(client -> channelState(client, MusicDirector.get(client).current(), true).join());
@@ -787,13 +944,21 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
         if (handle == null || handle.isStopped()) {
             return true;
         }
-        var result = new CompletableFuture<Boolean>();
-        handle.execute(channel -> {
-            LoggerFactory.getLogger("whostoppedthemusic-test").info("Outgoing source playing={}, stopped={}",
-                    channel.playing(), channel.stopped());
-            result.complete(!channel.playing() && channel.stopped());
-        });
-        return result.orTimeout(5, java.util.concurrent.TimeUnit.SECONDS).join();
+        // ChannelHandle.execute drops callbacks after release. Inspect on the sound executor
+        // so cleanup between the initial check and execution still completes this assertion.
+        try {
+            var executorField = engine.getClass().getDeclaredField("executor");
+            var channelField = handle.getClass().getDeclaredField("channel");
+            executorField.setAccessible(true);
+            channelField.setAccessible(true);
+            return CompletableFuture.supplyAsync(() -> {
+                try {
+                    var channel = (com.mojang.blaze3d.audio.Channel) channelField.get(handle);
+                    return channel == null || !channel.playing() && channel.stopped();
+                } catch (IllegalAccessException failure) { throw new AssertionError(failure); }
+            }, (java.util.concurrent.Executor) executorField.get(engine))
+                    .orTimeout(5, java.util.concurrent.TimeUnit.SECONDS).join();
+        } catch (ReflectiveOperationException failure) { throw new AssertionError(failure); }
     }
 
     private static CompletableFuture<Boolean> channelState(net.minecraft.client.Minecraft client,

@@ -17,6 +17,7 @@ public final class SongToast implements Toast {
     public SongToast(SoundInstance sound, Component title) { replace(sound, title); }
 
     public void replace(SoundInstance sound, Component title) {
+        if (this.sound == sound) return;
         this.sound = sound;
         this.title = title;
         started = -1;
@@ -30,7 +31,7 @@ public final class SongToast implements Toast {
         if (started < 0) started = time;
         var client = manager.getMinecraft();
         var director = MusicDirector.get(client);
-        visibility = director.basic() && director.current() == sound && director.active()
+        visibility = director.current() == sound && director.active()
                 && client.options.musicToast().get().renderToast()
                 && time - started < 5000 * manager.getNotificationDisplayTimeMultiplier() ? Visibility.SHOW : Visibility.HIDE;
     }
@@ -38,7 +39,8 @@ public final class SongToast implements Toast {
     @Override
     public void extractRenderState(GuiGraphicsExtractor graphics, Font font, long time) {
         var director = MusicDirector.get(net.minecraft.client.Minecraft.getInstance());
-        if (!director.basic() || director.current() != sound || !director.active()) return;
+        if (director.current() != sound || !director.active()
+                || !net.minecraft.client.Minecraft.getInstance().options.musicToast().get().renderToast()) return;
         graphics.fill(0, 0, width(), height(), Theme.CARD);
         graphics.fill(0, 0, Theme.ACCENT, height(), Theme.ORANGE);
         graphics.text(font, Component.translatable("whostoppedthemusic.now_playing"), Theme.MARGIN, Theme.TOAST_TITLE_Y, Theme.ORANGE);

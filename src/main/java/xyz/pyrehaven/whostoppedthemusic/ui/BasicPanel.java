@@ -20,14 +20,15 @@ public final class BasicPanel {
     private final TrackList list;
     private final Button all;
     private final Button none;
-    private Button play;
+    private final MusicControls controls;
     private Button previous;
-    private Button next;
+    private Button stop;
     private boolean collapsed;
 
     public BasicPanel(Minecraft client, Settings settings) {
         this.client = client;
         this.settings = settings;
+        controls = new MusicControls(client, settings);
         search = new EditBox(client.font, 0, 0, Theme.CONTROL_HEIGHT, Theme.CONTROL_HEIGHT, text("search"));
         search.setHint(text("search"));
         search.setMaxLength(Theme.SEARCH_LIMIT);
@@ -75,26 +76,20 @@ public final class BasicPanel {
         collapse.setTooltip(Tooltip.create(text(collapsed ? "browser.expand" : "browser.collapse")));
         add.accept(collapse);
         var director = MusicDirector.get(client);
-        add.accept(Theme.button(playerX, y, playerWidth, text("mode.basic"), button -> changeMode.run()));
-        add.accept(Theme.button(playerX, y + Theme.ROW, playerWidth, frequencyLabel(), button -> {
-            var option = client.options.musicFrequency();
-            var values = net.minecraft.client.sounds.MusicManager.MusicFrequency.values();
-            option.set(values[(option.get().ordinal() + 1) % values.length]);
-            button.setMessage(frequencyLabel());
-        }));
-        add.accept(Theme.button(playerX, y + Theme.ROW * 2, playerWidth, jukeboxLabel(), button -> {
-            settings.setJukebox(settings.jukebox().next());
-            button.setMessage(jukeboxLabel());
-        }));
+        controls.settings(playerX, y, playerWidth, add, changeMode);
         int third = (playerWidth - Theme.GAP * 2) / 3;
         int transportY = y + Theme.ROW * 3;
-        previous = action(playerX, transportY, third, "<", "previous", director::previous);
-        play = action(playerX + third + Theme.GAP, transportY, third, ">", "play", director::togglePlayback);
-        next = action(playerX + (third + Theme.GAP) * 2, transportY, third, ">", "next", director::next);
+        previous = new TransportButton(playerX, transportY, third, TransportButton.Action.PREVIOUS, director::previous);
         add.accept(previous);
-        add.accept(play);
-        add.accept(next);
-        add.accept(Theme.button(playerX, transportY + Theme.ROW, playerWidth, shuffleLabel(), button -> {
+        controls.transport(playerX + third + Theme.GAP, transportY, third, add);
+        stop = Theme.button(playerX, transportY + Theme.ROW, Theme.BASIC_STOP_WIDTH, text("stop"), button -> {
+            director.stop();
+            update(director);
+        });
+        stop.setTooltip(Tooltip.create(text("stop")));
+        add.accept(stop);
+        add.accept(Theme.button(playerX + Theme.BASIC_STOP_WIDTH + Theme.GAP, transportY + Theme.ROW,
+                playerWidth - Theme.BASIC_STOP_WIDTH - Theme.GAP, shuffleLabel(), button -> {
             settings.setShuffle(!settings.shuffle());
             director.playlistChanged();
             button.setMessage(shuffleLabel());
@@ -113,11 +108,9 @@ public final class BasicPanel {
     }
 
     public void update(MusicDirector director) {
-        play.setMessage(Component.literal(director.active() ? "[]" : ">"));
-        play.setTooltip(Tooltip.create(text(director.active() ? "stop" : "play")));
-        play.active = director.active() || director.canNext();
+        controls.update();
+        stop.active = director.active();
         previous.active = director.canPrevious();
-        next.active = director.canNext();
     }
 
     private void updateBrowserVisibility() {
@@ -130,21 +123,6 @@ public final class BasicPanel {
         if (!search.getValue().isBlank()) return;
         settings.setAllTicked(WhoStoppedTheMusic.LIBRARY.tracks().stream().map(t -> t.id()).toList(), ticked);
         MusicDirector.get(client).playlistChanged();
-    }
-
-    private Button action(int x, int y, int width, String icon, String key, Runnable press) {
-        var button = Theme.button(x, y, width, Component.literal(icon), ignored -> press.run());
-        button.setTooltip(Tooltip.create(text(key)));
-        return button;
-    }
-
-    private Component frequencyLabel() {
-        return Component.translatable("whostoppedthemusic.frequency", client.options.musicFrequency().get().caption());
-    }
-
-    private Component jukeboxLabel() {
-        return Component.translatable("whostoppedthemusic.jukebox",
-                text("jukebox." + settings.jukebox().name().toLowerCase(java.util.Locale.ROOT)));
     }
 
     private Component shuffleLabel() {
