@@ -1,92 +1,109 @@
 plugins {
-	id 'fabric-loom' version "${loom_version}"
-	id 'maven-publish'
+    id 'net.fabricmc.fabric-loom' version "${loom_version}"
 }
 
-version = project.mod_version
 group = project.maven_group
+version = project.mod_version
 
 base {
-	archivesName = project.archives_base_name
+    archivesName = project.archives_base_name
+}
+
+layout.buildDirectory = file(providers.gradleProperty('buildDir').getOrElse('build'))
+def runtimeDir = file(providers.gradleProperty('runtimeDir').getOrElse('.'))
+def evidenceDir = new File(layout.buildDirectory.get().asFile, 'evidence')
+
+loom {
+    clientOnlyMinecraftJar()
+    mods {
+        whostoppedthemusic {
+            sourceSet sourceSets.main
+        }
+    }
+}
+
+fabricApi {
+    configureTests {
+        createSourceSet = true
+        modId = 'whostoppedthemusic-test'
+        enableGameTests = false
+        enableClientGameTests = true
+    }
+}
+
+// Optional runtime root keeps local operator data separate without imposing a checkout layout.
+loom.runs.configureEach {
+    runDirectory.set(new File(runtimeDir, "run/${name}"))
 }
 
 repositories {
-	maven {
-		url = uri("gradle/minecraft/local-maven")
-	}
-	mavenCentral()
-}
-
-def localMinecraftMetadataServer = {
-	def metadataDir = file("gradle/minecraft")
-	def server = com.sun.net.httpserver.HttpServer.create(new java.net.InetSocketAddress("127.0.0.1", 0), 0)
-	server.createContext("/26.2-custom.json") { exchange ->
-		byte[] body = new File(metadataDir, "26.2-custom.json").bytes
-		exchange.responseHeaders.add("Content-Type", "application/json")
-		exchange.sendResponseHeaders(200, body.length)
-		exchange.responseBody.write(body)
-		exchange.close()
-	}
-	server.start()
-	gradle.buildFinished { server.stop(0) }
-	return "http://127.0.0.1:${server.address.port}/26.2-custom.json"
-}.call()
-
-loom {
-	customMinecraftMetadata.set(localMinecraftMetadataServer)
-	clientOnlyMinecraftJar()
-	splitEnvironmentSourceSets()
-
-	mods {
-		"whostoppedthemusic" {
-			sourceSet sourceSets.main
-			sourceSet sourceSets.client
-		}
-	}
-}
-
-sourceSets {
-	main {
-		java { srcDirs = ['src/main/java'] }
-		resources { srcDirs = ['src/main/resources'] }
-	}
-	client {
-		java { srcDirs = ['src/client/java'] }
-		resources { srcDirs = ['src/client/resources'] }
-	}
+    mavenCentral()
 }
 
 dependencies {
-	minecraft "com.mojang:minecraft:${project.minecraft_version}"
-	mappings files("gradle/minecraft/identity-official-26.2.jar")
-	modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+    implementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+    implementation "dev.mccue:jlayer-decoder:${project.jlayer_version}"
+    include "dev.mccue:jlayer-decoder:${project.jlayer_version}"
+    testImplementation "net.fabricmc:fabric-loader-junit:${project.loader_version}"
 }
 
-processResources {
-	inputs.property "version", project.version
+sourceSets.gametest.resources.srcDir('src/test/resources')
 
-	filesMatching("fabric.mod.json") {
-		expand "version": inputs.properties.version
-	}
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(25)
 }
 
 tasks.withType(JavaCompile).configureEach {
-	it.options.release = 21
+    options.release = 25
 }
 
-java {
-	withSourcesJar()
-	sourceCompatibility = JavaVersion.VERSION_21
-	targetCompatibility = JavaVersion.VERSION_21
+tasks.named('test') {
+    useJUnitPlatform()
+    failOnNoDiscoveredTests = true
+    def testTemp = new File(layout.buildDirectory.get().asFile, 'test-temp')
+    workingDir testTemp
+    systemProperty 'java.io.tmpdir', testTemp.absolutePath
+    doFirst { testTemp.mkdirs() }
 }
 
-tasks.named('sourcesJar') {
-	exclude('fabric.mod.json')
+tasks.named('processResources') {
+    def metadata = [version: project.version, minecraft_version: project.minecraft_version,
+                    loader_version: project.loader_version, fabric_api_version: project.fabric_api_version]
+    inputs.properties metadata
+    filesMatching('fabric.mod.json') {
+        expand metadata
+    }
 }
 
-jar {
-	from("LICENSE") {
-		rename { "${it}_${project.archives_base_name}" }
-	}
+tasks.named('jar') {
+    from('LICENSE') {
+        rename { "LICENSE_${project.archives_base_name}" }
+    }
+    from('LICENSE_jlayer')
 }
 
+// Exercise the installable artifact, not an equivalent set of source outputs.
+tasks.named('runClientGameTest') {
+    dependsOn tasks.named('jar'), tasks.named('gametestClasses')
+    classpath = files(classpath.files).minus(sourceSets.main.output)
+            .plus(files(tasks.named('jar').flatMap { it.archiveFile }))
+    jvmArgs "-Xlog:class+load=info:file=${new File(evidenceDir, 'client-classes.log')}"
+    systemProperty 'fabric.client.gametest.modid', 'whostoppedthemusic-test'
+    systemProperty 'whostoppedthemusic.transportOnly', project.hasProperty('transportOnly')
+    systemProperty 'whostoppedthemusic.basicOnly', project.hasProperty('basicOnly')
+    systemProperty 'whostoppedthemusic.basicUiOnly', project.hasProperty('basicUiOnly')
+    systemProperty 'whostoppedthemusic.discoveryOnly', project.hasProperty('discoveryOnly')
+    systemProperty 'whostoppedthemusic.customOnly', project.hasProperty('customOnly')
+    systemProperty 'whostoppedthemusic.customUiOnly', project.hasProperty('customUiOnly')
+    systemProperty 'whostoppedthemusic.biomeUiOnly', project.hasProperty('biomeUiOnly')
+    systemProperty 'whostoppedthemusic.toggleOnly', project.hasProperty('toggleOnly')
+    systemProperty 'whostoppedthemusic.previewOnly', project.hasProperty('previewOnly')
+    systemProperty 'whostoppedthemusic.controlsOnly', project.hasProperty('controlsOnly')
+    systemProperty 'whostoppedthemusic.artworkOnly', project.hasProperty('artworkOnly')
+    systemProperty 'whostoppedthemusic.menuOnly', project.hasProperty('menuOnly')
+    systemProperty 'whostoppedthemusic.ownSongsOnly', project.hasProperty('ownSongsOnly')
+    systemProperty 'whostoppedthemusic.addSongsOnly', project.hasProperty('addSongsOnly')
+    doFirst { evidenceDir.mkdirs() }
+}

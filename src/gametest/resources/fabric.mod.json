@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "id": "whostoppedthemusic-test",
+  "version": "1.0.0",
+  "name": "Who Stopped The Music development tests",
+  "environment": "client",
+  "mixins": ["whostoppedthemusic-test.mixins.json"],
+  "entrypoints": {
+    "client": ["xyz.pyrehaven.whostoppedthemusic.ClientSmokeGameTest"],
+    "fabric-client-gametest": ["xyz.pyrehaven.whostoppedthemusic.ClientSmokeGameTest"]
+  },
+  "depends": {
+    "whostoppedthemusic": "*",
+    "fabric-client-gametest-api-v1": "*"
+  }
+}

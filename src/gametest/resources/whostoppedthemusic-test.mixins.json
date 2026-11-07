@@ -1,0 +1,7 @@
+{
+  "required": true,
+  "package": "xyz.pyrehaven.whostoppedthemusic.test.mixin",
+  "compatibilityLevel": "JAVA_25",
+  "client": ["TransportStreamGate", "NativeBoundary"],
+  "injectors": { "defaultRequire": 1 }
+}
