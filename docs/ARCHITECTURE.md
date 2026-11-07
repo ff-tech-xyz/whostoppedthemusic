@@ -189,8 +189,12 @@ MusicManager's existing HEAD hook resolves Custom exactly once per manager tick,
 including held ticks. MusicDirector delegates scenario work to CustomPlayback;
 there is no extra player or scheduler. BiomeCatalog rebuilds from the joined
 registry, groups by vanilla dimension tags before namespace, and publishes known
-biomes to Settings. Its loaded rows disappear on world exit; saved absent-biome
-groups and overrides remain. Catalog rows retain applicable dimension defaults;
+biomes to Settings. Outside a world, the catalog supplies bootstrapped vanilla
+biome/dimension definitions, grouped by the normal world's actual biome sources
+(bootstrap lookups have no bound tags). This works before the first world join
+and after exit. Joining replaces that view with the exact live registry and tags,
+including real pack/mod biomes; absent saved mod IDs never become invented rows.
+Saved absent-biome groups and overrides remain. Catalog rows retain applicable dimension defaults;
 the current biome uses the actual current dimension even if a datapack reuses it.
 Loaded defaults invalidate on world changes and sound-library reload/publication.
 
@@ -286,7 +290,7 @@ whostoppedthemusic/
     │   │   │       ├── Resolution.java      # sorted winners/key, raw merged entries, interrupt/settings and silence
     │   │   │       ├── SituationReader.java # one live camera/player/screen snapshot per manager tick
     │   │   │       ├── CustomDefaults.java  # loaded dimension/biome/special defaults, source Music metadata and silence
-    │   │   │       ├── BiomeCatalog.java    # joined registry rows/groups/dimensions; persistent known biomes via Settings
+    │   │   │       ├── BiomeCatalog.java    # vanilla menu definitions or exact joined registry rows/groups/dimensions; known biomes via Settings
     │   │   │       ├── CustomPlayback.java  # effective defaults/resolution, synthetic Music and 32-key LRU decks
     │   │   │       └── Preview.java         # director-owned temporary native source; existing tick, background pause/resume and cancellation
     │   │   ├── custom/
@@ -355,6 +359,7 @@ whostoppedthemusic/
         │   ├── DiscoveryGameTest.java   # discoveryOnly: loaded discovery/default odds, 67 biomes, creative Deck, aliases/cycle/bounds/reload
         │   ├── CustomPlaybackGameTest.java # customOnly: packaged scenario playback/settings/transport/weather/jukebox/silence/LRU/mode regression
         │   ├── CustomUiGameTest.java       # customUiOnly: main/editor, hover pixels, rod-free held tape and drop-slide pixels; previewOnly: native midpoint/duration/resume/cancel/local/mute/jukebox/history
+        │   ├── BiomeUiGameTest.java        # biomeUiOnly: real M/mode/header/biome input before/during/after world, editor mutation, menu/loaded default parity
         │   └── test/mixin/
         │       ├── NativeBoundary.java      # fail on OpenAL errors before/after native channel operations in the existing harness
         │       └── TransportStreamGate.java # holds decoded vanilla streams before source attachment

@@ -54,7 +54,8 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
                 || Boolean.getBoolean("whostoppedthemusic.controlsOnly") || Boolean.getBoolean("whostoppedthemusic.artworkOnly")
                 || Boolean.getBoolean("whostoppedthemusic.ownSongsOnly") || Boolean.getBoolean("whostoppedthemusic.addSongsOnly")
                 || Boolean.getBoolean("whostoppedthemusic.customOnly") || Boolean.getBoolean("whostoppedthemusic.customUiOnly")
-                || Boolean.getBoolean("whostoppedthemusic.previewOnly") || Boolean.getBoolean("whostoppedthemusic.menuOnly")) {
+                || Boolean.getBoolean("whostoppedthemusic.previewOnly") || Boolean.getBoolean("whostoppedthemusic.menuOnly")
+                || Boolean.getBoolean("whostoppedthemusic.biomeUiOnly")) {
             return;
         }
         // Entrypoint order is not guaranteed. Check after all startup callbacks,
@@ -69,6 +70,10 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
     public void runTest(ClientGameTestContext context) {
         context.waitForScreen(TitleScreen.class);
         context.runOnClient(DiscoveryGameTest::checkLiveNames);
+        if (Boolean.getBoolean("whostoppedthemusic.biomeUiOnly")) {
+            BiomeUiGameTest.run(context);
+            return;
+        }
         if (Boolean.getBoolean("whostoppedthemusic.menuOnly")) {
             checkMenuPlayers(context);
             return;

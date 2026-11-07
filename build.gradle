@@ -93,6 +93,7 @@ tasks.named('runClientGameTest') {
     systemProperty 'whostoppedthemusic.discoveryOnly', project.hasProperty('discoveryOnly')
     systemProperty 'whostoppedthemusic.customOnly', project.hasProperty('customOnly')
     systemProperty 'whostoppedthemusic.customUiOnly', project.hasProperty('customUiOnly')
+    systemProperty 'whostoppedthemusic.biomeUiOnly', project.hasProperty('biomeUiOnly')
     systemProperty 'whostoppedthemusic.previewOnly', project.hasProperty('previewOnly')
     systemProperty 'whostoppedthemusic.controlsOnly', project.hasProperty('controlsOnly')
     systemProperty 'whostoppedthemusic.artworkOnly', project.hasProperty('artworkOnly')
