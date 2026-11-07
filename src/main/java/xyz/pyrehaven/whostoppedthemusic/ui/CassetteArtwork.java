@@ -1,11 +1,12 @@
 package xyz.pyrehaven.whostoppedthemusic.ui;
 
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.AbstractWidget;
-import net.minecraft.network.chat.Component;
-import xyz.pyrehaven.whostoppedthemusic.music.Track;
-import xyz.pyrehaven.whostoppedthemusic.music.MusicDirector;
 import net.minecraft.client.gui.components.Tooltip;
+import net.minecraft.network.chat.Component;
+import xyz.pyrehaven.whostoppedthemusic.music.MusicDirector;
+import xyz.pyrehaven.whostoppedthemusic.music.Track;
 
 /** One shell, spindle geometry and render-time reel clock for every player and library tape. */
 public final class CassetteArtwork {
@@ -50,13 +51,13 @@ public final class CassetteArtwork {
 
     /** Closed library cases retain a spine and label at the existing row height. */
     public void drawCase(GuiGraphicsExtractor graphics, AbstractWidget widget, Track track, boolean included) {
-        var font = net.minecraft.client.Minecraft.getInstance().font;
+        var font = Minecraft.getInstance().font;
         int x = widget.getX();
         int y = widget.getY();
         int w = widget.getWidth();
         int h = widget.getHeight();
         var full = track.metadata().description();
-        var director = MusicDirector.get(net.minecraft.client.Minecraft.getInstance());
+        var director = MusicDirector.get(Minecraft.getInstance());
         boolean current = director.playing(track);
         double angle = reelAngle(director);
         if (included) full = full.copy().append(Component.translatable("whostoppedthemusic.in_list"));
@@ -139,7 +140,7 @@ public final class CassetteArtwork {
 
     private void draw(GuiGraphicsExtractor graphics, AbstractWidget widget, Track.Metadata metadata, Component state,
                       boolean player, boolean loaded, boolean current, double angle) {
-        var font = net.minecraft.client.Minecraft.getInstance().font;
+        var font = Minecraft.getInstance().font;
         Component full = metadata.description();
         if (!state.getString().isEmpty()) full = full.copy().append("\n").append(state);
         widget.setMessage(full);

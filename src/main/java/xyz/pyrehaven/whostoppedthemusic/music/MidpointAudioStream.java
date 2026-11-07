@@ -26,12 +26,10 @@ public final class MidpointAudioStream implements AudioStream {
         if (ogg) {
             frames = oggFrames(input);
         } else {
-            // MP3 (including VBR) has no dependable container duration. Count decoded frames,
-            // then reopen; neither pass buffers the song in memory.
-            try (var stream = decoder.open()) {
-                frames = 0;
-                for (var buffer = stream.read(65536); buffer.hasRemaining(); buffer = stream.read(65536))
-                    frames += buffer.remaining() / stream.getFormat().getFrameSize();
+            // Scan compressed headers for exact duration, then decode only through the excerpt.
+            // Starting the decoder at the beginning retains MP3 reservoir/filter history.
+            try (var stream = input.open()) {
+                frames = Mp3AudioStream.sampleFrames(stream);
             }
         }
         if (frames <= 0) throw new IOException("Song contains no audio samples");

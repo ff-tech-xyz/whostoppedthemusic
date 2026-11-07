@@ -1,8 +1,13 @@
 package xyz.pyrehaven.whostoppedthemusic.ui;
 
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
 
 public final class Theme {
     public static final int ORANGE = 0xFFE46011;
@@ -86,6 +91,20 @@ public final class Theme {
     private Theme() {
     }
 
+    public static MutableComponent text(String key, Object... args) {
+        return Component.translatable("whostoppedthemusic." + key, args);
+    }
+
+    public static void panel(GuiGraphicsExtractor graphics, int left, int width, int height) {
+        graphics.fill(left, MARGIN, left + width, height - MARGIN, CARD);
+    }
+
+    public static void panelHeading(GuiGraphicsExtractor graphics, Font font, Component title, int left, int width, int height) {
+        panel(graphics, left, width, height);
+        graphics.fill(left, MARGIN, left + width, MARGIN + ACCENT, ORANGE);
+        graphics.text(font, title, left + PADDING, MARGIN + GAP, TEXT);
+    }
+
     public static int browserHeight(int width) {
         boolean narrow = width < TRACK_SIDE_CONTROLS_MIN;
         int tapeWidth = width - TRACK_SCROLLBAR_SPACE
@@ -98,10 +117,6 @@ public final class Theme {
         return captionButton(x, y, width, null, label, action);
     }
 
-    public static Button scenarioButton(int x, int y, int width, Component label, Button.OnPress action) {
-        return button(x, y, width, label, action);
-    }
-
     public static Button captionButton(int x, int y, int width, Component caption, Component description, Button.OnPress action) {
         var button = new Button(x, y, width, CONTROL_HEIGHT, description, action, supplier -> supplier.get()) {
             private final OverflowText line = new OverflowText();
@@ -110,24 +125,24 @@ public final class Theme {
                 scenarioContents(graphics, this, caption == null ? getMessage() : caption, line, getX() + GAP, getRight() - GAP);
             }
         };
-        button.setTooltip(net.minecraft.client.gui.components.Tooltip.create(description));
+        button.setTooltip(Tooltip.create(description));
         return button;
     }
 
     public static void scenarioContents(GuiGraphicsExtractor graphics, Button button, Component label, OverflowText line, int left, int right) {
         buttonFrame(graphics, button);
-        var font = net.minecraft.client.Minecraft.getInstance().font;
+        var font = Minecraft.getInstance().font;
         int inset = Math.max(0, (right - left - font.width(label)) / 2);
         line.draw(graphics, font, label, left + inset, right,
                 button.getY() + (button.getHeight() - font.lineHeight) / 2, button.active ? TEXT : ARTIST, false, false, button.isHovered());
     }
 
-    public static net.minecraft.client.gui.components.EditBox search(net.minecraft.client.gui.Font font) {
+    public static EditBox search(Font font) {
         return search(font, Component.translatable("whostoppedthemusic.search"));
     }
 
-    public static net.minecraft.client.gui.components.EditBox search(net.minecraft.client.gui.Font font, Component text) {
-        var search = new net.minecraft.client.gui.components.EditBox(font, 0, 0, CONTROL_HEIGHT, CONTROL_HEIGHT, text);
+    public static EditBox search(Font font, Component text) {
+        var search = new EditBox(font, 0, 0, CONTROL_HEIGHT, CONTROL_HEIGHT, text);
         search.setHint(text);
         search.setMaxLength(SEARCH_LIMIT);
         return search;

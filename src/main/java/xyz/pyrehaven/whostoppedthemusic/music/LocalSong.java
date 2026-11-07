@@ -7,8 +7,8 @@ import java.util.Locale;
 import javax.sound.sampled.AudioFormat;
 import net.minecraft.client.sounds.AudioStream;
 import net.minecraft.client.sounds.JOrbisAudioStream;
-import org.slf4j.LoggerFactory;
-import xyz.pyrehaven.whostoppedthemusic.custom.MusicFolder;
+import xyz.pyrehaven.whostoppedthemusic.WhoStoppedTheMusic;
+import xyz.pyrehaven.whostoppedthemusic.music.MusicFolder;
 
 /** One scanned file and its decode availability, shared by library, playback and future previews. */
 public final class LocalSong {
@@ -22,7 +22,7 @@ public final class LocalSong {
     public void failed(Exception error) {
         if (playable) {
             playable = false;
-            LoggerFactory.getLogger("whostoppedthemusic").warn("Can't play {}: {}", song.file().getFileName(), error.toString());
+            WhoStoppedTheMusic.LOGGER.warn("Can't play {}: {}", song.file().getFileName(), error.toString());
         }
     }
 

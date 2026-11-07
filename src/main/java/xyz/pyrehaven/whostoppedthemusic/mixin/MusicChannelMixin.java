@@ -7,11 +7,11 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
-import xyz.pyrehaven.whostoppedthemusic.music.MusicDirector;
+import xyz.pyrehaven.whostoppedthemusic.music.MusicChannelControl;
 
 /** Transport intent lives on the source, including while vanilla is loading its stream. */
 @Mixin(Channel.class)
-public abstract class MusicChannelMixin implements MusicDirector.ChannelControl {
+public abstract class MusicChannelMixin implements MusicChannelControl {
     @Unique private boolean whostoppedthemusic$managed;
     @Unique private boolean whostoppedthemusic$paused;
     @Unique private boolean whostoppedthemusic$stopped;

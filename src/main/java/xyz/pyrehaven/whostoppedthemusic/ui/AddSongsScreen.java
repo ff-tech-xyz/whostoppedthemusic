@@ -1,5 +1,8 @@
 package xyz.pyrehaven.whostoppedthemusic.ui;
 
+import static xyz.pyrehaven.whostoppedthemusic.ui.Theme.text;
+
+import com.mojang.blaze3d.Blaze3D;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
@@ -8,6 +11,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
@@ -19,7 +23,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.util.Util;
 import xyz.pyrehaven.whostoppedthemusic.Settings;
 import xyz.pyrehaven.whostoppedthemusic.WhoStoppedTheMusic;
-import xyz.pyrehaven.whostoppedthemusic.custom.MusicFolder;
+import xyz.pyrehaven.whostoppedthemusic.music.MusicFolder;
 import xyz.pyrehaven.whostoppedthemusic.music.Track;
 import xyz.pyrehaven.whostoppedthemusic.ui.widget.TrackList;
 
@@ -45,7 +49,7 @@ public final class AddSongsScreen extends Screen {
 
     public static Button button(Screen parent, Settings settings, int x, int y, int width) {
         return Theme.button(x, y, width, text("add_music"), button ->
-                net.minecraft.client.Minecraft.getInstance().gui.setScreen(new AddSongsScreen(parent, settings)));
+                Minecraft.getInstance().gui.setScreen(new AddSongsScreen(parent, settings)));
     }
 
     @Override protected void init() {
@@ -102,7 +106,7 @@ public final class AddSongsScreen extends Screen {
                 var song = folder.importSong(source);
                 result.append(text("imported", source.getFileName().toString(), song.file().getFileName().toString()));
             } catch (IOException error) {
-                org.slf4j.LoggerFactory.getLogger("whostoppedthemusic").warn("Can't import song {}", source, error);
+                WhoStoppedTheMusic.LOGGER.warn("Can't import song {}", source, error);
                 result.append(text("import_failed", source.getFileName().toString()));
             }
             result.append("\n");
@@ -119,7 +123,7 @@ public final class AddSongsScreen extends Screen {
                     folder.remove(track.local().song());
                     return text("removed", track.local().song().file().getFileName().toString());
                 } catch (IOException error) {
-                    org.slf4j.LoggerFactory.getLogger("whostoppedthemusic").warn("Can't remove song {}", track.id(), error);
+                    WhoStoppedTheMusic.LOGGER.warn("Can't remove song {}", track.id(), error);
                     return text("remove_failed", track.local().song().file().getFileName().toString());
                 }
             });
@@ -140,9 +144,9 @@ public final class AddSongsScreen extends Screen {
     private void openFolder() {
         try {
             folder.prepare();
-            com.mojang.blaze3d.Blaze3D.openPath(folder.directory());
+            Blaze3D.openPath(folder.directory());
         } catch (IOException error) {
-            org.slf4j.LoggerFactory.getLogger("whostoppedthemusic").warn("Can't open music folder", error);
+            WhoStoppedTheMusic.LOGGER.warn("Can't open music folder", error);
             alert(text("folder_failed"));
         }
     }
@@ -165,9 +169,7 @@ public final class AddSongsScreen extends Screen {
     }
 
     @Override public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
-        graphics.fill(left, Theme.MARGIN, left + contentWidth, height - Theme.MARGIN, Theme.CARD);
-        graphics.fill(left, Theme.MARGIN, left + contentWidth, Theme.MARGIN + Theme.ACCENT, Theme.ORANGE);
-        graphics.text(font, title, left + Theme.PADDING, Theme.MARGIN + Theme.GAP, Theme.TEXT);
+        Theme.panelHeading(graphics, font, title, left, contentWidth, height);
         var lines = font.split(text(busy ? "import_busy" : "import_hint"), contentWidth - Theme.PADDING * 2);
         int y = Theme.BASIC_TOP;
         for (var line : lines) {
@@ -183,8 +185,5 @@ public final class AddSongsScreen extends Screen {
     private static String names(List<Path> files) {
         return files.stream().map(path -> path.getFileName() == null ? path.toString() : path.getFileName().toString())
                 .collect(Collectors.joining(", "));
-    }
-    private static Component text(String key, Object... args) {
-        return Component.translatable("whostoppedthemusic." + key, args);
     }
 }

@@ -2,6 +2,7 @@ package xyz.pyrehaven.whostoppedthemusic.music;
 
 import dev.mccue.jlayer.decoder.Bitstream;
 import dev.mccue.jlayer.decoder.Decoder;
+import dev.mccue.jlayer.decoder.Header;
 import dev.mccue.jlayer.decoder.JavaLayerException;
 import dev.mccue.jlayer.decoder.SampleBuffer;
 import java.io.IOException;
@@ -26,6 +27,25 @@ public final class Mp3AudioStream implements AudioStream {
         format = new AudioFormat(samples.getSampleFrequency(), 16, samples.getChannelCount(), true,
                 ByteOrder.nativeOrder() == ByteOrder.BIG_ENDIAN);
         buffer(samples);
+    }
+
+    /** Count compressed frames, including VBR, without running the PCM decoder. */
+    public static long sampleFrames(InputStream input) throws IOException {
+        var bits = new Bitstream(input);
+        try {
+            long samples = 0;
+            for (var header = bits.readFrame(); header != null; header = bits.readFrame()) {
+                samples += header.layer() == 1 ? 384
+                        : header.layer() == 3 && header.version() != Header.MPEG1 ? 576 : 1152;
+                bits.closeFrame();
+            }
+            return samples;
+        } catch (JavaLayerException | RuntimeException error) {
+            throw new IOException("Invalid MP3 frame", error);
+        } finally {
+            try { bits.close(); }
+            catch (JavaLayerException error) { throw new IOException("Closing MP3 frame scan", error); }
+        }
     }
 
     private SampleBuffer frame() throws IOException {

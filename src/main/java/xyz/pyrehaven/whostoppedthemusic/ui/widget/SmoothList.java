@@ -3,6 +3,7 @@ package xyz.pyrehaven.whostoppedthemusic.ui.widget;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.ContainerObjectSelectionList;
+import net.minecraft.util.Util;
 import xyz.pyrehaven.whostoppedthemusic.ui.Theme;
 
 /** Wheel targets and frame-time motion for every clipped music/scenario list. */
@@ -28,7 +29,7 @@ public abstract class SmoothList<E extends ContainerObjectSelectionList.Entry<E>
     }
 
     @Override public void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
-        long now = net.minecraft.util.Util.getMillis();
+        long now = Util.getMillis();
         double blend = 1 - Math.exp(-Math.min(now - lastFrame, Theme.SCROLL_MAX_FRAME_MS) / Theme.SCROLL_RESPONSE_MS);
         lastFrame = now;
         double distance = targetScroll - scrollAmount();

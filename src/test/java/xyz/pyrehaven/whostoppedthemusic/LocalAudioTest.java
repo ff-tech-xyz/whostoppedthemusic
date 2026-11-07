@@ -1,16 +1,21 @@
 package xyz.pyrehaven.whostoppedthemusic;
 
 import static org.junit.jupiter.api.Assertions.*;
+
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteOrder;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import xyz.pyrehaven.whostoppedthemusic.custom.MusicFolder;
 import xyz.pyrehaven.whostoppedthemusic.music.LocalSong;
+import xyz.pyrehaven.whostoppedthemusic.music.MidpointAudioStream;
 import xyz.pyrehaven.whostoppedthemusic.music.Mp3AudioStream;
+import xyz.pyrehaven.whostoppedthemusic.music.MusicFolder;
 
 final class LocalAudioTest {
     @TempDir Path directory;
@@ -64,12 +69,33 @@ final class LocalAudioTest {
         assertThrows(IOException.class, () -> new Mp3AudioStream(new ByteArrayInputStream(new byte[0])));
     }
 
+    @Test void mp3HeaderScanCountsSamplesWithoutOpeningASecondDecoder() throws Exception {
+        byte[] mp3;
+        try (var input = getClass().getResourceAsStream("/audio/stereo.mp3")) { mp3 = input.readAllBytes(); }
+        long frames = Mp3AudioStream.sampleFrames(new ByteArrayInputStream(mp3));
+        long decoded = 0;
+        try (var stream = new Mp3AudioStream(new ByteArrayInputStream(mp3))) {
+            for (var buffer = stream.read(8192); buffer.hasRemaining(); buffer = stream.read(8192))
+                decoded += buffer.remaining() / stream.getFormat().getFrameSize();
+        }
+        assertEquals(decoded, frames);
+        var opens = new AtomicInteger();
+        try (var preview = MidpointAudioStream.open(
+                () -> new ByteArrayInputStream(mp3), () -> {
+                    opens.incrementAndGet();
+                    return new Mp3AudioStream(new ByteArrayInputStream(mp3));
+                }, false)) {
+            assertTrue(preview.read(4096).hasRemaining());
+        }
+        assertEquals(1, opens.get());
+    }
+
     @Test void midpointMatchesDecodedHalfAndFadesToZeroForBothLocalFormats() throws Exception {
         for (String name : new String[]{"stereo.mp3", "mono.ogg"}) {
             Path file = directory.resolve(name);
             try (var input = getClass().getResourceAsStream("/audio/" + name)) { Files.copy(input, file); }
             var song = new LocalSong(new MusicFolder.Song(file));
-            var original = new java.io.ByteArrayOutputStream();
+            var original = new ByteArrayOutputStream();
             int frameSize;
             float rate;
             try (var stream = song.open()) {
@@ -83,9 +109,9 @@ final class LocalAudioTest {
             }
             byte[] full = original.toByteArray();
             int half = (full.length / frameSize / 2) * frameSize;
-            try (var preview = xyz.pyrehaven.whostoppedthemusic.music.MidpointAudioStream.open(
+            try (var preview = MidpointAudioStream.open(
                     () -> Files.newInputStream(file), song::open, name.endsWith("ogg"))) {
-                var excerpt = new java.io.ByteArrayOutputStream();
+                var excerpt = new ByteArrayOutputStream();
                 for (var buffer = preview.read(4096); buffer.hasRemaining(); buffer = preview.read(4096)) {
                     byte[] bytes = new byte[buffer.remaining()];
                     buffer.get(bytes);
@@ -93,7 +119,7 @@ final class LocalAudioTest {
                 }
                 byte[] audio = excerpt.toByteArray();
                 assertEquals(Math.min(full.length - half, (int) rate * 3 * frameSize), audio.length, name);
-                assertArrayEquals(java.util.Arrays.copyOfRange(full, half, half + 4096), java.util.Arrays.copyOf(audio, 4096), name);
+                assertArrayEquals(Arrays.copyOfRange(full, half, half + 4096), Arrays.copyOf(audio, 4096), name);
                 for (int i = audio.length - frameSize; i < audio.length; i++) assertEquals(0, audio[i], "fade ends at zero");
                 assertFalse(preview.read(4096).hasRemaining());
             }

@@ -1,12 +1,14 @@
 package xyz.pyrehaven.whostoppedthemusic;
 
 import static org.junit.jupiter.api.Assertions.*;
+
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import xyz.pyrehaven.whostoppedthemusic.custom.MusicFolder;
+import xyz.pyrehaven.whostoppedthemusic.music.MusicFolder;
 
 final class MusicFolderTest {
     @TempDir Path game;
@@ -54,16 +56,16 @@ final class MusicFolderTest {
         var link = Files.createSymbolicLink(folder.directory().resolve("link.ogg"), outside);
         var directory = Files.createDirectory(game.resolve("directory.mp3"));
         var image = Files.writeString(game.resolve("image.png"), "png");
-        for (var invalid : List.of(link, directory, image)) assertThrows(java.io.IOException.class, () -> folder.importSong(invalid));
-        assertThrows(java.io.IOException.class, () -> folder.remove(new MusicFolder.Song(outside)));
-        assertThrows(java.io.IOException.class, () -> folder.remove(new MusicFolder.Song(link)));
+        for (var invalid : List.of(link, directory, image)) assertThrows(IOException.class, () -> folder.importSong(invalid));
+        assertThrows(IOException.class, () -> folder.remove(new MusicFolder.Song(outside)));
+        assertThrows(IOException.class, () -> folder.remove(new MusicFolder.Song(link)));
         assertEquals("outside", Files.readString(outside));
         Files.delete(link);
         Files.delete(folder.directory());
         Files.createSymbolicLink(folder.directory(), game);
-        assertThrows(java.io.IOException.class, folder::scan);
-        assertThrows(java.io.IOException.class, () -> folder.importSong(outside));
-        assertThrows(java.io.IOException.class, () -> folder.remove(new MusicFolder.Song(folder.directory().resolve("outside.ogg"))));
+        assertThrows(IOException.class, folder::scan);
+        assertThrows(IOException.class, () -> folder.importSong(outside));
+        assertThrows(IOException.class, () -> folder.remove(new MusicFolder.Song(folder.directory().resolve("outside.ogg"))));
         assertTrue(Files.exists(outside));
     }
 

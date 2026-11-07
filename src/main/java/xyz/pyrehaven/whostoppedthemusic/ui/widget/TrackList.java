@@ -1,16 +1,23 @@
 package xyz.pyrehaven.whostoppedthemusic.ui.widget;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.Consumer;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.ContainerObjectSelectionList;
+import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.narration.NarratableEntry;
 import net.minecraft.network.chat.Component;
+import net.minecraft.util.Util;
 import xyz.pyrehaven.whostoppedthemusic.Settings;
 import xyz.pyrehaven.whostoppedthemusic.WhoStoppedTheMusic;
+import xyz.pyrehaven.whostoppedthemusic.music.Deck;
 import xyz.pyrehaven.whostoppedthemusic.music.MusicDirector;
 import xyz.pyrehaven.whostoppedthemusic.music.Track;
 import xyz.pyrehaven.whostoppedthemusic.music.TrackNames;
@@ -20,12 +27,12 @@ import xyz.pyrehaven.whostoppedthemusic.ui.TransportButton;
 
 public final class TrackList extends SmoothList<TrackList.Row> {
     private final Settings settings;
-    private final java.util.function.Consumer<Track> remove;
+    private final Consumer<Track> remove;
     private String query = "";
     private int rowHeight = Theme.TRACK_HEIGHT;
-    private java.util.function.Consumer<Track> drag;
-    private java.util.function.Predicate<String> contains;
-    private java.util.function.Supplier<List<xyz.pyrehaven.whostoppedthemusic.music.Deck.Entry>> songs;
+    private Consumer<Track> drag;
+    private Predicate<String> contains;
+    private Supplier<List<Deck.Entry>> songs;
 
     private String focusedId;
     private String insertedId;
@@ -33,18 +40,18 @@ public final class TrackList extends SmoothList<TrackList.Row> {
 
     public void inserted(String id) {
         insertedId = id;
-        insertedAt = net.minecraft.util.Util.getMillis();
+        insertedAt = Util.getMillis();
     }
 
     /** Compact drag rows and cassette rows share the same search, scroll and input owner. */
-    public void library(java.util.function.Consumer<Track> drag, java.util.function.Predicate<String> contains) {
+    public void library(Consumer<Track> drag, Predicate<String> contains) {
         this.drag = drag;
         this.contains = contains;
         rowHeight = Theme.LIBRARY_ROW;
         filter(query);
     }
 
-    public void songs(java.util.function.Supplier<List<xyz.pyrehaven.whostoppedthemusic.music.Deck.Entry>> songs) {
+    public void songs(Supplier<List<Deck.Entry>> songs) {
         this.songs = songs;
         refresh();
     }
@@ -71,7 +78,7 @@ public final class TrackList extends SmoothList<TrackList.Row> {
     }
 
     public TrackList(Minecraft client, Settings settings, int x, int y, int width, int height,
-                     java.util.function.Consumer<Track> remove) {
+                     Consumer<Track> remove) {
         super(client, width, height, y, Theme.TRACK_HEIGHT);
         this.settings = settings;
         this.remove = remove;
@@ -84,7 +91,7 @@ public final class TrackList extends SmoothList<TrackList.Row> {
         clearEntries();
         if (songs != null) {
             for (var entry : songs.get()) {
-                var track = WhoStoppedTheMusic.LIBRARY.tracks().stream().filter(t -> t.id().equals(entry.id())).findFirst().orElse(null);
+                var track = WhoStoppedTheMusic.LIBRARY.find(entry.id()).orElse(null);
                 addEntry(new Row(track, track == null ? Component.literal(entry.id()) : track.title(), entry.id()), rowHeight);
             }
             if (songs.get().stream().noneMatch(e -> e.id().equals(focusedId))) {
@@ -102,7 +109,7 @@ public final class TrackList extends SmoothList<TrackList.Row> {
                             new TrackNames.Metadata(metadata.title().getString(), metadata.artist().getString()), track.id()));
                 })
                 .filter(match -> match.rank() != Integer.MAX_VALUE)
-                .sorted(java.util.Comparator.comparingInt(Match::rank).thenComparingInt(match ->
+                .sorted(Comparator.comparingInt(Match::rank).thenComparingInt(match ->
                         drag != null && this.query.isEmpty() ? libraryKind(match.track()).ordinal() : 0)).toList();
         Track.Kind previous = null;
         for (var match : matches) {
@@ -178,8 +185,8 @@ public final class TrackList extends SmoothList<TrackList.Row> {
             };
             if (track != null) {
                 if (remove == null) play.setMessage(Component.translatable("whostoppedthemusic.play_track", title));
-                tick.setTooltip(net.minecraft.client.gui.components.Tooltip.create(Component.translatable("whostoppedthemusic.select_track", title)));
-                play.setTooltip(net.minecraft.client.gui.components.Tooltip.create(Component.translatable(
+                tick.setTooltip(Tooltip.create(Component.translatable("whostoppedthemusic.select_track", title)));
+                play.setTooltip(Tooltip.create(Component.translatable(
                         "whostoppedthemusic." + (remove == null ? "play_track" : "remove_track"), title)));
             }
         }
@@ -195,7 +202,7 @@ public final class TrackList extends SmoothList<TrackList.Row> {
                 tape.setRectangle(getContentWidth(), getContentHeight() - Theme.GAP, getContentX(), getContentY());
                 graphics.pose().pushMatrix();
                 if (songId.equals(insertedId)) {
-                    double progress = Math.clamp((net.minecraft.util.Util.getMillis() - insertedAt) / (double) Theme.INSERT_MILLIS, 0, 1);
+                    double progress = Math.clamp((Util.getMillis() - insertedAt) / (double) Theme.INSERT_MILLIS, 0, 1);
                     graphics.pose().translate((float) ((1 - progress) * (1 - progress) * Theme.DRAG_WIDTH), 0);
                     if (progress == 1) insertedId = null;
                 }
@@ -217,7 +224,7 @@ public final class TrackList extends SmoothList<TrackList.Row> {
             if (remove == null && !track.playable()) {
                 var unavailable = Component.translatable("whostoppedthemusic.cant_play", track.title());
                 play.setMessage(unavailable);
-                play.setTooltip(net.minecraft.client.gui.components.Tooltip.create(unavailable));
+                play.setTooltip(Tooltip.create(unavailable));
             }
             if (remove == null) tick.extractRenderState(graphics, mouseX, mouseY, delta);
             play.extractRenderState(graphics, mouseX, mouseY, delta);

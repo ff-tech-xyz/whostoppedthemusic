@@ -8,6 +8,7 @@ import net.minecraft.client.gui.narration.NarrationElementOutput;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.sounds.SoundSource;
 
 /** Vertical view of the existing vanilla Music option, not a separate volume setting. */
@@ -72,7 +73,7 @@ public final class MusicVolumeSlider extends AbstractWidget {
     }
 
     @Override
-    protected net.minecraft.network.chat.MutableComponent createNarrationMessage() {
+    protected MutableComponent createNarrationMessage() {
         return Component.translatable("options.percent_value", getMessage(), Math.round(value() * 100));
     }
 }

@@ -1,5 +1,7 @@
 package xyz.pyrehaven.whostoppedthemusic.music;
 
+import java.text.Normalizer;
+import java.util.Arrays;
 import java.util.Locale;
 
 public final class TrackNames {
@@ -35,10 +37,6 @@ public final class TrackNames {
     }
 
     /** Lower scores sort first; artist and file names remain searchable behind titles. */
-    public static int searchRank(String query, String title, String id) {
-        return searchRank(query, metadata(title), id);
-    }
-
     public static int searchRank(String query, Metadata metadata, String id) {
         String needle = normalize(query);
         if (needle.isEmpty()) return 0;
@@ -52,7 +50,7 @@ public final class TrackNames {
         if (artist.startsWith(needle)) return 40;
         if (full.contains(needle)) return 50;
         String haystack = full + " " + normalize(id);
-        if (java.util.Arrays.stream(needle.split(" ")).allMatch(haystack::contains)) return 60;
+        if (Arrays.stream(needle.split(" ")).allMatch(haystack::contains)) return 60;
         if (needle.length() < 3) return Integer.MAX_VALUE;
         int distance = Math.min(distance(needle, song), distance(needle, artist));
         for (String word : full.split(" ")) distance = Math.min(distance, distance(needle, word));
@@ -61,7 +59,7 @@ public final class TrackNames {
     }
 
     private static String normalize(String value) {
-        return java.text.Normalizer.normalize(value.toLowerCase(Locale.ROOT), java.text.Normalizer.Form.NFD)
+        return Normalizer.normalize(value.toLowerCase(Locale.ROOT), Normalizer.Form.NFD)
                 .replaceAll("\\p{M}+", "").replaceAll("[^\\p{L}\\p{N}]+", " ").trim();
     }
 

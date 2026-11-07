@@ -10,6 +10,7 @@ import net.minecraft.world.attribute.EnvironmentAttributes;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.dimension.DimensionType;
 import xyz.pyrehaven.whostoppedthemusic.JukeboxSetting;
+import xyz.pyrehaven.whostoppedthemusic.music.Deck;
 import xyz.pyrehaven.whostoppedthemusic.music.TrackLibrary;
 
 /** Loaded defaults, recomputed after resource/registry changes rather than saved as overrides. */
@@ -59,7 +60,7 @@ public final class CustomDefaults {
 
     private Default defaults(int priority, boolean active, boolean interrupt, boolean outside,
                              Optional<Music> music, boolean silent) {
-        var songs = silent ? List.<xyz.pyrehaven.whostoppedthemusic.music.Deck.Entry>of()
+        var songs = silent ? List.<Deck.Entry>of()
                 : music.map(value -> library.poolEntries(value.sound().value().location())).orElse(List.of());
         return new Default(new ScenarioConfig(priority, active, interrupt, ScenarioConfig.Frequency.CONSTANT,
                 JukeboxSetting.PAUSE_MUSIC, outside, 64, songs), music);

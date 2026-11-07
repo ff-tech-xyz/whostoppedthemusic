@@ -3,26 +3,17 @@ package xyz.pyrehaven.whostoppedthemusic.ui;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.network.chat.Component;
+import net.minecraft.util.Util;
 import xyz.pyrehaven.whostoppedthemusic.music.OverflowMotion;
 
 public final class OverflowText {
     private final OverflowMotion motion = new OverflowMotion();
 
     public void draw(GuiGraphicsExtractor graphics, Font font, Component text,
-                     int left, int right, int y, int color, boolean center) {
-        draw(graphics, font, text, left, right, y, color, center, true);
-    }
-
-    public void draw(GuiGraphicsExtractor graphics, Font font, Component text,
-                     int left, int right, int y, int color, boolean center, boolean shadow) {
-        draw(graphics, font, text, left, right, y, color, center, shadow, false);
-    }
-
-    public void draw(GuiGraphicsExtractor graphics, Font font, Component text,
                      int left, int right, int y, int color, boolean center, boolean shadow, boolean hovered) {
         if (right <= left) return;
         int width = font.width(text);
-        double offset = motion.offset(text.getString(), width - (right - left), net.minecraft.util.Util.getMillis(), hovered);
+        double offset = motion.offset(text.getString(), width - (right - left), Util.getMillis(), hovered);
         float x = left + (center && width <= right - left ? (right - left - width) / 2f : 0) - (float) offset;
         graphics.enableScissor(left, y - Theme.BORDER, right, y + font.lineHeight + Theme.BORDER);
         graphics.pose().pushMatrix();

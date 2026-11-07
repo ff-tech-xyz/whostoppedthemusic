@@ -1,9 +1,12 @@
 package xyz.pyrehaven.whostoppedthemusic;
 
 import static org.junit.jupiter.api.Assertions.*;
+
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -94,8 +97,8 @@ final class ContextResolverTest {
         assertEquals("biome/minecraft/forest+special/rain", result.key());
         assertEquals(List.of(new Deck.Entry("forest", 2), new Deck.Entry("rain", 3), new Deck.Entry("shared", 200)),
                 result.entries());
-        var reversed = new java.util.LinkedHashMap<ScenarioId, ScenarioConfig>();
-        values.entrySet().stream().sorted(Map.Entry.comparingByKey(java.util.Comparator.reverseOrder()))
+        var reversed = new LinkedHashMap<ScenarioId, ScenarioConfig>();
+        values.entrySet().stream().sorted(Map.Entry.comparingByKey(Comparator.reverseOrder()))
                 .forEach(e -> reversed.put(e.getKey(), e.getValue()));
         assertEquals(result, resolve(situation, reversed));
         var deck = new Deck(new Random(1));

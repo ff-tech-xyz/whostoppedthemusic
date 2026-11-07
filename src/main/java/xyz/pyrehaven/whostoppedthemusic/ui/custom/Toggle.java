@@ -5,6 +5,7 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.network.chat.Component;
+import xyz.pyrehaven.whostoppedthemusic.ui.OverflowText;
 import xyz.pyrehaven.whostoppedthemusic.ui.Theme;
 
 /** One live pill toggle for scenario rows and editor settings. */
@@ -12,7 +13,7 @@ public final class Toggle extends Button {
     private final BooleanSupplier value;
     private final Component label;
     private final Component caption;
-    private final xyz.pyrehaven.whostoppedthemusic.ui.OverflowText line = new xyz.pyrehaven.whostoppedthemusic.ui.OverflowText();
+    private final OverflowText line = new OverflowText();
 
     public Toggle(Component label, BooleanSupplier value, Runnable change) {
         this(label, label, value, change);

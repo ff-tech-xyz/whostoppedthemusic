@@ -7,6 +7,7 @@ import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.client.input.MouseButtonInfo;
 import net.minecraft.network.chat.Component;
+import xyz.pyrehaven.whostoppedthemusic.ui.OverflowText;
 import xyz.pyrehaven.whostoppedthemusic.ui.Theme;
 
 /** Right-click offers a captured value without first invoking the left-click mutation. */
@@ -15,7 +16,7 @@ public final class SettingButton extends Button {
     private Component description;
     private final Component caption;
     private final Component help;
-    private final xyz.pyrehaven.whostoppedthemusic.ui.OverflowText line = new xyz.pyrehaven.whostoppedthemusic.ui.OverflowText();
+    private final OverflowText line = new OverflowText();
 
     public SettingButton(int x, int y, int width, Component caption, Component help, Component label, OnPress cycle, Runnable applyAll) {
         super(x, y, width, Theme.CONTROL_HEIGHT, label, cycle, supplier -> supplier.get());

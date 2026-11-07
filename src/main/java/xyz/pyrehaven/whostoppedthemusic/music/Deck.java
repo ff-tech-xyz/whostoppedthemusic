@@ -3,13 +3,14 @@ package xyz.pyrehaven.whostoppedthemusic.music;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.Random;
 
 /** A draw-without-replacement deck and transport history, independent of Minecraft. */
 public final class Deck {
     public record Entry(String id, int weight) {
         public Entry {
-            java.util.Objects.requireNonNull(id);
+            Objects.requireNonNull(id);
             // ScenarioConfig enforces the edit limit; tied scenarios carry raw sums here.
             if (weight < 1) throw new IllegalArgumentException("weight must be positive");
         }

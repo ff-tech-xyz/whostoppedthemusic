@@ -14,18 +14,20 @@ import net.minecraft.client.gui.screens.PauseScreen;
 import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.client.sounds.MusicManager.MusicFrequency;
 import net.minecraft.resources.Identifier;
-
+import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import xyz.pyrehaven.whostoppedthemusic.music.MusicDirector;
+import xyz.pyrehaven.whostoppedthemusic.music.TrackLibrary;
 import xyz.pyrehaven.whostoppedthemusic.ui.CassetteWidget;
 import xyz.pyrehaven.whostoppedthemusic.ui.MusicScreen;
 import xyz.pyrehaven.whostoppedthemusic.ui.Theme;
 import xyz.pyrehaven.whostoppedthemusic.ui.TransportButton;
-import xyz.pyrehaven.whostoppedthemusic.music.MusicDirector;
 
 public final class WhoStoppedTheMusic implements ClientModInitializer {
+    public static final Logger LOGGER = LoggerFactory.getLogger("whostoppedthemusic");
     private static Settings settings;
-    public static final xyz.pyrehaven.whostoppedthemusic.music.TrackLibrary LIBRARY =
-            new xyz.pyrehaven.whostoppedthemusic.music.TrackLibrary();
+    public static final TrackLibrary LIBRARY =
+            new TrackLibrary();
 
     public static Settings settings() { return settings; }
 
@@ -65,6 +67,6 @@ public final class WhoStoppedTheMusic implements ClientModInitializer {
                         next.active = MusicDirector.get(client).canNext());
             }
         });
-        LoggerFactory.getLogger("whostoppedthemusic").info("Who Stopped The Music 1.2.0 loaded");
+        LOGGER.info("Who Stopped The Music 1.2.0 loaded");
     }
 }

@@ -1,5 +1,6 @@
 package xyz.pyrehaven.whostoppedthemusic.ui;
 
+import java.util.Locale;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.Tooltip;
@@ -18,7 +19,7 @@ public final class TransportButton extends Button {
     public void action(Action action) {
         if (this.action == action) return;
         this.action = action;
-        setMessage(Component.translatable("whostoppedthemusic." + action.name().toLowerCase(java.util.Locale.ROOT)));
+        setMessage(Component.translatable("whostoppedthemusic." + action.name().toLowerCase(Locale.ROOT)));
         setTooltip(Tooltip.create(getMessage()));
     }
 

@@ -1,10 +1,12 @@
 package xyz.pyrehaven.whostoppedthemusic.ui.widget;
 
+import com.mojang.blaze3d.platform.InputConstants;
+import java.util.Locale;
 import java.util.function.IntConsumer;
 import java.util.function.IntSupplier;
-import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.AbstractWidget;
+import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.narration.NarrationElementOutput;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
@@ -45,8 +47,8 @@ public final class WeightSlider extends AbstractWidget {
 
     @Override protected void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
         setMessage(Component.translatable("whostoppedthemusic.weight_chance", weight.getAsInt(), total.getAsInt(),
-                String.format(java.util.Locale.ROOT, "%.1f", total.getAsInt() == 0 ? 0 : weight.getAsInt() * 100.0 / total.getAsInt())));
-        setTooltip(net.minecraft.client.gui.components.Tooltip.create(getMessage()));
+                String.format(Locale.ROOT, "%.1f", total.getAsInt() == 0 ? 0 : weight.getAsInt() * 100.0 / total.getAsInt())));
+        setTooltip(Tooltip.create(getMessage()));
         int center = getY() + getHeight() / 2;
         int knob = getX() + Theme.GAP + (weight.getAsInt() - 1) * (getWidth() - Theme.GAP * 2) / 99;
         graphics.fill(getX() + Theme.GAP, center - Theme.BORDER, getRight() - Theme.GAP, center + Theme.BORDER, Theme.BLUE);

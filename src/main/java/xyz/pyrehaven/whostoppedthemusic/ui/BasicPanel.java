@@ -1,5 +1,7 @@
 package xyz.pyrehaven.whostoppedthemusic.ui;
 
+import static xyz.pyrehaven.whostoppedthemusic.ui.Theme.text;
+
 import java.util.function.Consumer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.AbstractWidget;
@@ -70,12 +72,11 @@ public final class BasicPanel {
                 });
         collapse.setTooltip(Tooltip.create(text(collapsed ? "browser.expand" : "browser.collapse")));
         add.accept(collapse);
-        var director = MusicDirector.get(client);
         controls.player(playerX, y, playerWidth, bottom, add, changeMode);
-        update(director);
+        update();
     }
 
-    public void update(MusicDirector director) {
+    public void update() {
         controls.update();
     }
 
@@ -93,5 +94,4 @@ public final class BasicPanel {
         MusicDirector.get(client).playlistChanged();
     }
 
-    private static Component text(String key) { return Component.translatable("whostoppedthemusic." + key); }
 }

@@ -116,12 +116,12 @@ This example selects Custom, gives Forest a Sweden/Pigstep mix and enables a sil
 }
 ```
 
-Resource song IDs are sound-file IDs such as `minecraft:music/game/sweden` or `minecraft:records/pigstep`, not event-pool IDs. A local file `My song.mp3` has ID `custom:My song.mp3`, including its extension and case. Each song appears once per list. On load, weights clamp to 1–100 and priorities to 1–10. Unknown fields are ignored; malformed data or unknown enum values trigger broken-file recovery.
+Resource song IDs are sound-file IDs such as `minecraft:music/game/sweden` or `minecraft:records/pigstep`, not event-pool IDs. A local file `My song.mp3` has ID `custom:My song.mp3`, including its extension and case. Each song appears once per list. On load, weights clamp to 1–100 and priorities to 1–10. Unknown fields are ignored. Invalid Custom scenario/known-biome entries are warned and skipped without discarding good preferences or other scenarios; malformed root data and root enum values trigger broken-file recovery.
 
 ### Migration and recovery
 
 Version-1 JSON from earlier 1.2.0 builds loads without rewriting it. Mode, global Jukebox, Basic Shuffle/exclusions and `firstRunDone` are preserved. Custom starts at its defaults, independent of the global jukebox choice. The next settings change saves version 2. Setting `firstRunDone` to true prevents first-launch frequency initialization from running again.
 
-The 1.1.x `whostoppedthemusic.properties` file is not migrated. A malformed JSON file is renamed to `whostoppedthemusic.json.broken` and defaults are used; a later corrupt file replaces that recovery copy. Stop the game and inspect that file before restoring edits. Filesystem read/write failures are reported rather than silently treated as a successful save.
+The 1.1.x `whostoppedthemusic.properties` file is not migrated. A malformed JSON file is renamed to `whostoppedthemusic.json.broken` and defaults are used; a later corrupt file replaces that recovery copy. Stop the game and inspect that file before restoring edits. Save IO failures log a warning and keep changes active in memory; a later successful save persists them. Startup read/recovery IO failures still report an error.
 
-[Player overview](../README.md) · [Architecture and build commands](ARCHITECTURE.md) · [Implementation and acceptance evidence](plans/1.2.0.md)
+[Player overview](../README.md) · [Architecture and build commands](ARCHITECTURE.md)

@@ -1,15 +1,19 @@
 package xyz.pyrehaven.whostoppedthemusic.music;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
-
+import java.util.concurrent.CompletableFuture;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.resources.sounds.Sound;
 import net.minecraft.client.sounds.SoundManager;
@@ -18,9 +22,13 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.sounds.Musics;
+import net.minecraft.util.Util;
+import net.minecraft.util.valueproviders.ConstantFloat;
 import net.minecraft.util.valueproviders.MultipliedFloats;
 import net.minecraft.world.attribute.BackgroundMusic;
 import net.minecraft.world.attribute.EnvironmentAttributes;
+import net.minecraft.world.timeline.AttributeTrack;
+import xyz.pyrehaven.whostoppedthemusic.WhoStoppedTheMusic;
 import xyz.pyrehaven.whostoppedthemusic.mixin.SoundEventReferenceAccessor;
 import xyz.pyrehaven.whostoppedthemusic.mixin.TimelineMusicAccessor;
 import xyz.pyrehaven.whostoppedthemusic.mixin.WeighedSoundEventsAccessor;
@@ -32,29 +40,33 @@ public final class TrackLibrary {
 
     public List<Track> tracks() { return tracks; }
 
+    public Optional<Track> find(String id) {
+        return tracks.stream().filter(track -> track.id().equals(id)).findFirst();
+    }
+
     /** File IO and decoder probes stay on vanilla's IO executor; publication belongs to the client. */
-    public java.util.concurrent.CompletableFuture<Void> refreshSongs() {
+    public CompletableFuture<Void> refreshSongs() {
         var client = Minecraft.getInstance();
         int revision = ++scanRevision;
-        return java.util.concurrent.CompletableFuture.supplyAsync(() -> {
-            var folder = new xyz.pyrehaven.whostoppedthemusic.custom.MusicFolder(client.gameDirectory.toPath());
+        return CompletableFuture.supplyAsync(() -> {
+            var folder = new MusicFolder(client.gameDirectory.toPath());
             try {
                 return folder.scan().stream().map(song -> {
                     var local = new LocalSong(song);
                     local.probe();
                     var location = Identifier.fromNamespaceAndPath("whostoppedthemusic", "local/"
-                            + java.util.HexFormat.of().formatHex(song.file().getFileName().toString().getBytes(java.nio.charset.StandardCharsets.UTF_8)));
-                    var sound = new Sound(location, net.minecraft.util.valueproviders.ConstantFloat.of(1),
-                            net.minecraft.util.valueproviders.ConstantFloat.of(1), 1, Sound.Type.FILE, true, false, 16);
+                            + HexFormat.of().formatHex(song.file().getFileName().toString().getBytes(StandardCharsets.UTF_8)));
+                    var sound = new Sound(location, ConstantFloat.of(1),
+                            ConstantFloat.of(1), 1, Sound.Type.FILE, true, false, 16);
                     var title = Component.literal(song.title());
                     return new Track(song.id(), Track.Kind.LOCAL, title, sound,
                             new Track.Metadata(title, Component.empty()), local);
                 }).toList();
-            } catch (java.io.IOException error) {
-                org.slf4j.LoggerFactory.getLogger("whostoppedthemusic").warn("Can't scan music folder", error);
+            } catch (IOException error) {
+                WhoStoppedTheMusic.LOGGER.warn("Can't scan music folder", error);
                 return List.<Track>of();
             }
-        }, net.minecraft.util.Util.nonCriticalIoPool()).thenAcceptAsync(local -> {
+        }, Util.nonCriticalIoPool()).thenAcceptAsync(local -> {
             if (revision != scanRevision) return;
             var merged = new ArrayList<>(tracks.stream().filter(t -> t.local() == null).toList());
             merged.addAll(local);
@@ -121,7 +133,7 @@ public final class TrackLibrary {
         }
     }
 
-    private static void addTimelineMusic(Set<Identifier> events, net.minecraft.world.timeline.AttributeTrack<?, ?> track) {
+    private static void addTimelineMusic(Set<Identifier> events, AttributeTrack<?, ?> track) {
         for (var frame : track.argumentTrack().keyframes()) {
             // BACKGROUND_MUSIC's supported modifier is override; inspect its typed value, not a sampled time.
             if (frame.value() instanceof BackgroundMusic background) addMusic(events, background);

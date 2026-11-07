@@ -1,7 +1,15 @@
 package xyz.pyrehaven.whostoppedthemusic.ui.custom;
 
+import static xyz.pyrehaven.whostoppedthemusic.ui.Theme.text;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
+import java.util.TreeMap;
 import java.util.function.Consumer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -28,8 +36,8 @@ public final class ScenarioList extends SmoothList<ScenarioList.Row> {
     private final boolean picker;
     private List<BiomeCatalog.Entry> biomes = List.of();
     private String query = "";
-    private final java.util.Set<String> expanded = new java.util.HashSet<>();
-    private final java.util.Set<String> searchCollapsed = new java.util.HashSet<>();
+    private final Set<String> expanded = new HashSet<>();
+    private final Set<String> searchCollapsed = new HashSet<>();
 
     public ScenarioList(Minecraft client, Settings settings, Consumer<ScenarioId> open) {
         this(client, settings, open, false);
@@ -57,19 +65,19 @@ public final class ScenarioList extends SmoothList<ScenarioList.Row> {
         if (!nextQuery.equals(query)) searchCollapsed.clear();
         query = nextQuery;
         clearEntries();
-        var groups = new java.util.TreeMap<String, List<BiomeCatalog.Entry>>(java.util.Comparator
-                .comparingInt(ScenarioList::groupOrder).thenComparing(java.util.Comparator.naturalOrder()));
+        var groups = new TreeMap<String, List<BiomeCatalog.Entry>>(Comparator
+                .comparingInt(ScenarioList::groupOrder).thenComparing(Comparator.naturalOrder()));
         for (var entry : biomes) {
             if (matches(entry.id()) || groupName(entry.group()).getString().toLowerCase(Locale.ROOT).contains(query)) {
-                groups.computeIfAbsent(entry.group(), ignored -> new java.util.ArrayList<>()).add(entry);
+                groups.computeIfAbsent(entry.group(), ignored -> new ArrayList<>()).add(entry);
             }
         }
         groups.forEach((group, entries) -> {
             addEntry(new Row("biome/" + group, groupName(group)), Theme.TRACK_HEADER_HEIGHT);
-            if (isExpanded("biome/" + group)) entries.stream().sorted(java.util.Comparator.comparing(e -> ScenarioLabels.name(e.id()).getString()))
+            if (isExpanded("biome/" + group)) entries.stream().sorted(Comparator.comparing(e -> ScenarioLabels.name(e.id()).getString()))
                     .forEach(e -> addEntry(new Row(e.id(), ScenarioLabels.name(e.id())), Theme.SCENARIO_ROW));
         });
-        var specials = java.util.Arrays.stream(Special.values()).map(ScenarioId::special)
+        var specials = Arrays.stream(Special.values()).map(ScenarioId::special)
                 .filter(id -> matches(id) || text("scenario.misc").getString().toLowerCase(Locale.ROOT).contains(query)).toList();
         if (!specials.isEmpty()) {
             addEntry(new Row("misc", text("scenario.misc")), Theme.TRACK_HEADER_HEIGHT);
@@ -184,7 +192,4 @@ public final class ScenarioList extends SmoothList<ScenarioList.Row> {
         }
     }
 
-    private static net.minecraft.network.chat.MutableComponent text(String key, Object... args) {
-        return Component.translatable("whostoppedthemusic." + key, args);
-    }
 }

@@ -27,10 +27,6 @@ public final class CassetteWidget extends Button {
                 Theme.CASSETTE_HEIGHT);
     }
 
-    public Component status() {
-        return MusicDirector.get(client).status();
-    }
-
     @Override
     protected void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
         var director = MusicDirector.get(client);

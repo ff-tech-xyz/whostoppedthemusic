@@ -6,10 +6,11 @@ import net.minecraft.client.sounds.SoundManager;
 import net.minecraft.core.RegistryAccess;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import xyz.pyrehaven.whostoppedthemusic.WhoStoppedTheMusic;
+import xyz.pyrehaven.whostoppedthemusic.music.LevelSoundControl;
 import xyz.pyrehaven.whostoppedthemusic.music.MusicDirector;
 
 @Mixin(Minecraft.class)
@@ -26,7 +27,7 @@ public abstract class MusicWorldMixin {
         var director = MusicDirector.get((Minecraft) (Object) this);
         if (director.basic() && director.active()) {
             var engine = ((SoundManagerAccessor) sounds).whostoppedthemusic$engine();
-            ((MusicDirector.LevelSoundControl) engine).whostoppedthemusic$stopLevelSounds(director.current());
+            ((LevelSoundControl) engine).whostoppedthemusic$stopLevelSounds(director.current());
         } else sounds.stop();
     }
 }

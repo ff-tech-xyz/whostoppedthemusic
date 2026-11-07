@@ -5,9 +5,9 @@ import net.minecraft.client.resources.sounds.SoundInstance;
 import net.minecraft.client.sounds.ChannelAccess;
 import net.minecraft.resources.Identifier;
 import xyz.pyrehaven.whostoppedthemusic.WhoStoppedTheMusic;
-import xyz.pyrehaven.whostoppedthemusic.mixin.SoundEngineAccessor;
-import xyz.pyrehaven.whostoppedthemusic.mixin.SoundManagerAccessor;
+import xyz.pyrehaven.whostoppedthemusic.music.MusicChannelControl;
 import xyz.pyrehaven.whostoppedthemusic.music.MusicDirector;
+import xyz.pyrehaven.whostoppedthemusic.music.SoundChannels;
 import xyz.pyrehaven.whostoppedthemusic.music.Track;
 import xyz.pyrehaven.whostoppedthemusic.music.TrackSoundInstance;
 
@@ -37,7 +37,7 @@ public final class Preview {
         client.getSoundManager().play(source);
         var handle = channel(source);
         if (handle == null) cancel();
-        else handle.execute(channel -> ((MusicDirector.ChannelControl) channel).whostoppedthemusic$manage());
+        else handle.execute(channel -> ((MusicChannelControl) channel).whostoppedthemusic$manage());
     }
 
     public boolean tick() {
@@ -66,11 +66,10 @@ public final class Preview {
 
     private void pause(SoundInstance sound, boolean paused) {
         var handle = channel(sound);
-        if (handle != null) handle.execute(channel -> ((MusicDirector.ChannelControl) channel).whostoppedthemusic$pause(paused));
+        if (handle != null) handle.execute(channel -> ((MusicChannelControl) channel).whostoppedthemusic$pause(paused));
     }
 
     private ChannelAccess.ChannelHandle channel(SoundInstance sound) {
-        var engine = ((SoundManagerAccessor) client.getSoundManager()).whostoppedthemusic$engine();
-        return ((SoundEngineAccessor) engine).whostoppedthemusic$channels().get(sound);
+        return SoundChannels.get(client, sound);
     }
 }

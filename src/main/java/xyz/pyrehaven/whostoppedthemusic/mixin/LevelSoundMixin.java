@@ -9,10 +9,11 @@ import net.minecraft.client.sounds.SoundEngine;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
-import xyz.pyrehaven.whostoppedthemusic.music.MusicDirector;
+import xyz.pyrehaven.whostoppedthemusic.music.LevelSoundControl;
+import xyz.pyrehaven.whostoppedthemusic.music.MusicChannelControl;
 
 @Mixin(SoundEngine.class)
-public abstract class LevelSoundMixin implements MusicDirector.LevelSoundControl {
+public abstract class LevelSoundMixin implements LevelSoundControl {
     @Shadow @Final private Map<SoundInstance, ChannelAccess.ChannelHandle> instanceToChannel;
     @Shadow @Final private Map<SoundInstance, Integer> queuedSounds;
     @Shadow @Final private List<TickableSoundInstance> tickingSounds;
@@ -24,7 +25,7 @@ public abstract class LevelSoundMixin implements MusicDirector.LevelSoundControl
         // Normal engine cleanup releases the stopped handles and their bookkeeping.
         instanceToChannel.forEach((sound, handle) -> {
             if (sound != keep) handle.execute(channel -> {
-                ((MusicDirector.ChannelControl) channel).whostoppedthemusic$manage();
+                ((MusicChannelControl) channel).whostoppedthemusic$manage();
                 channel.stop();
             });
         });

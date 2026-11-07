@@ -1,19 +1,26 @@
 package xyz.pyrehaven.whostoppedthemusic.ui;
 
-import java.util.function.Consumer;
+import static xyz.pyrehaven.whostoppedthemusic.ui.Theme.text;
+
+import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.Tooltip;
+import net.minecraft.client.sounds.MusicManager;
 import net.minecraft.network.chat.Component;
+import xyz.pyrehaven.whostoppedthemusic.JukeboxSetting;
+import xyz.pyrehaven.whostoppedthemusic.Mode;
 import xyz.pyrehaven.whostoppedthemusic.Settings;
 import xyz.pyrehaven.whostoppedthemusic.music.MusicDirector;
-import xyz.pyrehaven.whostoppedthemusic.music.custom.ScenarioId;
 import xyz.pyrehaven.whostoppedthemusic.music.custom.ScenarioConfig;
-import xyz.pyrehaven.whostoppedthemusic.JukeboxSetting;
+import xyz.pyrehaven.whostoppedthemusic.music.custom.ScenarioId;
 import xyz.pyrehaven.whostoppedthemusic.ui.custom.ApplyToAllPopup;
 import xyz.pyrehaven.whostoppedthemusic.ui.custom.ScenarioLabels;
 import xyz.pyrehaven.whostoppedthemusic.ui.widget.SettingButton;
@@ -45,7 +52,7 @@ public final class MusicControls {
     }
 
     public void settings(int x, int y, int width, Consumer<AbstractWidget> add, Runnable changeMode) {
-        add.accept(Theme.button(x, y, width, text("mode." + settings.mode().name().toLowerCase(java.util.Locale.ROOT)),
+        add.accept(Theme.button(x, y, width, text("mode." + settings.mode().name().toLowerCase(Locale.ROOT)),
                 button -> changeMode.run()));
         scenarioSettings(x, y + Theme.ROW, width, add);
     }
@@ -64,7 +71,7 @@ public final class MusicControls {
                 editScenarios(c -> c.withFrequency(value));
             } else {
                 var option = client.options.musicFrequency();
-                var values = net.minecraft.client.sounds.MusicManager.MusicFrequency.values();
+                var values = MusicManager.MusicFrequency.values();
                 option.set(values[(option.get().ordinal() + 1) % values.length]);
             }
             updateSettings();
@@ -89,13 +96,13 @@ public final class MusicControls {
         add.accept(jukebox);
     }
 
-    private boolean custom() { return settings.mode() == xyz.pyrehaven.whostoppedthemusic.Mode.CUSTOM; }
+    private boolean custom() { return settings.mode() == Mode.CUSTOM; }
 
     private ScenarioConfig config(ScenarioId id) {
         return settings.scenario(id, MusicDirector.get(client).customPlayback().defaults(id).config());
     }
 
-    private void editScenarios(java.util.function.UnaryOperator<ScenarioConfig> edit) {
+    private void editScenarios(UnaryOperator<ScenarioConfig> edit) {
         for (var id : List.copyOf(scenarios.get())) {
             settings.setScenario(id, edit.apply(config(id)), MusicDirector.get(client).customPlayback().defaults(id).config());
         }
@@ -103,7 +110,7 @@ public final class MusicControls {
 
     private ScenarioConfig.Frequency currentFrequency() {
         return scenarios.get().stream().map(this::config).map(ScenarioConfig::frequency)
-                .max(java.util.Comparator.naturalOrder()).orElse(ScenarioConfig.Frequency.CONSTANT);
+                .max(Comparator.naturalOrder()).orElse(ScenarioConfig.Frequency.CONSTANT);
     }
 
     private JukeboxSetting currentJukebox() {
@@ -159,7 +166,7 @@ public final class MusicControls {
         }
         var tapeSize = CassetteArtwork.size(width, bottom - tapeY);
         var tape = new Button(x + (width - tapeSize.width()) / 2, tapeY, tapeSize.width(), tapeSize.height(),
-                director.status(), button -> {}, supplier -> supplier.get()) {
+                Component.empty(), button -> {}, supplier -> supplier.get()) {
             private final CassetteArtwork artwork = new CassetteArtwork();
             @Override protected void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
                 artwork.drawPlayer(graphics, this, director);
@@ -201,19 +208,18 @@ public final class MusicControls {
     }
 
     private Component frequencyLabel() {
-        if (custom() && conciseSettings) return text("frequency", net.minecraft.client.sounds.MusicManager.MusicFrequency.valueOf(currentFrequency().name()).caption());
+        if (custom() && conciseSettings) return text("frequency", MusicManager.MusicFrequency.valueOf(currentFrequency().name()).caption());
         if (custom()) return text("frequency.scenario", ScenarioLabels.names(scenarios.get()),
-                net.minecraft.client.sounds.MusicManager.MusicFrequency.valueOf(currentFrequency().name()).caption());
+                MusicManager.MusicFrequency.valueOf(currentFrequency().name()).caption());
         return Component.translatable("whostoppedthemusic.frequency", client.options.musicFrequency().get().caption());
     }
 
     private Component jukeboxLabel() {
-        if (custom() && conciseSettings) return text("jukebox", text("jukebox." + currentJukebox().name().toLowerCase(java.util.Locale.ROOT)));
+        if (custom() && conciseSettings) return text("jukebox", text("jukebox." + currentJukebox().name().toLowerCase(Locale.ROOT)));
         if (custom()) return text("jukebox.scenario", ScenarioLabels.names(scenarios.get()),
-                text("jukebox." + currentJukebox().name().toLowerCase(java.util.Locale.ROOT)));
+                text("jukebox." + currentJukebox().name().toLowerCase(Locale.ROOT)));
         return Component.translatable("whostoppedthemusic.jukebox",
-                text("jukebox." + settings.jukebox().name().toLowerCase(java.util.Locale.ROOT)));
+                text("jukebox." + settings.jukebox().name().toLowerCase(Locale.ROOT)));
     }
 
-    private static net.minecraft.network.chat.MutableComponent text(String key, Object... args) { return Component.translatable("whostoppedthemusic." + key, args); }
 }

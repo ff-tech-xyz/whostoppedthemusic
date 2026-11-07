@@ -3,6 +3,7 @@ package xyz.pyrehaven.whostoppedthemusic.mixin;
 import net.minecraft.client.Options;
 import net.minecraft.client.resources.sounds.SoundInstance;
 import net.minecraft.client.sounds.SoundEngine;
+import net.minecraft.util.Mth;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -19,8 +20,8 @@ public abstract class PreviewVolumeMixin {
     @Inject(method = "calculateVolume(Lnet/minecraft/client/resources/sounds/SoundInstance;)F", at = @At("HEAD"), cancellable = true)
     private void whostoppedthemusic$previewGain(SoundInstance sound, CallbackInfoReturnable<Float> ci) {
         if (sound instanceof TrackSoundInstance track && track.preview()) {
-            ci.setReturnValue(net.minecraft.util.Mth.clamp(sound.getVolume(), 0, 1)
-                    * net.minecraft.util.Mth.clamp(options.getFinalSoundSourceVolume(sound.getSource()), 0, 1));
+            ci.setReturnValue(Mth.clamp(sound.getVolume(), 0, 1)
+                    * Mth.clamp(options.getFinalSoundSourceVolume(sound.getSource()), 0, 1));
         }
     }
 }

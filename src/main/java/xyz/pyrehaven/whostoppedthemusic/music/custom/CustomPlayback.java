@@ -3,9 +3,12 @@ package xyz.pyrehaven.whostoppedthemusic.music.custom;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Random;
 import java.util.TreeMap;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import net.minecraft.core.Holder;
 import net.minecraft.resources.Identifier;
 import net.minecraft.sounds.Music;
@@ -46,7 +49,7 @@ public final class CustomPlayback {
 
     public CustomDefaults.Default defaults(ScenarioId id) {
         return loadedDefaults.computeIfAbsent(id, key -> {
-            if (key.kind() == ScenarioId.Kind.SPECIAL) return defaults.special(Special.valueOf(key.id().toUpperCase(java.util.Locale.ROOT)));
+            if (key.kind() == ScenarioId.Kind.SPECIAL) return defaults.special(Special.valueOf(key.id().toUpperCase(Locale.ROOT)));
             var entry = catalog.get(key);
             return defaults.biome(Identifier.parse(key.id()), entry.biome(), entry.dimension());
         });
@@ -71,14 +74,14 @@ public final class CustomPlayback {
         String previousKey = resolution == null ? null : resolution.key();
         var previous = resolution == null ? List.<ScenarioId>of() : resolution.winners();
         var resolved = ContextResolver.resolve(situation, configs, previous);
-        var available = library.tracks().stream().filter(t -> t.playable()).map(t -> t.id()).collect(java.util.stream.Collectors.toSet());
+        var available = library.tracks().stream().filter(t -> t.playable()).map(t -> t.id()).collect(Collectors.toSet());
         resolution = new Resolution(resolved.winners(), resolved.entries().stream().filter(e -> available.contains(e.id())).toList(),
                 resolved.interrupt(), resolved.frequency(), resolved.jukebox());
         edited = resolution.winners().stream().anyMatch(id -> settings.songsEdited(id, defaults(id).config()));
         String key = resolution.key();
         // A held pause or volume fade can defer vanilla's pool-change check beyond this tick.
         boolean replace = resolution.interrupt() || key.equals(previousKey) && music.replaceCurrentMusic();
-        var deck = decks.computeIfAbsent(key, ignored -> new Deck(new java.util.Random()));
+        var deck = decks.computeIfAbsent(key, ignored -> new Deck(new Random()));
         if (decks.size() > 32) decks.remove(decks.keySet().iterator().next());
         deck.configure(resolution.entries(), true);
         var source = defaults(resolution.winners().getFirst()).music().orElse(Musics.GAME);

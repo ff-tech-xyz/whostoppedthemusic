@@ -1,8 +1,10 @@
 package xyz.pyrehaven.whostoppedthemusic.mixin;
 
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.client.sounds.MusicManager;
 import net.minecraft.sounds.Music;
+import net.minecraft.sounds.SoundEvent;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -11,10 +13,11 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import xyz.pyrehaven.whostoppedthemusic.music.DirectorAccess;
 import xyz.pyrehaven.whostoppedthemusic.music.MusicDirector;
 
 @Mixin(MusicManager.class)
-public abstract class MusicManagerMixin implements MusicDirector.Access {
+public abstract class MusicManagerMixin implements DirectorAccess {
     @Shadow @Final private Minecraft minecraft;
     @Unique private MusicDirector whostoppedthemusic$director;
 
@@ -56,13 +59,13 @@ public abstract class MusicManagerMixin implements MusicDirector.Access {
     }
 
     @Redirect(method = "startPlaying", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/resources/sounds/SimpleSoundInstance;forMusic(Lnet/minecraft/sounds/SoundEvent;)Lnet/minecraft/client/resources/sounds/SimpleSoundInstance;"))
-    private net.minecraft.client.resources.sounds.SimpleSoundInstance whostoppedthemusic$track(net.minecraft.sounds.SoundEvent event) {
+    private SimpleSoundInstance whostoppedthemusic$track(SoundEvent event) {
         return whostoppedthemusic$director().choose(event);
     }
 
     @Inject(method = "startPlaying", at = @At("RETURN"))
     private void whostoppedthemusic$observe(Music music, CallbackInfo ci) {
-        whostoppedthemusic$director().started(music);
+        whostoppedthemusic$director().started();
     }
 
     @Inject(method = "stopPlaying()V", at = @At("HEAD"))

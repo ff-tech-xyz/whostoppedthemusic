@@ -1,13 +1,14 @@
 package xyz.pyrehaven.whostoppedthemusic.music;
 
+import java.util.Optional;
 import net.minecraft.client.resources.sounds.Sound;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.Style;
 
 public record Track(String id, Kind kind, Component title, Sound sound, Metadata explicitMetadata, LocalSong local) {
     public enum Kind { SOUNDTRACK, DISC, LOCAL }
 
     public Track(String id, Kind kind, Component title, Sound sound) { this(id, kind, title, sound, null, null); }
-    public Track(String id, Kind kind, Component title, Sound sound, Metadata metadata) { this(id, kind, title, sound, metadata, null); }
 
     public boolean playable() { return local == null || local.playable(); }
 
@@ -35,8 +36,8 @@ public record Track(String id, Kind kind, Component title, Sound sound, Metadata
             int to = Math.min(text.length(), end - position[0]);
             if (from < to) result.append(Component.literal(text.substring(from, to)).withStyle(style));
             position[0] += text.length();
-            return java.util.Optional.empty();
-        }, net.minecraft.network.chat.Style.EMPTY);
+            return Optional.empty();
+        }, Style.EMPTY);
         return result;
     }
 }

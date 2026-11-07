@@ -4,9 +4,10 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
-import xyz.pyrehaven.whostoppedthemusic.Settings;
-import xyz.pyrehaven.whostoppedthemusic.music.MusicDirector;
 import xyz.pyrehaven.whostoppedthemusic.Mode;
+import xyz.pyrehaven.whostoppedthemusic.Settings;
+import xyz.pyrehaven.whostoppedthemusic.WhoStoppedTheMusic;
+import xyz.pyrehaven.whostoppedthemusic.music.MusicDirector;
 import xyz.pyrehaven.whostoppedthemusic.ui.custom.CustomPanel;
 import xyz.pyrehaven.whostoppedthemusic.ui.custom.ScenarioScreen;
 
@@ -36,7 +37,7 @@ public final class MusicScreen extends Screen {
             doneButton();
             return;
         }
-        if (settings.mode() == xyz.pyrehaven.whostoppedthemusic.Mode.BASIC) {
+        if (settings.mode() == Mode.BASIC) {
             initBasic();
             doneButton();
             return;
@@ -51,7 +52,7 @@ public final class MusicScreen extends Screen {
         var tapeSize = CassetteArtwork.size(tapeWidth, Theme.VOLUME_HEIGHT);
         var tape = new Button(x + (tapeWidth - tapeSize.width()) / 2,
                 y + (Theme.VOLUME_HEIGHT - tapeSize.height()) / 2, tapeSize.width(), tapeSize.height(),
-                director.status(), button -> { }, supplier -> supplier.get()) {
+                Component.empty(), button -> { }, supplier -> supplier.get()) {
             private final CassetteArtwork artwork = new CassetteArtwork();
             @Override
             protected void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
@@ -72,7 +73,7 @@ public final class MusicScreen extends Screen {
     private void initBasic() {
         if (basicPanel == null) {
             basicPanel = new BasicPanel(minecraft, settings);
-            xyz.pyrehaven.whostoppedthemusic.WhoStoppedTheMusic.LIBRARY.refreshSongs().thenRun(() -> {
+            WhoStoppedTheMusic.LIBRARY.refreshSongs().thenRun(() -> {
                 if (minecraft.gui.screen() == this) basicPanel.refreshSongs();
             });
         }
@@ -101,13 +102,12 @@ public final class MusicScreen extends Screen {
     }
 
     private void updateTransport() {
-        var director = MusicDirector.get(minecraft);
         if (settings.mode() == Mode.CUSTOM) {
             customPanel.update();
             return;
         }
-        if (settings.mode() == xyz.pyrehaven.whostoppedthemusic.Mode.BASIC) {
-            basicPanel.update(director);
+        if (settings.mode() == Mode.BASIC) {
+            basicPanel.update();
             return;
         }
         controls.update();
@@ -120,9 +120,7 @@ public final class MusicScreen extends Screen {
 
     @Override
     public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
-        graphics.fill(left, Theme.MARGIN, left + contentWidth, height - Theme.MARGIN, Theme.CARD);
-        graphics.fill(left, Theme.MARGIN, left + contentWidth, Theme.MARGIN + Theme.ACCENT, Theme.ORANGE);
-        graphics.text(font, title, left + Theme.PADDING, Theme.MARGIN + Theme.GAP, Theme.TEXT);
+        Theme.panelHeading(graphics, font, title, left, contentWidth, height);
         updateTransport();
         super.extractRenderState(graphics, mouseX, mouseY, delta);
     }

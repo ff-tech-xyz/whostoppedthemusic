@@ -89,14 +89,11 @@
   "whostoppedthemusic.cant_play": "Can't play: %s",
   "whostoppedthemusic.cant_play_short": "Can't play",
   "whostoppedthemusic.play_track": "Play now: %s",
-  "whostoppedthemusic.now_playing": "Now Playing",
   "whostoppedthemusic.frequency": "Frequency: %s",
   "whostoppedthemusic.play": "Play",
   "whostoppedthemusic.pause": "Pause",
   "whostoppedthemusic.resume": "Resume",
   "whostoppedthemusic.next": "Next",
-  "whostoppedthemusic.paused": "Paused: %s",
-  "whostoppedthemusic.muted": "Muted: %s",
   "whostoppedthemusic.state.paused": "Paused",
   "whostoppedthemusic.state.muted": "Muted",
   "whostoppedthemusic.jukebox": "Jukebox: %s",
@@ -104,6 +101,5 @@
   "whostoppedthemusic.jukebox.pause_music": "Pause music",
 
   "whostoppedthemusic.cassette.open": "Music settings",
-  "whostoppedthemusic.cassette.silence": "Nothing playing",
-  "whostoppedthemusic.cassette.narration": "Music settings: %s"
+  "whostoppedthemusic.cassette.silence": "Nothing playing"
 }

@@ -1,5 +1,7 @@
 package xyz.pyrehaven.whostoppedthemusic;
 
+import static xyz.pyrehaven.whostoppedthemusic.WhoStoppedTheMusic.LOGGER;
+
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
@@ -10,8 +12,12 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import xyz.pyrehaven.whostoppedthemusic.music.Deck;
 import xyz.pyrehaven.whostoppedthemusic.music.custom.ScenarioConfig;
@@ -24,7 +30,7 @@ public final class Settings {
     private JukeboxSetting jukebox = JukeboxSetting.PAUSE_MUSIC;
     private Mode mode = Mode.VANILLA;
     private boolean shuffle = true;
-    private final java.util.Set<String> unticked = new java.util.HashSet<>();
+    private final Set<String> unticked = new HashSet<>();
     private ScenarioConfig.Frequency customFrequency = ScenarioConfig.Frequency.CONSTANT;
     private JukeboxSetting customJukebox = JukeboxSetting.PAUSE_MUSIC;
     private final Map<String, String> knownBiomes = new TreeMap<>();
@@ -126,24 +132,32 @@ public final class Settings {
             if (defaults.has("jukebox")) customJukebox = JukeboxSetting.valueOf(defaults.get("jukebox").getAsString());
         }
         if (custom.has("knownBiomes")) custom.getAsJsonObject("knownBiomes").entrySet().forEach(e -> {
-            ScenarioId.biome(e.getKey());
-            knownBiomes.put(e.getKey(), e.getValue().getAsString());
+            try {
+                ScenarioId.biome(e.getKey());
+                knownBiomes.put(e.getKey(), e.getValue().getAsString());
+            } catch (IllegalArgumentException | IllegalStateException | UnsupportedOperationException | NullPointerException error) {
+                LOGGER.warn("Ignoring invalid known biome {} in {}", e.getKey(), file, error);
+            }
         });
         if (custom.has("scenarios")) custom.getAsJsonObject("scenarios").entrySet().forEach(e -> {
-            var id = ScenarioId.parse(e.getKey());
-            var override = e.getValue().getAsJsonObject().deepCopy();
-            var validated = applyScenario(override, new ScenarioConfig(2, true, false, customFrequency, customJukebox,
-                    true, 64, List.of()));
-            if (override.has("songs")) override.add("songs", scenarioJson(validated).get("songs"));
-            if (override.has("priority")) override.addProperty("priority", validated.priority());
-            scenarios.put(id, override);
+            try {
+                var id = ScenarioId.parse(e.getKey());
+                var override = e.getValue().getAsJsonObject().deepCopy();
+                var validated = applyScenario(override, new ScenarioConfig(2, true, false, customFrequency, customJukebox,
+                        true, 64, List.of()));
+                if (override.has("songs")) override.add("songs", scenarioJson(validated).get("songs"));
+                if (override.has("priority")) override.addProperty("priority", validated.priority());
+                scenarios.put(id, override);
+            } catch (IllegalArgumentException | IllegalStateException | UnsupportedOperationException | NullPointerException | ClassCastException error) {
+                LOGGER.warn("Ignoring invalid Custom scenario {} in {}", e.getKey(), file, error);
+            }
         });
     }
 
     private static ScenarioConfig applyScenario(JsonObject o, ScenarioConfig d) {
         List<Deck.Entry> songs = d.songs();
         if (o.has("songs")) {
-            var entries = new java.util.ArrayList<Deck.Entry>();
+            var entries = new ArrayList<Deck.Entry>();
             for (var element : o.getAsJsonArray("songs")) {
                 var song = element.getAsJsonObject();
                 entries.add(new Deck.Entry(song.get("id").getAsString(), Math.clamp(song.get("weight").getAsInt(), 1, 100)));
@@ -187,7 +201,7 @@ public final class Settings {
         if (changed) save();
     }
 
-    public void setAllTicked(java.util.Collection<String> ids, boolean value) {
+    public void setAllTicked(Collection<String> ids, boolean value) {
         boolean changed = value ? unticked.removeAll(ids) : unticked.addAll(ids);
         if (changed) save();
     }
@@ -246,7 +260,7 @@ public final class Settings {
                 Files.deleteIfExists(temporary);
             }
         } catch (IOException e) {
-            throw new UncheckedIOException(e);
+            LOGGER.warn("Can't save music settings to {}; changes remain active in memory", file, e);
         }
     }
 }

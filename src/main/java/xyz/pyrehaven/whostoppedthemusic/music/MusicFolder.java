@@ -1,10 +1,13 @@
-package xyz.pyrehaven.whostoppedthemusic.custom;
+package xyz.pyrehaven.whostoppedthemusic.music;
 
 import java.io.IOException;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 
@@ -51,7 +54,7 @@ public final class MusicFolder {
         }
         String name = source.getFileName().toString();
         int dot = name.lastIndexOf('.');
-        var names = new java.util.HashSet<String>();
+        var names = new HashSet<String>();
         try (var files = Files.list(directory)) {
             files.forEach(file -> names.add(file.getFileName().toString().toLowerCase(Locale.ROOT)));
         }
@@ -60,8 +63,8 @@ public final class MusicFolder {
             if (names.contains(candidate.toLowerCase(Locale.ROOT))) continue;
             Path target = directory.resolve(candidate);
             try (var input = Files.newInputStream(source, LinkOption.NOFOLLOW_LINKS)) {
-                var output = Files.newOutputStream(target, java.nio.file.StandardOpenOption.CREATE_NEW,
-                        java.nio.file.StandardOpenOption.WRITE, LinkOption.NOFOLLOW_LINKS);
+                var output = Files.newOutputStream(target, StandardOpenOption.CREATE_NEW,
+                        StandardOpenOption.WRITE, LinkOption.NOFOLLOW_LINKS);
                 try (output) {
                     input.transferTo(output);
                 } catch (IOException error) {
@@ -69,7 +72,7 @@ public final class MusicFolder {
                     throw error;
                 }
                 return new Song(target);
-            } catch (java.nio.file.FileAlreadyExistsException collision) {
+            } catch (FileAlreadyExistsException collision) {
                 names.add(candidate.toLowerCase(Locale.ROOT));
             }
         }

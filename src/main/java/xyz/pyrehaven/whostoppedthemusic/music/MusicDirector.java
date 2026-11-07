@@ -1,49 +1,40 @@
 package xyz.pyrehaven.whostoppedthemusic.music;
 
+import com.mojang.blaze3d.audio.Channel;
+import java.util.List;
+import java.util.Random;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.resources.sounds.SoundInstance;
-import net.minecraft.client.sounds.MusicManager;
-import net.minecraft.client.sounds.ChannelAccess;
-import net.minecraft.network.chat.Component;
-import net.minecraft.sounds.Music;
-import net.minecraft.sounds.SoundSource;
-import xyz.pyrehaven.whostoppedthemusic.mixin.MusicManagerAccessor;
-import xyz.pyrehaven.whostoppedthemusic.mixin.SoundEngineAccessor;
-import xyz.pyrehaven.whostoppedthemusic.mixin.SoundManagerAccessor;
-import xyz.pyrehaven.whostoppedthemusic.Mode;
-import xyz.pyrehaven.whostoppedthemusic.JukeboxSetting;
-import xyz.pyrehaven.whostoppedthemusic.WhoStoppedTheMusic;
-import net.minecraft.core.Holder;
-import net.minecraft.resources.Identifier;
-import net.minecraft.sounds.SoundEvent;
-import net.minecraft.sounds.Musics;
+import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
+import net.minecraft.client.resources.sounds.SoundInstance;
+import net.minecraft.client.sounds.ChannelAccess;
+import net.minecraft.client.sounds.MusicManager.MusicFrequency;
+import net.minecraft.client.sounds.MusicManager;
+import net.minecraft.core.Holder;
+import net.minecraft.core.RegistryAccess;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
+import net.minecraft.sounds.Music;
+import net.minecraft.sounds.Musics;
+import net.minecraft.sounds.SoundEvent;
+import net.minecraft.sounds.SoundSource;
+import xyz.pyrehaven.whostoppedthemusic.JukeboxSetting;
+import xyz.pyrehaven.whostoppedthemusic.Mode;
+import xyz.pyrehaven.whostoppedthemusic.WhoStoppedTheMusic;
+import xyz.pyrehaven.whostoppedthemusic.mixin.MusicManagerAccessor;
 import xyz.pyrehaven.whostoppedthemusic.music.custom.CustomPlayback;
 import xyz.pyrehaven.whostoppedthemusic.music.custom.Preview;
 import xyz.pyrehaven.whostoppedthemusic.music.custom.SituationReader;
-import net.minecraft.client.sounds.MusicManager.MusicFrequency;
 
 /** Selection and transport inside the vanilla manager's existing playback loop. */
 public final class MusicDirector {
-    public interface Access {
-        MusicDirector whostoppedthemusic$director();
-    }
-
-    public interface ChannelControl {
-        void whostoppedthemusic$manage();
-        void whostoppedthemusic$pause(boolean paused);
-    }
-
-    public interface LevelSoundControl {
-        void whostoppedthemusic$stopLevelSounds(SoundInstance keep);
-    }
+    public static final Music BASIC = new Music(Holder.direct(SoundEvent.createVariableRangeEvent(
+            Identifier.fromNamespaceAndPath("whostoppedthemusic", "basic"))), Musics.GAME.minDelay(), Musics.GAME.maxDelay(), false);
 
     private final Minecraft client;
     private final MusicManager manager;
     private SoundInstance paused;
-    public static final Music BASIC = new Music(Holder.direct(SoundEvent.createVariableRangeEvent(
-            Identifier.fromNamespaceAndPath("whostoppedthemusic", "basic"))), Musics.GAME.minDelay(), Musics.GAME.maxDelay(), false);
-    private final Deck deck = new Deck(new java.util.Random());
+    private final Deck deck = new Deck(new Random());
     private Mode mode = Mode.VANILLA;
     private boolean stopped;
     private boolean jukeboxHeld;
@@ -51,6 +42,12 @@ public final class MusicDirector {
     private volatile SoundInstance advancing;
     private final CustomPlayback custom = new CustomPlayback(WhoStoppedTheMusic.settings(), WhoStoppedTheMusic.LIBRARY);
     private final Preview preview;
+
+    public MusicDirector(Minecraft client, MusicManager manager) {
+        this.client = client;
+        this.manager = manager;
+        this.preview = new Preview(client, this);
+    }
 
     public Preview preview() { return preview; }
     public boolean jukeboxHolding() { return jukebox() == JukeboxSetting.PAUSE_MUSIC && JukeboxWatcher.nearby(client); }
@@ -86,7 +83,7 @@ public final class MusicDirector {
         }
     }
 
-    public java.util.List<Track> selected() {
+    public List<Track> selected() {
         var settings = WhoStoppedTheMusic.settings();
         return WhoStoppedTheMusic.LIBRARY.tracks().stream().filter(Track::playable).filter(t -> settings.ticked(t.id())).toList();
     }
@@ -128,15 +125,15 @@ public final class MusicDirector {
         if (jukeboxHeld) {
             jukeboxHeld = false;
             var handle = channel();
-            if (handle != null) handle.execute(channel -> ((ChannelControl) channel).whostoppedthemusic$pause(false));
+            if (handle != null) handle.execute(channel -> ((MusicChannelControl) channel).whostoppedthemusic$pause(false));
             ((MusicManagerAccessor) manager).whostoppedthemusic$nextSongDelay(0);
         }
         return playlist() && stopped;
     }
 
-    public void worldChanged(net.minecraft.client.multiplayer.ClientLevel level) {
+    public void worldChanged(ClientLevel level) {
         preview.cancel();
-        custom.catalog().rebuild(level == null ? net.minecraft.core.RegistryAccess.EMPTY : level.registryAccess(),
+        custom.catalog().rebuild(level == null ? RegistryAccess.EMPTY : level.registryAccess(),
                 level == null ? null : level.dimensionType(), WhoStoppedTheMusic.settings());
         custom.reload();
     }
@@ -160,7 +157,7 @@ public final class MusicDirector {
         requested = null;
         if (track == null) {
             String id = activeDeck().next();
-            track = WhoStoppedTheMusic.LIBRARY.tracks().stream().filter(t -> t.id().equals(id)).findFirst().orElseThrow();
+            track = WhoStoppedTheMusic.LIBRARY.find(id).orElseThrow();
         }
         return new TrackSoundInstance(music(BASIC).sound().value().location(), track);
     }
@@ -182,21 +179,15 @@ public final class MusicDirector {
     }
 
     private void playSelected(String id) {
-        requested = WhoStoppedTheMusic.LIBRARY.tracks().stream().filter(t -> t.id().equals(id)).findFirst().orElseThrow();
+        requested = WhoStoppedTheMusic.LIBRARY.find(id).orElseThrow();
         stopped = false;
         manager.stopPlaying();
         manager.startPlaying(music(BASIC));
         requested = null;
     }
 
-    public MusicDirector(Minecraft client, MusicManager manager) {
-        this.client = client;
-        this.manager = manager;
-        this.preview = new Preview(client, this);
-    }
-
     public static MusicDirector get(Minecraft client) {
-        return ((Access) client.getMusicManager()).whostoppedthemusic$director();
+        return ((DirectorAccess) client.getMusicManager()).whostoppedthemusic$director();
     }
 
     public SoundInstance current() {
@@ -249,31 +240,12 @@ public final class MusicDirector {
         return basic() ? !selected().isEmpty() : client.getSituationalMusic() != null;
     }
 
-    public Component status() {
-        String key = manager.getCurrentMusicTranslationKey();
-        if (!active() || key == null) {
-            return Component.translatable("whostoppedthemusic.cassette.silence");
-        }
-        Component title = title();
-        if (paused()) {
-            return Component.translatable("whostoppedthemusic.paused", title);
-        }
-        return client.options.getFinalSoundSourceVolume(SoundSource.MUSIC) > 0 ? title
-                : Component.translatable("whostoppedthemusic.muted", title);
-    }
-
-    private Component title() {
-        return current() instanceof TrackSoundInstance track ? track.track().title()
-                : Component.translatable(manager.getCurrentMusicTranslationKey().replace('/', '.'));
-    }
-
     public Track.Metadata metadata() {
         if (!active() || manager.getCurrentMusicTranslationKey() == null)
             return new Track.Metadata(Component.empty(), Component.empty());
         if (current() instanceof TrackSoundInstance track) return track.track().metadata();
         String id = current().getSound().getLocation().toString();
-        return WhoStoppedTheMusic.LIBRARY.tracks().stream().filter(track -> track.id().equals(id))
-                .findFirst().map(Track::metadata).orElseGet(() -> Track.metadata(Component.translatableWithFallback(
+        return WhoStoppedTheMusic.LIBRARY.find(id).map(Track::metadata).orElseGet(() -> Track.metadata(Component.translatableWithFallback(
                         manager.getCurrentMusicTranslationKey().replace('/', '.'), TrackNames.prettify(id))));
     }
 
@@ -285,11 +257,11 @@ public final class MusicDirector {
     }
 
     /** Vanilla has resolved the sound and allocated its channel; stream loading may still be pending. */
-    public void started(Music music) {
+    public void started() {
         paused = null;
         var handle = channel();
         if (handle != null) {
-            handle.execute(channel -> ((ChannelControl) channel).whostoppedthemusic$manage());
+            handle.execute(channel -> ((MusicChannelControl) channel).whostoppedthemusic$manage());
         }
     }
 
@@ -313,7 +285,7 @@ public final class MusicDirector {
         paused = resume ? null : current();
         var handle = channel();
         if (handle != null) {
-            handle.execute(channel -> ((ChannelControl) channel).whostoppedthemusic$pause(!resume));
+            handle.execute(channel -> ((MusicChannelControl) channel).whostoppedthemusic$pause(!resume));
         }
     }
 
@@ -330,9 +302,8 @@ public final class MusicDirector {
 
     /** An asynchronously failed open must release its INITIAL native source as well. */
     public void failed(TrackSoundInstance source) {
-        var engine = ((SoundManagerAccessor) client.getSoundManager()).whostoppedthemusic$engine();
-        var handle = ((SoundEngineAccessor) engine).whostoppedthemusic$channels().get(source);
-        if (handle != null) handle.execute(com.mojang.blaze3d.audio.Channel::destroy);
+        var handle = SoundChannels.get(client, source);
+        if (handle != null) handle.execute(Channel::destroy);
         preview.failed(source);
         if (current() == source) manager.stopPlaying();
     }
@@ -342,8 +313,7 @@ public final class MusicDirector {
     }
 
     private ChannelAccess.ChannelHandle channel(SoundInstance source) {
-        var engine = ((SoundManagerAccessor) client.getSoundManager()).whostoppedthemusic$engine();
-        return ((SoundEngineAccessor) engine).whostoppedthemusic$channels().get(source);
+        return SoundChannels.get(client, source);
     }
 
 }

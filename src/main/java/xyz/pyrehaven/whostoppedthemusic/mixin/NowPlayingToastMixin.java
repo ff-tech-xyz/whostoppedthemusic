@@ -1,7 +1,7 @@
 package xyz.pyrehaven.whostoppedthemusic.mixin;
 
-import net.minecraft.client.gui.components.toasts.NowPlayingToast;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.components.toasts.NowPlayingToast;
 import net.minecraft.network.chat.Component;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;

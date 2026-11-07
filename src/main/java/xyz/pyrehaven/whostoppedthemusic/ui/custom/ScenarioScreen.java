@@ -1,24 +1,29 @@
 package xyz.pyrehaven.whostoppedthemusic.ui.custom;
 
-import java.util.List;
+import static xyz.pyrehaven.whostoppedthemusic.ui.Theme.text;
+
 import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+import java.util.function.BooleanSupplier;
 import java.util.function.UnaryOperator;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.Tooltip;
-import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
 import xyz.pyrehaven.whostoppedthemusic.Settings;
 import xyz.pyrehaven.whostoppedthemusic.WhoStoppedTheMusic;
 import xyz.pyrehaven.whostoppedthemusic.music.Deck;
-import xyz.pyrehaven.whostoppedthemusic.music.Track;
 import xyz.pyrehaven.whostoppedthemusic.music.MusicDirector;
-import xyz.pyrehaven.whostoppedthemusic.music.custom.ScenarioId;
+import xyz.pyrehaven.whostoppedthemusic.music.Track;
 import xyz.pyrehaven.whostoppedthemusic.music.custom.ScenarioConfig;
-import xyz.pyrehaven.whostoppedthemusic.ui.MusicControls;
+import xyz.pyrehaven.whostoppedthemusic.music.custom.ScenarioId;
 import xyz.pyrehaven.whostoppedthemusic.ui.CassetteArtwork;
+import xyz.pyrehaven.whostoppedthemusic.ui.MusicControls;
 import xyz.pyrehaven.whostoppedthemusic.ui.OverflowText;
 import xyz.pyrehaven.whostoppedthemusic.ui.Theme;
 import xyz.pyrehaven.whostoppedthemusic.ui.widget.TrackList;
@@ -77,7 +82,7 @@ public final class ScenarioScreen extends Screen {
         left = (width - contentWidth) / 2;
         int x = left + Theme.PADDING;
         int available = contentWidth - Theme.PADDING * 2;
-        addRenderableWidget(Theme.scenarioButton(x, Theme.MARGIN, Theme.EDITOR_BACK_WIDTH, Component.translatable("gui.back"), button -> onClose()));
+        addRenderableWidget(Theme.button(x, Theme.MARGIN, Theme.EDITOR_BACK_WIDTH, Component.translatable("gui.back"), button -> onClose()));
         settingsGrid(x, Theme.BASIC_TOP, available);
         bodyY = Theme.BASIC_TOP + Theme.EDITOR_CONTROLS;
         columnWidth = (available - Theme.GAP * 2) / 2;
@@ -94,12 +99,12 @@ public final class ScenarioScreen extends Screen {
         weight = addRenderableWidget(new WeightSlider(rightX, detailY, columnWidth, this::focusedWeight,
                 () -> config().songs().stream().mapToInt(Deck.Entry::weight).sum(), this::changeWeight));
         int half = (columnWidth - Theme.GAP) / 2;
-        preview = addRenderableWidget(Theme.scenarioButton(rightX, bottom - Theme.CONTROL_HEIGHT, half, text("preview"), button -> {
+        preview = addRenderableWidget(Theme.button(rightX, bottom - Theme.CONTROL_HEIGHT, half, text("preview"), button -> {
             var track = focusedTrack();
             if (track != null) MusicDirector.get(minecraft).preview().toggle(track);
         }));
         preview.setTooltip(Tooltip.create(text("preview_hint")));
-        remove = addRenderableWidget(Theme.scenarioButton(rightX + half + Theme.GAP, bottom - Theme.CONTROL_HEIGHT,
+        remove = addRenderableWidget(Theme.button(rightX + half + Theme.GAP, bottom - Theme.CONTROL_HEIGHT,
                 columnWidth - half - Theme.GAP, text("remove"), button -> removeFocused()));
         // A retained editor may return from a picker after its settings or library changed.
         library.refresh();
@@ -121,9 +126,9 @@ public final class ScenarioScreen extends Screen {
             if (special) toggle(x, y, cell, "active", () -> config().active(), () -> edit(c -> c.withActive(!c.active())));
             int priorityX = special ? x + cell + Theme.GAP : x;
             int step = Theme.CONTROL_HEIGHT;
-            addRenderableWidget(Theme.scenarioButton(priorityX, y, step, Component.literal("−"), button -> edit(c -> c.withPriority(Math.max(1, c.priority() - 1)))));
-            priority = addRenderableWidget(Theme.scenarioButton(priorityX + step, y, cell - step * 2, text("priority", config().priority()), button -> {}));
-            addRenderableWidget(Theme.scenarioButton(priorityX + cell - step, y, step, Component.literal("+"), button -> edit(c -> c.withPriority(Math.min(10, c.priority() + 1)))));
+            addRenderableWidget(Theme.button(priorityX, y, step, Component.literal("−"), button -> edit(c -> c.withPriority(Math.max(1, c.priority() - 1)))));
+            priority = addRenderableWidget(Theme.button(priorityX + step, y, cell - step * 2, text("priority", config().priority()), button -> {}));
+            addRenderableWidget(Theme.button(priorityX + cell - step, y, step, Component.literal("+"), button -> edit(c -> c.withPriority(Math.min(10, c.priority() + 1)))));
             toggle(last - cell - Theme.GAP, y, cell, "interrupt", () -> config().interrupt(), () -> edit(c -> c.withInterrupt(!c.interrupt())));
         }
         int second = y + Theme.ROW;
@@ -150,7 +155,7 @@ public final class ScenarioScreen extends Screen {
         copy.setTooltip(Tooltip.create(copy.getMessage()));
     }
 
-    private void toggle(int x, int y, int width, String key, java.util.function.BooleanSupplier value, Runnable change) {
+    private void toggle(int x, int y, int width, String key, BooleanSupplier value, Runnable change) {
         var toggle = new Toggle(text(key + "_short"), text(key), value, change);
         toggle.setRectangle(width, Theme.CONTROL_HEIGHT, x, y);
         addRenderableWidget(toggle);
@@ -172,8 +177,7 @@ public final class ScenarioScreen extends Screen {
     private Deck.Entry focused() { return config().songs().stream().filter(e -> e.id().equals(songs.focusedId())).findFirst().orElse(null); }
     private int focusedWeight() { var entry = focused(); return entry == null ? 1 : entry.weight(); }
     private Track focusedTrack() {
-        return focused() == null ? null : WhoStoppedTheMusic.LIBRARY.tracks().stream()
-                .filter(t -> t.id().equals(songs.focusedId()) && t.playable()).findFirst().orElse(null);
+        return focused() == null ? null : WhoStoppedTheMusic.LIBRARY.find(songs.focusedId()).filter(Track::playable).orElse(null);
     }
 
     private void changeWeight(int value) {
@@ -190,9 +194,9 @@ public final class ScenarioScreen extends Screen {
     private void add(Track track) {
         edit(c -> {
             if (c.songs().stream().anyMatch(e -> e.id().equals(track.id()))) return c;
-            var counts = new java.util.TreeMap<Integer, Integer>();
+            var counts = new TreeMap<Integer, Integer>();
             c.songs().forEach(e -> counts.merge(e.weight(), 1, Integer::sum));
-            int modal = counts.entrySet().stream().max(java.util.Map.Entry.comparingByValue()).map(java.util.Map.Entry::getKey).orElse(10);
+            int modal = counts.entrySet().stream().max(Map.Entry.comparingByValue()).map(Map.Entry::getKey).orElse(10);
             var entries = new ArrayList<>(c.songs());
             entries.add(new Deck.Entry(track.id(), modal));
             return c.withSongs(entries);
@@ -215,7 +219,7 @@ public final class ScenarioScreen extends Screen {
 
     @Override public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
         graphics.fill(0, 0, width, height, Theme.BACKGROUND);
-        graphics.fill(left, Theme.MARGIN, left + contentWidth, height - Theme.MARGIN, Theme.CARD);
+        Theme.panel(graphics, left, contentWidth, height);
         var label = title.copy().append("  (").append(description()).append(")");
         if (settings.songsEdited(scenario, defaults())) label.append(text("scenario.edited"));
         heading.draw(graphics, font, label, left + Theme.PADDING + Theme.EDITOR_BACK_WIDTH + Theme.GAP,
@@ -292,7 +296,7 @@ public final class ScenarioScreen extends Screen {
             addRenderableWidget(query);
             list.updateSizeAndPosition(available, height - Theme.BASIC_FOOTER_SPACE - Theme.BASIC_TOP - Theme.ROW, x, Theme.BASIC_TOP + Theme.ROW);
             addRenderableWidget(list);
-            addRenderableWidget(Theme.scenarioButton(width / 2 - Theme.DONE_WIDTH / 2, height - Theme.MARGIN - Theme.CONTROL_HEIGHT,
+            addRenderableWidget(Theme.button(width / 2 - Theme.DONE_WIDTH / 2, height - Theme.MARGIN - Theme.CONTROL_HEIGHT,
                     Theme.DONE_WIDTH, Component.translatable("gui.cancel"), button -> onClose()));
         }
         @Override public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
@@ -302,7 +306,4 @@ public final class ScenarioScreen extends Screen {
         @Override public void onClose() { minecraft.gui.setScreen(ScenarioScreen.this); }
     }
 
-    private static net.minecraft.network.chat.MutableComponent text(String key, Object... args) {
-        return Component.translatable("whostoppedthemusic." + key, args);
-    }
 }
