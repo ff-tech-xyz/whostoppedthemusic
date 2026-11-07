@@ -21,9 +21,15 @@ import xyz.pyrehaven.whostoppedthemusic.music.MusicDirector;
 import net.minecraft.network.chat.Component;
 
 public final class WhoStoppedTheMusic implements ClientModInitializer {
+    private static Settings settings;
+    public static final xyz.pyrehaven.whostoppedthemusic.music.TrackLibrary LIBRARY =
+            new xyz.pyrehaven.whostoppedthemusic.music.TrackLibrary();
+
+    public static Settings settings() { return settings; }
+
     @Override
     public void onInitializeClient() {
-        Settings settings = Settings.load(FabricLoader.getInstance().getConfigDir().resolve("whostoppedthemusic.json"));
+        settings = Settings.load(FabricLoader.getInstance().getConfigDir().resolve("whostoppedthemusic.json"));
         KeyMapping open = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.whostoppedthemusic.open", InputConstants.KEY_M,
                 KeyMapping.Category.register(Identifier.fromNamespaceAndPath("whostoppedthemusic", "music"))));
         ClientLifecycleEvents.CLIENT_STARTED.register(client -> settings.completeFirstRun(() -> {

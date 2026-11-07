@@ -2,6 +2,6 @@
   "required": true,
   "package": "xyz.pyrehaven.whostoppedthemusic.mixin",
   "compatibilityLevel": "JAVA_25",
-  "client": ["MusicManagerAccessor", "MusicManagerMixin", "PauseScreenMixin", "SoundManagerAccessor", "SoundEngineAccessor", "MusicChannelMixin"],
+  "client": ["MusicManagerAccessor", "MusicManagerMixin", "PauseScreenMixin", "SoundManagerAccessor", "SoundEngineAccessor", "MusicChannelMixin", "WeighedSoundEventsAccessor", "SoundEventReferenceAccessor", "SoundLibraryMixin", "ClientLevelAccessor", "ClientJukeboxMixin", "MusicWorldMixin", "LevelSoundMixin", "NowPlayingToastMixin"],
   "injectors": { "defaultRequire": 1 }
 }

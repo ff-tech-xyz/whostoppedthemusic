@@ -21,6 +21,25 @@ public final class Theme {
     public static final int ROW = CONTROL_HEIGHT + GAP;
     public static final int MAX_WIDTH = 600;
     public static final int DONE_WIDTH = 120;
+    public static final int BASIC_TOP = 34;
+    public static final int BASIC_SECOND = BASIC_TOP + ROW;
+    public static final int BASIC_STATUS = BASIC_SECOND + ROW;
+    public static final int BASIC_SEARCH = 100;
+    public static final int BASIC_LIST = BASIC_SEARCH + ROW;
+    public static final int BASIC_MODE_WIDTH = 70;
+    public static final int BASIC_SHUFFLE_WIDTH = 100;
+    public static final int BASIC_BULK_WIDTH = 40;
+    public static final int BASIC_VOLUME_SPACE = 36;
+    public static final int VOLUME_HEIGHT = 120;
+    public static final int BASIC_FOOTER_SPACE = 64;
+    public static final int BASIC_TRANSPORT_BOTTOM = BASIC_FOOTER_SPACE - GAP;
+    public static final int TRACK_HEIGHT = 24;
+    public static final int TRACK_HEADER_HEIGHT = 18;
+    public static final int TRACK_PLAY_WIDTH = 24;
+    public static final int TRACK_SCROLLBAR_SPACE = 10;
+    public static final int TRACK_TEXT_GAP = 4;
+    public static final int TOAST_TITLE_Y = 5;
+    public static final int TOAST_SONG_Y = 18;
 
     private Theme() {
     }

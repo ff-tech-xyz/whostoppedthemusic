@@ -46,7 +46,8 @@ final class SettingsTest {
     @Test
     void brokenOrUnknownEnumFileIsPreservedAndDefaultsAreRecovered() throws Exception {
         Path file = directory.resolve("whostoppedthemusic.json");
-        for (String broken : new String[]{"{broken", "null", "[]", "{\"jukebox\":\"NEW_VALUE\"}"}) {
+        for (String broken : new String[]{"{broken", "null", "[]", "{\"jukebox\":\"NEW_VALUE\"}",
+                "{\"mode\":\"CUSTOM\"}", "{\"basic\":null}", "{\"basic\":[]}", "{\"basic\":{\"unticked\":null}}"}) {
             Files.writeString(file, broken);
             Settings recovered = Settings.load(file);
             assertFalse(recovered.firstRunDone());
@@ -64,5 +65,27 @@ final class SettingsTest {
                 () -> settings.completeFirstRun(() -> { throw new IllegalStateException("not saved"); }));
         assertFalse(settings.firstRunDone());
         assertFalse(Files.exists(file));
+    }
+
+    @Test
+    void basicSelectionAndModeRoundTripAndNewTracksStartTicked() throws Exception {
+        Path file = directory.resolve("whostoppedthemusic.json");
+        var settings = Settings.load(file);
+        assertTrue(settings.shuffle());
+        assertTrue(settings.ticked("minecraft:records/cat"));
+        settings.setMode(Mode.BASIC);
+        settings.setShuffle(false);
+        settings.setAllTicked(java.util.List.of("a", "b", "c"), false);
+        settings.setTicked("b", true);
+        var loaded = Settings.load(file);
+        assertEquals(Mode.BASIC, loaded.mode());
+        assertFalse(loaded.shuffle());
+        assertFalse(loaded.ticked("a"));
+        assertTrue(loaded.ticked("b"));
+        assertFalse(loaded.ticked("c"));
+        assertTrue(loaded.ticked("new-track"));
+        loaded.setAllTicked(java.util.List.of("a", "c"), true);
+        assertTrue(Settings.load(file).ticked("c"));
+        assertFalse(Files.readString(file).contains("stopped"));
     }
 }

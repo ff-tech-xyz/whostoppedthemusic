@@ -15,6 +15,7 @@ public final class MusicScreen extends Screen {
     private int contentWidth;
     private Button pause;
     private Button next;
+    private BasicPanel basicPanel;
 
     public MusicScreen(Screen parent, Settings settings) {
         super(Component.translatable("whostoppedthemusic.screen.title"));
@@ -26,6 +27,12 @@ public final class MusicScreen extends Screen {
     protected void init() {
         contentWidth = Math.min(Theme.MAX_WIDTH, width - Theme.MARGIN * 2);
         left = (width - contentWidth) / 2;
+        basicPanel = null;
+        if (settings.mode() == xyz.pyrehaven.whostoppedthemusic.Mode.BASIC) {
+            initBasic();
+            doneButton();
+            return;
+        }
         int x = left + Theme.PADDING;
         int available = contentWidth - Theme.PADDING * 2;
         int controlsWidth = available < 360 ? 122 : 170;
@@ -44,7 +51,7 @@ public final class MusicScreen extends Screen {
         };
         addRenderableWidget(tape);
         addRenderableWidget(Theme.button(controlsX, y, controlsWidth,
-                Component.translatable("whostoppedthemusic.mode.vanilla"), button -> { }));
+                Component.translatable("whostoppedthemusic.mode.vanilla"), button -> changeMode()));
         addRenderableWidget(Theme.button(controlsX, y + Theme.ROW, controlsWidth, frequencyLabel(), button -> {
             var option = minecraft.options.musicFrequency();
             var values = net.minecraft.client.sounds.MusicManager.MusicFrequency.values();
@@ -55,7 +62,6 @@ public final class MusicScreen extends Screen {
             settings.setJukebox(settings.jukebox().next());
             button.setMessage(jukeboxLabel());
         });
-        jukebox.setTooltip(Tooltip.create(Component.translatable("whostoppedthemusic.jukebox.saved_only")));
         addRenderableWidget(jukebox);
         int transportWidth = (controlsWidth - Theme.GAP) / 2;
         int transportY = y + Theme.ROW * 3 + Theme.GAP;
@@ -65,6 +71,46 @@ public final class MusicScreen extends Screen {
                 ">", "next", director::next);
         addRenderableWidget(new MusicVolumeSlider(minecraft, controlsX + controlsWidth + Theme.GAP, y, 120));
         updateTransport();
+        doneButton();
+    }
+
+    private void initBasic() {
+        int x = left + Theme.PADDING;
+        int available = contentWidth - Theme.PADDING * 2 - Theme.BASIC_VOLUME_SPACE;
+        int frequencyX = x + Theme.BASIC_MODE_WIDTH + Theme.GAP;
+        addRenderableWidget(Theme.button(x, Theme.BASIC_TOP, Theme.BASIC_MODE_WIDTH, Component.translatable("whostoppedthemusic.mode.basic"), button -> changeMode()));
+        addRenderableWidget(Theme.button(frequencyX, Theme.BASIC_TOP, available - Theme.BASIC_MODE_WIDTH - Theme.GAP, frequencyLabel(), button -> {
+            var option = minecraft.options.musicFrequency();
+            var values = net.minecraft.client.sounds.MusicManager.MusicFrequency.values();
+            option.set(values[(option.get().ordinal() + 1) % values.length]);
+            button.setMessage(frequencyLabel());
+        }));
+        int shuffleWidth = Math.min(Theme.BASIC_SHUFFLE_WIDTH, available / 2);
+        addRenderableWidget(Theme.button(x, Theme.BASIC_SECOND, available - shuffleWidth - Theme.GAP, jukeboxLabel(), button -> {
+            settings.setJukebox(settings.jukebox().next());
+            button.setMessage(jukeboxLabel());
+        }));
+        addRenderableWidget(Theme.button(x + available - shuffleWidth, Theme.BASIC_SECOND, shuffleWidth, shuffleLabel(), button -> {
+            settings.setShuffle(!settings.shuffle());
+            MusicDirector.get(minecraft).playlistChanged();
+            button.setMessage(shuffleLabel());
+        }));
+        addRenderableWidget(new MusicVolumeSlider(minecraft, x + available + Theme.GAP, Theme.BASIC_TOP, Theme.VOLUME_HEIGHT));
+        basicPanel = new BasicPanel(minecraft, settings, x, available, height, this::addRenderableWidget);
+    }
+
+    private Component shuffleLabel() {
+        return Component.translatable("whostoppedthemusic.shuffle", Component.translatable(settings.shuffle() ? "options.on" : "options.off"));
+    }
+
+    private void changeMode() {
+        settings.setMode(settings.mode() == xyz.pyrehaven.whostoppedthemusic.Mode.VANILLA
+                ? xyz.pyrehaven.whostoppedthemusic.Mode.BASIC : xyz.pyrehaven.whostoppedthemusic.Mode.VANILLA);
+        MusicDirector.get(minecraft).syncMode();
+        rebuildWidgets();
+    }
+
+    private void doneButton() {
         addRenderableWidget(Theme.button(width / 2 - Theme.DONE_WIDTH / 2,
                 height - Theme.MARGIN - Theme.CONTROL_HEIGHT, Theme.DONE_WIDTH,
                 Component.translatable("gui.done"), button -> onClose()));
@@ -81,6 +127,10 @@ public final class MusicScreen extends Screen {
 
     private void updateTransport() {
         var director = MusicDirector.get(minecraft);
+        if (basicPanel != null) {
+            basicPanel.update(director);
+            return;
+        }
         pause.active = director.active() || director.canNext();
         pause.setMessage(Component.literal(!director.active() || director.paused() ? ">" : "||"));
         pause.setTooltip(Tooltip.create(Component.translatable(
@@ -109,6 +159,13 @@ public final class MusicScreen extends Screen {
         graphics.text(font, title, left + Theme.PADDING, Theme.MARGIN + Theme.GAP, Theme.TEXT);
         updateTransport();
         super.extractRenderState(graphics, mouseX, mouseY, delta);
+        if (basicPanel != null) {
+            int x = left + Theme.PADDING;
+            graphics.enableScissor(x, Theme.BASIC_STATUS - Theme.ACCENT,
+                    left + contentWidth - Theme.PADDING - Theme.BASIC_VOLUME_SPACE, Theme.BASIC_SEARCH - Theme.ACCENT);
+            graphics.text(font, MusicDirector.get(minecraft).status(), x, Theme.BASIC_STATUS, Theme.TEXT);
+            graphics.disableScissor();
+        }
     }
 
     @Override

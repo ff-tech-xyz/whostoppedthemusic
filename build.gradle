@@ -85,5 +85,6 @@ tasks.named('runClientGameTest') {
             .plus(files(tasks.named('jar').flatMap { it.archiveFile }))
     jvmArgs "-Xlog:class+load=info:file=${file('../../runtime/whostoppedthemusic/evidence/client-classes.log')}"
     systemProperty 'whostoppedthemusic.transportOnly', project.hasProperty('transportOnly')
+    systemProperty 'whostoppedthemusic.basicOnly', project.hasProperty('basicOnly')
     doFirst { file('../../runtime/whostoppedthemusic/evidence').mkdirs() }
 }

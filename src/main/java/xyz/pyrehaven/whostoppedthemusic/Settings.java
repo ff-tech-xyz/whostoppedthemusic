@@ -16,6 +16,9 @@ public final class Settings {
     private final Path file;
     private boolean firstRunDone;
     private JukeboxSetting jukebox = JukeboxSetting.PAUSE_MUSIC;
+    private Mode mode = Mode.VANILLA;
+    private boolean shuffle = true;
+    private final java.util.Set<String> unticked = new java.util.HashSet<>();
 
     private Settings(Path file) {
         this.file = file;
@@ -34,6 +37,16 @@ public final class Settings {
             if (data.has("jukebox")) {
                 settings.jukebox = JukeboxSetting.valueOf(data.get("jukebox").getAsString());
             }
+            if (data.has("mode")) {
+                settings.mode = Mode.valueOf(data.get("mode").getAsString());
+            }
+            if (data.has("basic")) {
+                var basic = data.get("basic").getAsJsonObject();
+                if (basic.has("shuffle")) settings.shuffle = basic.get("shuffle").getAsBoolean();
+                if (basic.has("unticked")) {
+                    for (var id : basic.get("unticked").getAsJsonArray()) settings.unticked.add(id.getAsString());
+                }
+            }
             return settings;
         } catch (JsonParseException | IllegalStateException | IllegalArgumentException | UnsupportedOperationException e) {
             try {
@@ -48,7 +61,29 @@ public final class Settings {
     }
 
     public Mode mode() {
-        return Mode.VANILLA;
+        return mode;
+    }
+
+    public boolean shuffle() { return shuffle; }
+
+    public boolean ticked(String id) { return !unticked.contains(id); }
+
+    public void setMode(Mode value) {
+        if (mode != value) { mode = value; save(); }
+    }
+
+    public void setShuffle(boolean value) {
+        if (shuffle != value) { shuffle = value; save(); }
+    }
+
+    public void setTicked(String id, boolean value) {
+        boolean changed = value ? unticked.remove(id) : unticked.add(id);
+        if (changed) save();
+    }
+
+    public void setAllTicked(java.util.Collection<String> ids, boolean value) {
+        boolean changed = value ? unticked.removeAll(ids) : unticked.addAll(ids);
+        if (changed) save();
     }
 
     public JukeboxSetting jukebox() {
@@ -80,6 +115,10 @@ public final class Settings {
         data.addProperty("firstRunDone", firstRunDone);
         data.addProperty("mode", mode().name());
         data.addProperty("jukebox", jukebox.name());
+        JsonObject basic = new JsonObject();
+        basic.addProperty("shuffle", shuffle);
+        basic.add("unticked", JSON.toJsonTree(unticked.stream().sorted().toList()));
+        data.add("basic", basic);
         try {
             Path directory = file.toAbsolutePath().getParent();
             Files.createDirectories(directory);
