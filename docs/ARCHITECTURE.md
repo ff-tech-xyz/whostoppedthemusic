@@ -40,7 +40,8 @@ Current implemented slice (2026-11-07): Settings and first-launch Constant, Vani
 transport, Basic soundtrack/disc selection and playback, shared controls and one SongToast in both modes,
 and nearby jukebox fade/hold in both modes. Imported MP3/OGG files play through
 the same Basic path. Add music manages those files through a shared screen;
-Custom remains authorized, unimplemented work.
+Custom's pure scenario resolver is implemented; runtime defaults, playback and UI
+remain authorized work.
 The M screen cycles Vanilla/Basic; the
 compact pause cassette retains live title/artist metadata and Next. Shared
 playback-driven reel artwork and empty-player spindle rods are implemented.
@@ -95,6 +96,33 @@ is destroyed after attachment, closing its stream without issuing alSourcePlay;
 vanilla's normal channel cleanup then releases its handle. Only MusicManager's
 own channels are managed; Records and effects retain vanilla behavior.
 
+### Pure Custom resolver contract
+
+`ContextResolver.resolve(Situation, Map<ScenarioId, ScenarioConfig>, previousWinners)`
+returns an immutable `Resolution`. The map supplies effective settings, not JSON
+overrides: the current biome and in-world specials must be present. Menu/credits
+need only their own config. Missing effective configs fail explicitly.
+`Settings` remains the future persistence owner; this slice adds no settings store.
+
+The playback integration will keep the previous tick's winner IDs in the existing
+`MusicDirector`, starting with an empty collection, and pass `resolution.winners()`
+on the next tick. The resolver retains no state. Ordinary interrupt flags apply
+only to newly winning IDs; menu and credits always return interrupt. Removing an
+interrupting winner or keeping an existing one does not trigger an interrupt.
+`ScenarioConfig.Frequency` is pure; the future playback adapter maps it to vanilla's
+`MusicFrequency`. `SituationReader` will populate namespaced biome tag strings and
+the camera-block precipitation/exposure snapshot. `exposedToRain` represents the
+heightmap exposure test; weather requires both it and sky visibility when outside
+is required. The reader, default extraction and playback adapter are not implemented
+by function 11.
+
+Winner IDs and merged track IDs sort canonically, making keys and deck entries
+stable across input map iteration order. The key joins scenario IDs with `+`;
+the future synthetic sound-ID adapter must hash mixed keys as specified. Scenario
+song lists enforce unique IDs and weights 1–100. `Deck.Entry` accepts positive
+raw sums, so two weight-100 entries merge to 200 and still draw at their exact
+relative odds. Load-time clamping belongs to settings v2, not tie resolution.
+
 ```text
 whostoppedthemusic/
 ├── .github/workflows/build.yml      # CI: build, unit tests, client game test (copied from RealSize, adapted)
@@ -137,7 +165,7 @@ whostoppedthemusic/
     │   │   │   │   # Owns asynchronous folder scans/probes and client-thread publication; Custom poolEntries remains planned.
     │   │   │   ├── Deck.java
     │   │   │   │   # Pure logic, no Minecraft classes: weighted shuffle "deck" with history
-    │   │   │   │   # for previous/next. Fully unit tested.
+    │   │   │   │   # for previous/next. Positive weights include raw tied sums; scenario edit bounds live in ScenarioConfig.
     │   │   │   ├── MusicDirector.java
     │   │   │   │   # Vanilla transport, Basic deck/history/stop/row play, one Basic pool,
     │   │   │   │   # truthful channel status/advancement and resolved-file match, jukebox hold and toast.
@@ -148,12 +176,16 @@ whostoppedthemusic/
     │   │   │   ├── Mp3AudioStream.java      # AudioStream over jlayer-decoder (16-bit PCM)
     │   │   │   ├── LocalSong.java           # scanned file, decode availability, probe/open, late read failures end the stream
     │   │   │   ├── JukeboxWatcher.java      # reads vanilla's event-driven map and live channels near the camera
-    │   │   │   └── custom/                 # planned scenario implementation, supplied spec §7
-    │   │   │       ├── Special.java, ScenarioId.java, ScenarioConfig.java
-    │   │   │       ├── Situation.java, SituationReader.java # snapshot; reader alone touches live game state
-    │   │   │       ├── ContextResolver.java, Resolution.java # pure priority/tie/settings resolution
-    │   │   │       ├── CustomDefaults.java, BiomeCatalog.java # exact odds and registry discovery
-    │   │   │       └── Preview.java         # existing-channel pause, midpoint excerpt, fade/resume
+    │   │   │   └── custom/
+    │   │   │       ├── Special.java         # the nine scenario specials
+    │   │   │       ├── ScenarioId.java      # typed biome/special identity and canonical sortable key
+    │   │   │       ├── ScenarioConfig.java  # immutable effective settings, pure Frequency enum, unique songs with weights 1–100
+    │   │   │       ├── Situation.java       # immutable camera/player/screen snapshot, biome tags and block precipitation
+    │   │   │       ├── ContextResolver.java # stateless priority/tie/settings resolution with explicit previous winners
+    │   │   │       ├── Resolution.java      # sorted winners/key, raw merged entries, interrupt/settings and silence
+    │   │   │       ├── SituationReader.java # planned; reader alone touches live game state
+    │   │   │       ├── CustomDefaults.java, BiomeCatalog.java # planned exact odds and registry discovery
+    │   │   │       └── Preview.java         # planned existing-channel pause, midpoint excerpt, fade/resume
     │   │   ├── custom/
     │   │   │   └── MusicFolder.java
     │   │   │       # Game-directory music/: case-insensitive .mp3/.ogg scan, file-name identity/title; excludes links/directories.
@@ -203,6 +235,7 @@ whostoppedthemusic/
     │           └── lang/en_us.json          # every piece of UI text, no hard-coded English
     ├── test/java/xyz/pyrehaven/whostoppedthemusic/
     │   ├── DeckTest.java            # weights, deck cycle, no repeat across refills, prev/next, empty deck
+    │   ├── ContextResolverTest.java # pure precedence/ties/raw sums/settings/interrupt, 96 weather cases, underground and aquatic
     │   ├── SettingsTest.java        # defaults, round trip, bad/unknown file, atomic write, first-run flag
     │   ├── TrackNamesTest.java      # metadata, translated names/fallback and search ranking
     │   ├── OverflowMotionTest.java  # waits, speed, reversal, fitting and content clocks

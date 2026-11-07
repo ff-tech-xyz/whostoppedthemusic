@@ -9,7 +9,9 @@ import java.util.Random;
 public final class Deck {
     public record Entry(String id, int weight) {
         public Entry {
-            if (weight < 1 || weight > 30) throw new IllegalArgumentException("weight must be 1–30");
+            java.util.Objects.requireNonNull(id);
+            // ScenarioConfig enforces the edit limit; tied scenarios carry raw sums here.
+            if (weight < 1) throw new IllegalArgumentException("weight must be positive");
         }
     }
 

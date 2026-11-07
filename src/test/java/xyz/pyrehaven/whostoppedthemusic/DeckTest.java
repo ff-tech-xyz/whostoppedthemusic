@@ -48,6 +48,6 @@ final class DeckTest {
         deck.configure(List.of(new Deck.Entry("B", 1)), true);
         assertFalse(deck.canPrevious());
         assertEquals("B", deck.next());
-        assertThrows(IllegalArgumentException.class, () -> new Deck.Entry("bad", 31));
+        assertThrows(IllegalArgumentException.class, () -> new Deck.Entry("bad", 0));
     }
 }
