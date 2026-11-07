@@ -6,6 +6,9 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import xyz.pyrehaven.whostoppedthemusic.Settings;
 import xyz.pyrehaven.whostoppedthemusic.music.MusicDirector;
+import xyz.pyrehaven.whostoppedthemusic.Mode;
+import xyz.pyrehaven.whostoppedthemusic.ui.custom.CustomPanel;
+import xyz.pyrehaven.whostoppedthemusic.ui.custom.ScenarioScreen;
 
 public final class MusicScreen extends Screen {
     private final Screen parent;
@@ -14,6 +17,7 @@ public final class MusicScreen extends Screen {
     private int contentWidth;
     private MusicControls controls;
     private BasicPanel basicPanel;
+    private CustomPanel customPanel;
 
     public MusicScreen(Screen parent, Settings settings) {
         super(Component.translatable("whostoppedthemusic.screen.title"));
@@ -25,6 +29,13 @@ public final class MusicScreen extends Screen {
     protected void init() {
         contentWidth = Math.min(Theme.MAX_WIDTH, width - Theme.MARGIN * 2);
         left = (width - contentWidth) / 2;
+        if (settings.mode() == Mode.CUSTOM) {
+            if (customPanel == null) customPanel = new CustomPanel(minecraft, settings,
+                    id -> minecraft.gui.setScreen(new ScenarioScreen(this, settings, id)));
+            customPanel.layout(left, contentWidth, height, this::addRenderableWidget, this::changeMode);
+            doneButton();
+            return;
+        }
         if (settings.mode() == xyz.pyrehaven.whostoppedthemusic.Mode.BASIC) {
             initBasic();
             doneButton();
@@ -68,18 +79,18 @@ public final class MusicScreen extends Screen {
     }
 
     private void changeMode() {
-        settings.setMode(settings.mode() == xyz.pyrehaven.whostoppedthemusic.Mode.VANILLA
-                ? xyz.pyrehaven.whostoppedthemusic.Mode.BASIC : xyz.pyrehaven.whostoppedthemusic.Mode.VANILLA);
+        var modes = Mode.values();
+        settings.setMode(modes[(settings.mode().ordinal() + 1) % modes.length]);
         MusicDirector.get(minecraft).syncMode();
         rebuildWidgets();
     }
 
     private void doneButton() {
         int y = height - Theme.MARGIN - Theme.CONTROL_HEIGHT;
-        boolean basic = settings.mode() == xyz.pyrehaven.whostoppedthemusic.Mode.BASIC;
-        int buttonWidth = basic ? Math.min(Theme.DONE_WIDTH, (contentWidth - Theme.PADDING * 2 - Theme.GAP) / 2) : Theme.DONE_WIDTH;
-        if (basic) addRenderableWidget(AddSongsScreen.button(this, settings, width / 2 - buttonWidth - Theme.GAP / 2, y, buttonWidth));
-        addRenderableWidget(Theme.button(basic ? width / 2 + Theme.GAP / 2 : width / 2 - buttonWidth / 2,
+        boolean playlist = settings.mode() != Mode.VANILLA;
+        int buttonWidth = playlist ? Math.min(Theme.DONE_WIDTH, (contentWidth - Theme.PADDING * 2 - Theme.GAP) / 2) : Theme.DONE_WIDTH;
+        if (playlist) addRenderableWidget(AddSongsScreen.button(this, settings, width / 2 - buttonWidth - Theme.GAP / 2, y, buttonWidth));
+        addRenderableWidget(Theme.button(playlist ? width / 2 + Theme.GAP / 2 : width / 2 - buttonWidth / 2,
                 y, buttonWidth,
                 Component.translatable("gui.done"), button -> onClose()));
     }
@@ -90,6 +101,10 @@ public final class MusicScreen extends Screen {
 
     private void updateTransport() {
         var director = MusicDirector.get(minecraft);
+        if (settings.mode() == Mode.CUSTOM) {
+            customPanel.update();
+            return;
+        }
         if (settings.mode() == xyz.pyrehaven.whostoppedthemusic.Mode.BASIC) {
             basicPanel.update(director);
             return;
@@ -109,6 +124,10 @@ public final class MusicScreen extends Screen {
         graphics.text(font, title, left + Theme.PADDING, Theme.MARGIN + Theme.GAP, Theme.TEXT);
         updateTransport();
         super.extractRenderState(graphics, mouseX, mouseY, delta);
+    }
+
+    @Override public void tick() {
+        if (settings.mode() == Mode.CUSTOM && customPanel != null) customPanel.refresh();
     }
 
     @Override

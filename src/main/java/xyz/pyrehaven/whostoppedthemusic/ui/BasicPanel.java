@@ -2,7 +2,6 @@ package xyz.pyrehaven.whostoppedthemusic.ui;
 
 import java.util.function.Consumer;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
@@ -21,8 +20,6 @@ public final class BasicPanel {
     private final Button all;
     private final Button none;
     private final MusicControls controls;
-    private Button previous;
-    private Button stop;
     private boolean collapsed;
 
     public BasicPanel(Minecraft client, Settings settings) {
@@ -74,41 +71,12 @@ public final class BasicPanel {
         collapse.setTooltip(Tooltip.create(text(collapsed ? "browser.expand" : "browser.collapse")));
         add.accept(collapse);
         var director = MusicDirector.get(client);
-        controls.settings(playerX, y, playerWidth, add, changeMode);
-        int third = (playerWidth - Theme.GAP * 2) / 3;
-        int transportY = y + Theme.ROW * 3;
-        previous = new TransportButton(playerX, transportY, third, TransportButton.Action.PREVIOUS, director::previous);
-        add.accept(previous);
-        controls.transport(playerX + third + Theme.GAP, transportY, third, add);
-        stop = Theme.button(playerX, transportY + Theme.ROW, Theme.BASIC_STOP_WIDTH, text("stop"), button -> {
-            director.stop();
-            update(director);
-        });
-        stop.setTooltip(Tooltip.create(text("stop")));
-        add.accept(stop);
-        add.accept(Theme.button(playerX + Theme.BASIC_STOP_WIDTH + Theme.GAP, transportY + Theme.ROW,
-                playerWidth - Theme.BASIC_STOP_WIDTH - Theme.GAP, shuffleLabel(), button -> {
-            settings.setShuffle(!settings.shuffle());
-            director.playlistChanged();
-            button.setMessage(shuffleLabel());
-        }));
-        int tapeY = transportY + Theme.ROW * 2 - Theme.GAP + Theme.ACCENT;
-        int tapeHeight = Math.min(Math.min(Theme.BASIC_TAPE_MAX_HEIGHT, playerWidth * 3 / 5), bottom - tapeY);
-        var tape = new Button(playerX, tapeY, playerWidth, tapeHeight, director.status(), button -> { }, supplier -> supplier.get()) {
-            private final CassetteArtwork artwork = new CassetteArtwork();
-            @Override protected void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
-                artwork.drawPlayer(graphics, this, director, false);
-            }
-        };
-        add.accept(tape);
-        add.accept(new MusicVolumeSlider(client, playerX + playerWidth + Theme.GAP, y, bottom - y));
+        controls.player(playerX, y, playerWidth, bottom, add, changeMode);
         update(director);
     }
 
     public void update(MusicDirector director) {
         controls.update();
-        stop.active = director.active();
-        previous.active = director.canPrevious();
     }
 
     public void refreshSongs() { list.filter(search.getValue()); }
@@ -123,10 +91,6 @@ public final class BasicPanel {
         if (!search.getValue().isBlank()) return;
         settings.setAllTicked(WhoStoppedTheMusic.LIBRARY.tracks().stream().map(t -> t.id()).toList(), ticked);
         MusicDirector.get(client).playlistChanged();
-    }
-
-    private Component shuffleLabel() {
-        return Component.translatable("whostoppedthemusic.shuffle", Component.translatable(settings.shuffle() ? "options.on" : "options.off"));
     }
 
     private static Component text(String key) { return Component.translatable("whostoppedthemusic." + key); }

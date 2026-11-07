@@ -42,8 +42,8 @@ transport, Basic soundtrack/disc selection and playback, shared controls and one
 and nearby jukebox fade/hold in both modes. Imported MP3/OGG files play through
 the same Basic path. Add music manages those files through a shared screen;
 Custom's scenario resolver, loaded runtime defaults, playback integration and
-sparse settings v2 are implemented; scenario UI and preview remain authorized work.
-The M screen cycles Vanilla/Basic; the
+sparse settings v2 and the Custom main browser are implemented. The complete song
+editor and preview remain authorized work. The M screen cycles Vanilla/Basic/Custom; the
 compact pause cassette retains live title/artist metadata and Next. Shared
 playback-driven reel artwork and empty-player spindle rods are implemented.
 
@@ -285,16 +285,18 @@ whostoppedthemusic/
     │   │   │       # Owns exclusive-create numbered copies and folder-confined removal; rejects links. Never runs on a timer.
     │   │   ├── ui/
     │   │   │   ├── Theme.java               # PyreHaven colours, spacing, shared search construction and text styles
-    │   │   │   ├── MusicControls.java       # shared settings and live transport; panels place Basic additions
+    │   │   │   ├── MusicControls.java       # shared settings/transport/right player; scenario targets and apply-all capture, Basic Stop/Shuffle
     │   │   │   ├── TransportButton.java     # drawn transport symbols, accessible actions and shared button states
-    │   │   │   ├── MusicScreen.java         # Vanilla layout; retains BasicPanel across resize/collapse rebuilds
+    │   │   │   ├── MusicScreen.java         # three-mode routing; retains BasicPanel/CustomPanel query/scroll through rebuilds
     │   │   │   ├── CassetteArtwork.java     # shared player/list shell, spindle geometry and playback-driven reel clock
     │   │   │   ├── MusicVolumeSlider.java   # vertical view of vanilla's Music option; keyboard and drag
-    │   │   │   ├── BasicPanel.java          # collapsible browser, player placement and Basic-only Previous/Stop/Shuffle
-    │   │   │   ├── custom/                 # planned; reuses actual shared components, Theme owns gray surfaces
+    │   │   │   ├── BasicPanel.java          # collapsible song browser and placement of the shared player
+    │   │   │   ├── custom/                 # shared components; Theme owns gray surfaces
+    │   │   │   │   ├── ScenarioLabels.java # translated names shared by browser/player/editor
+    │   │   │   │   ├── ScenarioList.java   # grouped/filterable loaded scenarios, playing/edited state and active toggles
     │   │   │   │   ├── CustomPanel.java    # scenario search/list, active toggles and shared right player
-    │   │   │   │   ├── ScenarioScreen.java # biome/special editor, settings and songs
-    │   │   │   │   ├── SongLibraryList.java # shared library search/list drag source
+    │   │   │   │   ├── ScenarioScreen.java # navigation/shared scenario settings now; full library/song editor in function 15
+    │   │   │   │   ├── SongLibraryList.java # planned shared library search/list drag source
     │   │   │   │   ├── ApplyToAllPopup.java # right-click confirmation, all known/future scenarios
     │   │   │   │   └── Toggle.java         # shared pill toggle
     │   │   │   ├── AddSongsScreen.java      # shared Add music action, confirmed drops/removal, TrackList management, open folder
@@ -302,6 +304,7 @@ whostoppedthemusic/
     │   │   │   ├── OverflowText.java        # per-line content clock and clipped fractional tape/toast rendering
     │   │   │   ├── CassetteWidget.java      # top compact cassette, live title and settings link
     │   │   │   └── widget/
+    │   │   │       ├── SettingButton.java  # shared left-cycle/right-confirm control with full-label tooltip
     │   │   │       ├── TrackList.java       # shared smooth clipped browser; ranked/sectioned rows, selection/play or local-only removal
     │   │   │       └── WeightSlider.java    # planned 1–100 slider with weight/chance text
     │   │   └── mixin/
@@ -340,6 +343,7 @@ whostoppedthemusic/
         │   ├── ClientSmokeGameTest.java # packaged UI/transport; controlsOnly/artworkOnly/ownSongsOnly/addSongsOnly focused selections
         │   ├── DiscoveryGameTest.java   # discoveryOnly: loaded discovery/default odds, 67 biomes, creative Deck, aliases/cycle/bounds/reload
         │   ├── CustomPlaybackGameTest.java # customOnly: packaged scenario playback/settings/transport/weather/jukebox/silence/LRU/mode regression
+        │   ├── CustomUiGameTest.java       # customUiOnly: main browser/shared player, tied silence/settings, popup persistence/cancel, both Add links and narrow bounds
         │   └── test/mixin/TransportStreamGate.java # holds decoded vanilla streams before source attachment
         └── resources/
             ├── fabric.mod.json         # development-only client test entrypoint
@@ -443,7 +447,7 @@ sound-engine reload behavior. A live Basic source survives world exit/entry;
 jukebox entries belong to the old level and cannot leak into the next one.
 
 ### Custom
-Authorized target, not implemented yet:
+Implemented through function 14; full song editing and preview remain functions 15/16:
 - Main left: searchable specials, then registry biomes grouped by vanilla dimension tags or namespace. Specials except menu/credits have active toggles. Rows show priority/song count, playing and edited distinctions. Right: the shared player/transport/cassette/volume and Add music action; frequency/jukebox labels name all current winners.
 - `SituationReader` captures camera-biome/sky/heightmap/precipitation and player underwater/creative state once per existing tick. Pure `ContextResolver` checks credits before menu, then highest-priority biome/active specials. Ties use sorted IDs, sum duplicate-song weights, strongest frequency, Pause music if any winner requests it, and interrupt if any newly winning scenario requests it. An empty active winner is silence, never fallback.
 - Implemented defaults use loaded runtime weights: creative adds six weight-1 files to game's 32 files weighted 1/2 (total 43). Nested aliases retain leaf weights and duplicate files add; only oversized reduced weights require approximation. Basic's flattening is unchanged. Pale garden/empty pools stay silent. Weather and underground start disabled; frequency starts Constant and jukebox starts Pause music.
@@ -455,10 +459,10 @@ Authorized target, not implemented yet:
 ## The screen
 
 OG Moo-cow's supplied sketches and revised contract govern this screen. The
-mode button cycles exactly “Vanilla” and “Basic”. Custom arrives with its playback.
-MusicControls builds the shared mode/Frequency/Jukebox settings and primary/Next
-transport for both panels. Panels place them; Basic adds Previous, labeled Stop
-and Shuffle. TransportButton draws Play/Resume, Pause and distinct Next/Previous
+mode button cycles Vanilla → Basic → Custom → Vanilla.
+MusicControls builds the shared mode/Frequency/Jukebox settings, right player and
+transport for Basic and Custom. Basic adds labeled Stop and Shuffle within that
+same owner. TransportButton draws Play/Resume, Pause and distinct Next/Previous
 symbols, with translated narration and tooltips. The pause-menu Next and browser
 row Play use this same button. Theme owns their dimensions, button frames and
 colors as well as surrounding dark surfaces. Loaded settings players show a bare
@@ -476,10 +480,40 @@ tape; silence shows only an empty player outline and red spindle rods.
 └────────────────────────────────────────────────────────────┘
 ```
 
-- Music volume and Frequency use **vanilla's own options** from `minecraft.options`. Their themed views update those options directly and save on closing; no duplicate volume/frequency state exists.
+- Music volume always uses vanilla's own Music option. Vanilla/Basic Frequency also uses the vanilla option and saves on closing. Custom Frequency/Jukebox uses effective scenario settings only; it never writes vanilla's frequency option.
 - The screen opens with **M** (rebindable in Controls → Who Stopped The Music) or by clicking the pause-menu cassette.
 - **PyreHaven style:** `Theme.java` owns orange `#E46011`, blue `#27607C`, glow `#4FA8D8`, background `#070B10`, card `#0E141C`, text `#F2F4F7`, and layout dimensions. Orange is the main accent; blue/glow mark edges and focus. **No logo anywhere in the UI.**
 - The UI must work at GUI scales 1–4 and down to a 320×240 window. Narrow windows shrink the tape and right column while preserving left/right placement; titles scroll inside their reel window.
+
+CustomPanel retains its shared Theme search and ScenarioList across rebuilds.
+ScenarioList uses vanilla's container/scroll/focus machinery, lists specials in
+enum order, then loaded biome groups in Overworld/Nether/End/namespace order.
+Absent biomes remain in Settings but are hidden. Theme owns the gray panel/row
+colors and pill geometry; OverflowText also supports shadow-free black text.
+Each live row derives count/priority, edited state and winner outline from the
+existing settings/playback owners. A separate Toggle consumes its click without
+opening the row. Row clicks open ScenarioScreen's shared-settings entry point;
+the complete library/drag/weight/reset/copy editor is still function 15.
+
+MusicControls accepts a scenario-ID supplier: current resolution winners on the
+main screen (even when silent), or the edited ID on ScenarioScreen. It combines
+effective settings for display and writes a left-click change to every target.
+SettingButton uses 26.3's SDL InputConstants mouse buttons, retains normal
+keyboard activation and shares Theme's actual button renderer. Right-click
+captures the current value and opens ApplyToAllPopup without mutation. The modal
+consumes outside clicks; No/Esc/outside only returns to the retained parent.
+Only Yes calls Settings.applyFrequencyToAll/applyJukeboxToAll, whose persisted
+defaults cover all specials, loaded/absent known biomes and future discovery.
+Custom and Basic both place AddSongsScreen.button, returning to the same parent.
+
+Function 14's packaged customUiOnly check passed on 2026-11-07: normal scale 2
+and 320×240 scale 1 bounds/non-overlap, three-mode cycle, search/active toggle,
+playing/edited rows, live shared Pause/Resume/Next/Previous, tied silent-winner
+labels/edits, both Add links and editor settings navigation. Popup cancellation
+preserves exact config bytes; Yes survives disk reload for every known/special
+and an absent/future biome. The existing basicUiOnly selection also passes after
+moving the right-player layout into MusicControls. See the plan for commands,
+logs and artifact hash. Human visual/listening acceptance remains pending.
 
 ## Hooks
 

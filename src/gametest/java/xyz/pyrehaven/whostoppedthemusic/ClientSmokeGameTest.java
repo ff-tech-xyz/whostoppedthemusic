@@ -53,7 +53,7 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
                 || Boolean.getBoolean("whostoppedthemusic.basicUiOnly") || Boolean.getBoolean("whostoppedthemusic.discoveryOnly")
                 || Boolean.getBoolean("whostoppedthemusic.controlsOnly") || Boolean.getBoolean("whostoppedthemusic.artworkOnly")
                 || Boolean.getBoolean("whostoppedthemusic.ownSongsOnly") || Boolean.getBoolean("whostoppedthemusic.addSongsOnly")
-                || Boolean.getBoolean("whostoppedthemusic.customOnly")) {
+                || Boolean.getBoolean("whostoppedthemusic.customOnly") || Boolean.getBoolean("whostoppedthemusic.customUiOnly")) {
             return;
         }
         // Entrypoint order is not guaranteed. Check after all startup callbacks,
@@ -67,6 +67,10 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
     @Override
     public void runTest(ClientGameTestContext context) {
         context.waitForScreen(TitleScreen.class);
+        if (Boolean.getBoolean("whostoppedthemusic.customUiOnly")) {
+            CustomUiGameTest.run(context);
+            return;
+        }
         if (Boolean.getBoolean("whostoppedthemusic.customOnly")) {
             CustomPlaybackGameTest.run(context);
             return;
@@ -1041,6 +1045,7 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
             context.getInput().pressKey(InputConstants.KEY_M);
             context.waitForScreen(MusicScreen.class);
             context.clickScreenButton("whostoppedthemusic.mode.basic");
+            context.clickScreenButton("whostoppedthemusic.mode.custom");
             context.runOnClient(client -> MusicDirector.get(client).next());
             context.waitFor(client -> MusicDirector.get(client).active() && !(MusicDirector.get(client).current()
                     instanceof xyz.pyrehaven.whostoppedthemusic.music.TrackSoundInstance));

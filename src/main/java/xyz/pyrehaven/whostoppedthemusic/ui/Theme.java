@@ -11,6 +11,15 @@ public final class Theme {
     public static final int BACKGROUND = 0xFF070B10;
     public static final int CARD = 0xFF0E141C;
     public static final int TEXT = 0xFFF2F4F7;
+    public static final int SCENARIO_PANEL = 0xFFC8D1D9;
+    public static final int SCENARIO_BOX = 0xFF737373;
+    public static final int SCENARIO_FILL = 0xFFB4B4B4;
+    public static final int SCENARIO_TEXT = 0xFF000000;
+    public static final int SCENARIO_ROW = 34;
+    public static final int TOGGLE_WIDTH = 26;
+    public static final int TOGGLE_HEIGHT = 12;
+    public static final int POPUP_WIDTH = 196;
+    public static final int POPUP_HEIGHT = 62;
     public static final int ARTIST = 0xFFB7CADA;
     public static final int SPINDLE = 0xFFE04444;
     public static final long REEL_PERIOD_NANOS = 2_000_000_000L;
@@ -79,20 +88,40 @@ public final class Theme {
         return new Button(x, y, width, CONTROL_HEIGHT, label, action, supplier -> supplier.get()) {
             @Override
             protected void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
-                buttonFrame(graphics, this);
-                graphics.textRendererForWidget(this, GuiGraphicsExtractor.HoveredTextEffects.NONE)
-                        .acceptScrollingWithDefaultCenter(getMessage().copy().withColor(active ? TEXT : BLUE),
-                                getX() + GAP, getRight() - GAP, getY(), getBottom());
+                settingContents(graphics, this);
             }
         };
     }
 
+    public static void settingContents(GuiGraphicsExtractor graphics, Button button) {
+        buttonFrame(graphics, button);
+        graphics.textRendererForWidget(button, GuiGraphicsExtractor.HoveredTextEffects.NONE)
+                .acceptScrollingWithDefaultCenter(button.getMessage().copy().withColor(button.active ? TEXT : BLUE),
+                        button.getX() + GAP, button.getRight() - GAP, button.getY(), button.getBottom());
+    }
+
     public static net.minecraft.client.gui.components.EditBox search(net.minecraft.client.gui.Font font) {
-        var text = Component.translatable("whostoppedthemusic.search");
+        return search(font, Component.translatable("whostoppedthemusic.search"));
+    }
+
+    public static net.minecraft.client.gui.components.EditBox search(net.minecraft.client.gui.Font font, Component text) {
         var search = new net.minecraft.client.gui.components.EditBox(font, 0, 0, CONTROL_HEIGHT, CONTROL_HEIGHT, text);
         search.setHint(text);
         search.setMaxLength(SEARCH_LIMIT);
         return search;
+    }
+
+    public static void toggle(GuiGraphicsExtractor graphics, int x, int y, boolean on, boolean focused) {
+        int radius = TOGGLE_HEIGHT / 2;
+        for (int row = 0; row < TOGGLE_HEIGHT; row++) {
+            int inset = row == 0 || row == TOGGLE_HEIGHT - 1 ? radius / 2 : row == 1 || row == TOGGLE_HEIGHT - 2 ? BORDER : 0;
+            graphics.fill(x + inset, y + row, x + TOGGLE_WIDTH - inset, y + row + BORDER,
+                    on ? SCENARIO_TEXT : SCENARIO_FILL);
+        }
+        int knobX = x + (on ? TOGGLE_WIDTH - TOGGLE_HEIGHT : 0) + BORDER;
+        graphics.fill(knobX, y + BORDER, knobX + TOGGLE_HEIGHT - BORDER * 2, y + TOGGLE_HEIGHT - BORDER,
+                on ? SCENARIO_FILL : SCENARIO_BOX);
+        if (focused) graphics.outline(x, y, TOGGLE_WIDTH, TOGGLE_HEIGHT, TEXT);
     }
 
     public static void buttonFrame(GuiGraphicsExtractor graphics, Button button) {

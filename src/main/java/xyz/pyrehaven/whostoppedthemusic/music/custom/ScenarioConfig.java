@@ -13,6 +13,18 @@ public record ScenarioConfig(int priority, boolean active, boolean interrupt, Fr
     // Kept game-independent; the playback adapter maps these values to vanilla MusicFrequency.
     public enum Frequency { DEFAULT, FREQUENT, CONSTANT }
 
+    public ScenarioConfig withFrequency(Frequency value) {
+        return new ScenarioConfig(priority, active, interrupt, value, jukebox, mustBeOutside, yLevel, songs);
+    }
+
+    public ScenarioConfig withJukebox(JukeboxSetting value) {
+        return new ScenarioConfig(priority, active, interrupt, frequency, value, mustBeOutside, yLevel, songs);
+    }
+
+    public ScenarioConfig withActive(boolean value) {
+        return new ScenarioConfig(priority, value, interrupt, frequency, jukebox, mustBeOutside, yLevel, songs);
+    }
+
     public ScenarioConfig {
         if (priority < 1 || priority > 10) throw new IllegalArgumentException("priority must be 1–10");
         Objects.requireNonNull(frequency);
