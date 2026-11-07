@@ -52,7 +52,8 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
         if (Boolean.getBoolean("whostoppedthemusic.transportOnly") || Boolean.getBoolean("whostoppedthemusic.basicOnly")
                 || Boolean.getBoolean("whostoppedthemusic.basicUiOnly") || Boolean.getBoolean("whostoppedthemusic.discoveryOnly")
                 || Boolean.getBoolean("whostoppedthemusic.controlsOnly") || Boolean.getBoolean("whostoppedthemusic.artworkOnly")
-                || Boolean.getBoolean("whostoppedthemusic.ownSongsOnly") || Boolean.getBoolean("whostoppedthemusic.addSongsOnly")) {
+                || Boolean.getBoolean("whostoppedthemusic.ownSongsOnly") || Boolean.getBoolean("whostoppedthemusic.addSongsOnly")
+                || Boolean.getBoolean("whostoppedthemusic.customOnly")) {
             return;
         }
         // Entrypoint order is not guaranteed. Check after all startup callbacks,
@@ -66,6 +67,10 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
     @Override
     public void runTest(ClientGameTestContext context) {
         context.waitForScreen(TitleScreen.class);
+        if (Boolean.getBoolean("whostoppedthemusic.customOnly")) {
+            CustomPlaybackGameTest.run(context);
+            return;
+        }
         if (Boolean.getBoolean("whostoppedthemusic.addSongsOnly")) {
             checkAddSongs(context);
             return;
@@ -1525,7 +1530,7 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
         } catch (ReflectiveOperationException failure) { throw new AssertionError(failure); }
     }
 
-    private static CompletableFuture<Boolean> channelState(net.minecraft.client.Minecraft client,
+    static CompletableFuture<Boolean> channelState(net.minecraft.client.Minecraft client,
                                                           SoundInstance sound, boolean playing) {
         var engine = ((SoundManagerAccessor) client.getSoundManager()).whostoppedthemusic$engine();
         var handle = ((SoundEngineAccessor) engine).whostoppedthemusic$channels().get(sound);
@@ -1537,7 +1542,7 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
         return result.orTimeout(5, java.util.concurrent.TimeUnit.SECONDS);
     }
 
-    private static CompletableFuture<Float> channelGain(net.minecraft.client.Minecraft client, SoundInstance sound) {
+    static CompletableFuture<Float> channelGain(net.minecraft.client.Minecraft client, SoundInstance sound) {
         var engine = ((SoundManagerAccessor) client.getSoundManager()).whostoppedthemusic$engine();
         var handle = ((SoundEngineAccessor) engine).whostoppedthemusic$channels().get(sound);
         var result = new CompletableFuture<Float>();

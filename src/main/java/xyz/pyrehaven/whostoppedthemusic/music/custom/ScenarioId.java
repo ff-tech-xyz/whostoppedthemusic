@@ -23,6 +23,16 @@ public record ScenarioId(Kind kind, String id) implements Comparable<ScenarioId>
 
     public static ScenarioId biome(String id) { return new ScenarioId(Kind.BIOME, id); }
 
+    public static ScenarioId parse(String value) {
+        if (value.startsWith("special/")) return new ScenarioId(Kind.SPECIAL, value.substring(8));
+        if (value.startsWith("biome/")) {
+            String biome = value.substring(6);
+            int slash = biome.indexOf('/');
+            if (slash > 0) return biome(biome.substring(0, slash) + ":" + biome.substring(slash + 1));
+        }
+        throw new IllegalArgumentException("Invalid scenario id: " + value);
+    }
+
     public static ScenarioId special(Special special) {
         return new ScenarioId(Kind.SPECIAL, special.name().toLowerCase(Locale.ROOT));
     }

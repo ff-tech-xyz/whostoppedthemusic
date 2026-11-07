@@ -40,14 +40,15 @@ final class SettingsTest {
         try (var entries = Files.list(directory)) {
             assertEquals(1, entries.count());
         }
-        assertTrue(Files.readString(file).contains("\"configVersion\": 1"));
+        assertTrue(Files.readString(file).contains("\"configVersion\": 2"));
     }
 
     @Test
     void brokenOrUnknownEnumFileIsPreservedAndDefaultsAreRecovered() throws Exception {
         Path file = directory.resolve("whostoppedthemusic.json");
         for (String broken : new String[]{"{broken", "null", "[]", "{\"jukebox\":\"NEW_VALUE\"}",
-                "{\"mode\":\"CUSTOM\"}", "{\"basic\":null}", "{\"basic\":[]}", "{\"basic\":{\"unticked\":null}}"}) {
+                "{\"mode\":\"UNKNOWN\"}", "{\"basic\":null}", "{\"basic\":[]}", "{\"basic\":{\"unticked\":null}}",
+                "{\"custom\":null}", "{\"custom\":{\"scenarios\":{\"special/rain\":{\"songs\":null}}}}"}) {
             Files.writeString(file, broken);
             Settings recovered = Settings.load(file);
             assertFalse(recovered.firstRunDone());
@@ -87,5 +88,73 @@ final class SettingsTest {
         loaded.setAllTicked(java.util.List.of("a", "c"), true);
         assertTrue(Settings.load(file).ticked("c"));
         assertFalse(Files.readString(file).contains("stopped"));
+    }
+
+    @Test
+    void v1MigrationAndSparseCustomRoundTripRetainAbsentBiomesAndExplicitSilence() throws Exception {
+        Path file = directory.resolve("whostoppedthemusic.json");
+        Files.writeString(file, """
+                {"configVersion":1,"firstRunDone":true,"mode":"BASIC","jukebox":"PLAY_OVER",
+                 "basic":{"shuffle":false,"unticked":["old"]}}
+                """);
+        var settings = Settings.load(file);
+        var id = xyz.pyrehaven.whostoppedthemusic.music.custom.ScenarioId.biome("pack:grove");
+        var defaults = customDefaults(java.util.List.of(new xyz.pyrehaven.whostoppedthemusic.music.Deck.Entry("vanilla", 1)));
+        assertEquals(defaults, settings.scenario(id, defaults));
+        settings.discoverBiomes(java.util.Map.of("pack:grove", "pack"));
+        var silent = customDefaults(java.util.List.of());
+        settings.setScenario(id, silent, defaults);
+        settings.setMode(Mode.CUSTOM);
+        var loaded = Settings.load(file);
+        assertEquals(Mode.CUSTOM, loaded.mode());
+        assertFalse(loaded.shuffle());
+        assertFalse(loaded.ticked("old"));
+        assertTrue(loaded.firstRunDone());
+        assertEquals(JukeboxSetting.PLAY_OVER, loaded.jukebox());
+        assertTrue(loaded.scenario(id, defaults).songs().isEmpty());
+        var json = com.google.gson.JsonParser.parseString(Files.readString(file)).getAsJsonObject();
+        var override = json.getAsJsonObject("custom").getAsJsonObject("scenarios").getAsJsonObject(id.toString());
+        assertEquals(1, override.size());
+        assertTrue(override.getAsJsonArray("songs").isEmpty());
+        loaded.discoverBiomes(java.util.Map.of("minecraft:forest", "overworld"));
+        loaded.applyFrequencyToAll(xyz.pyrehaven.whostoppedthemusic.music.custom.ScenarioConfig.Frequency.FREQUENT);
+        loaded.applyJukeboxToAll(JukeboxSetting.PLAY_OVER);
+        loaded = Settings.load(file);
+        assertEquals("pack", loaded.knownBiomes().get("pack:grove"));
+        assertEquals(xyz.pyrehaven.whostoppedthemusic.music.custom.ScenarioConfig.Frequency.FREQUENT, loaded.scenario(id, defaults).frequency());
+        assertEquals(JukeboxSetting.PLAY_OVER, loaded.scenario(id, defaults).jukebox());
+        var future = xyz.pyrehaven.whostoppedthemusic.music.custom.ScenarioId.biome("future:new");
+        assertEquals(loaded.scenario(id, defaults).frequency(), loaded.scenario(future, defaults).frequency());
+        assertEquals(JukeboxSetting.PLAY_OVER, loaded.scenario(future, defaults).jukebox());
+        try (var files = Files.list(directory)) { assertEquals(1, files.count()); }
+    }
+
+    @Test
+    void weightsClampAndMissingSongsFollowReloadedDefaults() throws Exception {
+        Path file = directory.resolve("whostoppedthemusic.json");
+        Files.writeString(file, """
+                {"mode":"CUSTOM","custom":{"scenarios":{
+                 "special/rain":{"songs":[{"id":"missing:a","weight":0},{"id":"missing:b","weight":500}]},
+                 "biome/minecraft/forest":{"priority":9}}}}
+                """);
+        var loaded = Settings.load(file);
+        var defaults = customDefaults(java.util.List.of());
+        var rain = xyz.pyrehaven.whostoppedthemusic.music.custom.ScenarioId.special(xyz.pyrehaven.whostoppedthemusic.music.custom.Special.RAIN);
+        assertEquals(java.util.List.of(1, 100), loaded.scenario(rain, defaults).songs().stream().map(e -> e.weight()).toList());
+        var forest = xyz.pyrehaven.whostoppedthemusic.music.custom.ScenarioId.biome("minecraft:forest");
+        var changed = customDefaults(java.util.List.of(new xyz.pyrehaven.whostoppedthemusic.music.Deck.Entry("new:pool", 2)));
+        assertEquals(changed.songs(), loaded.scenario(forest, changed).songs());
+        assertEquals(9, loaded.scenario(forest, changed).priority());
+        loaded.setScenario(forest, changed, changed);
+        var json = com.google.gson.JsonParser.parseString(Files.readString(file)).getAsJsonObject();
+        assertFalse(json.getAsJsonObject("custom").getAsJsonObject("scenarios").has(forest.toString()));
+        assertEquals(2, Settings.load(file).scenario(rain, defaults).songs().size());
+    }
+
+    private static xyz.pyrehaven.whostoppedthemusic.music.custom.ScenarioConfig customDefaults(
+            java.util.List<xyz.pyrehaven.whostoppedthemusic.music.Deck.Entry> songs) {
+        return new xyz.pyrehaven.whostoppedthemusic.music.custom.ScenarioConfig(2, true, false,
+                xyz.pyrehaven.whostoppedthemusic.music.custom.ScenarioConfig.Frequency.CONSTANT,
+                JukeboxSetting.PAUSE_MUSIC, false, 64, songs);
     }
 }

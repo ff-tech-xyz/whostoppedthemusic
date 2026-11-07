@@ -1,5 +1,5 @@
 package xyz.pyrehaven.whostoppedthemusic;
 
 public enum Mode {
-    VANILLA, BASIC
+    VANILLA, BASIC, CUSTOM
 }

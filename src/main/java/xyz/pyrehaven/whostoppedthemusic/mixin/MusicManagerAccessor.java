@@ -8,6 +8,12 @@ import org.spongepowered.asm.mixin.gen.Invoker;
 
 @Mixin(MusicManager.class)
 public interface MusicManagerAccessor {
+    @Accessor("gameMusicFrequency")
+    MusicManager.MusicFrequency whostoppedthemusic$frequency();
+
+    @Accessor("nextSongDelay")
+    int whostoppedthemusic$nextSongDelay();
+
     @Accessor("currentMusic")
     SoundInstance whostoppedthemusic$currentMusic();
 

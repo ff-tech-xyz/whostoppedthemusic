@@ -19,6 +19,9 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.Musics;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
+import xyz.pyrehaven.whostoppedthemusic.music.custom.CustomPlayback;
+import xyz.pyrehaven.whostoppedthemusic.music.custom.SituationReader;
+import net.minecraft.client.sounds.MusicManager.MusicFrequency;
 
 /** Selection and transport inside the vanilla manager's existing playback loop. */
 public final class MusicDirector {
@@ -46,15 +49,32 @@ public final class MusicDirector {
     private boolean jukeboxHeld;
     private Track requested;
     private volatile SoundInstance advancing;
+    private final CustomPlayback custom = new CustomPlayback(WhoStoppedTheMusic.settings(), WhoStoppedTheMusic.LIBRARY);
 
     public boolean basic() { return WhoStoppedTheMusic.settings().mode() == Mode.BASIC; }
 
-    public Music music(Music vanilla) { return basic() ? BASIC : vanilla; }
+    public boolean custom() { return WhoStoppedTheMusic.settings().mode() == Mode.CUSTOM; }
+    private boolean playlist() { return basic() || custom(); }
+    public CustomPlayback customPlayback() { return custom; }
+
+    public Music music(Music vanilla) { return custom() ? custom.music() : basic() ? BASIC : vanilla; }
+
+    public MusicFrequency frequency(MusicFrequency vanilla) {
+        return custom() && custom.resolution() != null ? MusicFrequency.valueOf(custom.resolution().frequency().name()) : vanilla;
+    }
+
+    public float volume(float vanilla) { return basic() || custom() && custom.edited() ? 1 : vanilla; }
+
+    private JukeboxSetting jukebox() {
+        return custom() && custom.resolution() != null ? custom.resolution().jukebox() : WhoStoppedTheMusic.settings().jukebox();
+    }
 
     public void syncMode() {
         Mode selected = WhoStoppedTheMusic.settings().mode();
         if (mode != selected) {
             mode = selected;
+            custom.resetWinners();
+            if (custom()) resolveCustom();
             stopped = false;
             requested = null;
             manager.stopPlaying();
@@ -68,6 +88,7 @@ public final class MusicDirector {
     }
 
     private void configureDeck() {
+        if (custom()) return;
         deck.configure(selected().stream().map(t -> new Deck.Entry(t.id(), 1)).toList(),
                 WhoStoppedTheMusic.settings().shuffle());
     }
@@ -78,6 +99,7 @@ public final class MusicDirector {
     }
 
     public void libraryChanged() {
+        custom.reload();
         configureDeck();
         if (current() instanceof TrackSoundInstance chosen && chosen.track().local() != null
                 && WhoStoppedTheMusic.LIBRARY.tracks().stream().noneMatch(t -> t.id().equals(chosen.track().id()) && t.playable())) {
@@ -86,10 +108,12 @@ public final class MusicDirector {
     }
 
     public boolean holdTick() {
+        boolean changed = mode != WhoStoppedTheMusic.settings().mode();
         syncMode();
+        if (custom() && !changed) resolveCustom();
         observeChannel();
         if (paused()) return true;
-        boolean nearby = WhoStoppedTheMusic.settings().jukebox() == JukeboxSetting.PAUSE_MUSIC && JukeboxWatcher.nearby(client);
+        boolean nearby = jukebox() == JukeboxSetting.PAUSE_MUSIC && JukeboxWatcher.nearby(client);
         if (nearby) {
             jukeboxHeld = true;
             ((MusicManagerAccessor) manager).whostoppedthemusic$fadePlaying(0);
@@ -99,39 +123,52 @@ public final class MusicDirector {
             jukeboxHeld = false;
             ((MusicManagerAccessor) manager).whostoppedthemusic$nextSongDelay(0);
         }
-        return basic() && stopped;
+        return playlist() && stopped;
     }
 
+    public void worldChanged(net.minecraft.client.multiplayer.ClientLevel level) {
+        custom.catalog().rebuild(level == null ? net.minecraft.core.RegistryAccess.EMPTY : level.registryAccess(),
+                level == null ? null : level.dimensionType(), WhoStoppedTheMusic.settings());
+        custom.reload();
+    }
+
+    private void resolveCustom() {
+        custom.tick(SituationReader.read(client), client.level == null ? null : client.level.dimensionType());
+    }
+
+    private Deck activeDeck() { return custom() ? custom.deck() : deck; }
+
     public boolean mayStart() {
-        return !(WhoStoppedTheMusic.settings().jukebox() == JukeboxSetting.PAUSE_MUSIC && JukeboxWatcher.nearby(client))
-                && (!basic() || !stopped && (requested != null || !selected().isEmpty()));
+        return !(jukebox() == JukeboxSetting.PAUSE_MUSIC && JukeboxWatcher.nearby(client))
+                && (!playlist() || !stopped && (requested != null || (custom()
+                ? custom.resolution() != null && !custom.resolution().silent() : !selected().isEmpty())));
     }
 
     public SimpleSoundInstance choose(SoundEvent vanilla) {
-        if (!basic()) return SimpleSoundInstance.forMusic(vanilla);
+        if (!playlist()) return SimpleSoundInstance.forMusic(vanilla);
         configureDeck();
         Track track = requested;
         requested = null;
         if (track == null) {
-            String id = deck.next();
+            String id = activeDeck().next();
             track = WhoStoppedTheMusic.LIBRARY.tracks().stream().filter(t -> t.id().equals(id)).findFirst().orElseThrow();
         }
-        return new TrackSoundInstance(BASIC.sound().value().location(), track);
+        return new TrackSoundInstance(music(BASIC).sound().value().location(), track);
     }
 
-    public boolean canPrevious() { return basic() && !stopped && deck.canPrevious(); }
+    public boolean canPrevious() { return playlist() && !stopped && activeDeck() != null && activeDeck().canPrevious(); }
 
     public void previous() {
-        if (stopped) return;
+        if (!canPrevious()) return;
         configureDeck();
-        String id = deck.previous();
+        String id = activeDeck().previous();
         if (id != null) playSelected(id);
     }
 
     public void play(Track track) {
         if (!track.playable()) return;
         configureDeck();
-        deck.played(track.id());
+        activeDeck().played(track.id());
         playSelected(track.id());
     }
 
@@ -139,7 +176,7 @@ public final class MusicDirector {
         requested = WhoStoppedTheMusic.LIBRARY.tracks().stream().filter(t -> t.id().equals(id)).findFirst().orElseThrow();
         stopped = false;
         manager.stopPlaying();
-        manager.startPlaying(BASIC);
+        manager.startPlaying(music(BASIC));
         requested = null;
     }
 
@@ -192,6 +229,7 @@ public final class MusicDirector {
     }
 
     public boolean canNext() {
+        if (custom()) return custom.resolution() != null && !custom.resolution().silent();
         return basic() ? !selected().isEmpty() : client.getSituationalMusic() != null;
     }
 
@@ -263,7 +301,7 @@ public final class MusicDirector {
     }
 
     public void stop() {
-        if (!basic()) return;
+        if (!playlist()) return;
         stopped = true;
         manager.stopPlaying();
     }

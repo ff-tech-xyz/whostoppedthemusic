@@ -33,14 +33,21 @@ public abstract class MusicManagerMixin implements MusicDirector.Access {
         }
     }
 
-    @Redirect(method = "tick", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/Minecraft;getSituationalMusic()Lnet/minecraft/sounds/Music;"))
+    @Redirect(method = {"tick", "stopPlaying()V"}, at = @At(value = "INVOKE", target = "Lnet/minecraft/client/Minecraft;getSituationalMusic()Lnet/minecraft/sounds/Music;"))
     private Music whostoppedthemusic$pool(Minecraft client) {
         return whostoppedthemusic$director().music(client.getSituationalMusic());
     }
 
     @Redirect(method = "tick", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/Minecraft;getMusicVolume()F"))
     private float whostoppedthemusic$gain(Minecraft client) {
-        return whostoppedthemusic$director().basic() ? 1 : client.getMusicVolume();
+        return whostoppedthemusic$director().volume(client.getMusicVolume());
+    }
+
+    // 26.3 caches this option in gameMusicFrequency; tick never reads OptionInstance.get().
+    @Redirect(method = {"tick", "stopPlaying()V"}, at = @At(value = "FIELD",
+            target = "Lnet/minecraft/client/sounds/MusicManager;gameMusicFrequency:Lnet/minecraft/client/sounds/MusicManager$MusicFrequency;"))
+    private MusicManager.MusicFrequency whostoppedthemusic$frequency(MusicManager manager) {
+        return whostoppedthemusic$director().frequency(((MusicManagerAccessor) manager).whostoppedthemusic$frequency());
     }
 
     @Inject(method = "startPlaying", at = @At("HEAD"), cancellable = true)

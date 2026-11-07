@@ -18,6 +18,7 @@ public abstract class MusicWorldMixin {
     private void whostoppedthemusic$library(ClientLevel level, boolean reset, CallbackInfo ci) {
         var client = (Minecraft) (Object) this;
         WhoStoppedTheMusic.LIBRARY.rebuild(client.getSoundManager(), level == null ? RegistryAccess.EMPTY : level.registryAccess());
+        MusicDirector.get(client).worldChanged(level);
     }
 
     @Redirect(method = "updateLevelInEngines(Lnet/minecraft/client/multiplayer/ClientLevel;Z)V", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/sounds/SoundManager;stop()V"))

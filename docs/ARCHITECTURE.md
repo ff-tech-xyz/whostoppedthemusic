@@ -41,8 +41,8 @@ Current implemented slice (2026-11-07): Settings and first-launch Constant, Vani
 transport, Basic soundtrack/disc selection and playback, shared controls and one SongToast in both modes,
 and nearby jukebox fade/hold in both modes. Imported MP3/OGG files play through
 the same Basic path. Add music manages those files through a shared screen;
-Custom's pure scenario resolver and loaded runtime defaults are implemented;
-playback and UI remain authorized work.
+Custom's scenario resolver, loaded runtime defaults, playback integration and
+sparse settings v2 are implemented; scenario UI and preview remain authorized work.
 The M screen cycles Vanilla/Basic; the
 compact pause cassette retains live title/artist metadata and Next. Shared
 playback-driven reel artwork and empty-player spindle rods are implemented.
@@ -103,23 +103,23 @@ own channels are managed; Records and effects retain vanilla behavior.
 returns an immutable `Resolution`. The map supplies effective settings, not JSON
 overrides: the current biome and in-world specials must be present. Menu/credits
 need only their own config. Missing effective configs fail explicitly.
-`Settings` remains the future persistence owner; this slice adds no settings store.
+`Settings` owns sparse persistence and supplies these effective values from loaded defaults.
 
-The playback integration will keep the previous tick's winner IDs in the existing
-`MusicDirector`, starting with an empty collection, and pass `resolution.winners()`
+`MusicDirector`'s `CustomPlayback` adapter keeps the previous tick's winner IDs,
+starting with an empty collection, and passes `resolution.winners()`
 on the next tick. The resolver retains no state. Ordinary interrupt flags apply
 only to newly winning IDs; menu and credits always return interrupt. Removing an
 interrupting winner or keeping an existing one does not trigger an interrupt.
-`ScenarioConfig.Frequency` is pure; the future playback adapter maps it to vanilla's
-`MusicFrequency`. `SituationReader` will populate namespaced biome tag strings and
+`ScenarioConfig.Frequency` is pure; the playback adapter maps it to vanilla's
+`MusicFrequency`. `SituationReader` populates namespaced biome tag strings and
 the camera-block precipitation/exposure snapshot. `exposedToRain` represents the
 heightmap exposure test; weather requires both it and sky visibility when outside
-is required. The reader, default extraction and playback adapter are not implemented
-by function 11.
+is required. This snapshot uses the camera block, except for the player's underwater
+and abilities flags; credits read Gui.screen and the boss flag reads Gui.hud.
 
 Winner IDs and merged track IDs sort canonically, making keys and deck entries
 stable across input map iteration order. The key joins scenario IDs with `+`;
-the future synthetic sound-ID adapter must hash mixed keys as specified. Scenario
+the synthetic sound-ID adapter hashes mixed keys with nameUUIDFromBytes. Scenario
 song lists enforce unique IDs and weights 1–100. `Deck.Entry` accepts positive
 raw sums, so two weight-100 entries merge to 200 and still draw at their exact
 relative odds. Load-time clamping belongs to settings v2, not tie resolution.
@@ -172,7 +172,47 @@ cyclic branch, missing/empty pools, exact common-divisor reduction, approximate
 600:7 scaling and live pool mutation followed by resource-reload restoration.
 Existing Basic discovery/modifier/lifecycle checks still pass. Eleven focused
 resolver/Deck JUnit cases pass. Command, artifact hash and log are in the plan's
-function 12 evidence; Custom playback/settings/UI are still downstream work.
+function 12 evidence. Function 13 adds playback/settings; scenario UI remains downstream.
+
+### Custom playback and catalog
+
+MusicManager's existing HEAD hook resolves Custom exactly once per manager tick,
+including held ticks. MusicDirector delegates scenario work to CustomPlayback;
+there is no extra player or scheduler. BiomeCatalog rebuilds from the joined
+registry, groups by vanilla dimension tags before namespace, and publishes known
+biomes to Settings. Its loaded rows disappear on world exit; saved absent-biome
+groups and overrides remain. Catalog rows retain applicable dimension defaults;
+the current biome uses the actual current dimension even if a datapack reuses it.
+Loaded defaults invalidate on world changes and sound-library reload/publication.
+
+Each resolution gets a stable synthetic event: custom/<scenario>, or
+custom/mix/<name UUID of canonical sorted key>. Thirty-two access-ordered Decks
+retain each key's weighted cycle and history; edits configure/reset only that
+deck when entries change. Unavailable library entries are filtered for playback,
+not erased from Settings. An empty/all-missing winner blocks starts, without
+falling through or cutting a noninterrupting outgoing song. Transport and SongToast
+use the same TrackSoundInstance/channel owners as Basic.
+
+The synthetic Music retains source min/max delays (GAME for source-less specials).
+The supplied frequency OptionInstance redirect does not exist in actual 26.3:
+tick reads the cached gameMusicFrequency field at bytecode offset 139, and
+stopPlaying reads it at 41. Redirect both reads and stopPlaying's situational
+Music lookup, leaving the global option and Vanilla/Basic unchanged. The inspected
+bytecode is recorded in evidence/custom-music-bytecode.txt. Vanilla's canReplace
+compares event identifiers and its replacement branch calls SoundManager.stop;
+Custom reuses that branch rather than adding another transition loop. Retain a
+new key's interrupt intent across held-pause/volume-fade ticks so vanilla can
+consume the change on resume. Noninterrupting keys let the current song finish.
+
+Jukebox hold reads the resolution's setting; release resets vanilla's delay to
+zero. Edited winning song lists use environment gain 1, allowing edited pale
+garden songs; unedited lists retain vanilla's gain. The Music category slider
+still applies in the existing sound engine.
+
+Focused packaged checks and migration evidence appear under function 13 in the
+plan. At this slice, select CUSTOM through Settings/config: the mode-button cycle,
+scenario list and winner-setting widgets belong to function 14, not a temporary
+second UI. Human listening and a real dragon-fight session remain unverified.
 
 ```text
 whostoppedthemusic/
@@ -198,7 +238,7 @@ whostoppedthemusic/
     │   │   │   # Client entrypoint. Wiring only: loads Settings, registers the M key, the
     │   │   │   # pause-screen cassette (ScreenEvents.AFTER_INIT). Owns shared Settings/library,
     │   │   │   # applies first-launch Music Frequency at CLIENT_STARTED. No music logic.
-    │   │   ├── Mode.java                    # VANILLA and BASIC; CUSTOM remains planned
+    │   │   ├── Mode.java                    # VANILLA, BASIC and CUSTOM
     │   │   ├── JukeboxSetting.java          # enum PLAY_OVER, PAUSE_MUSIC
     │   │   ├── Settings.java
     │   │   │   # The only owner of mod settings. JSON at config/whostoppedthemusic.json,
@@ -218,7 +258,7 @@ whostoppedthemusic/
     │   │   │   │   # Pure logic, no Minecraft classes: weighted shuffle "deck" with history
     │   │   │   │   # for previous/next. Positive weights include raw tied sums; scenario edit bounds live in ScenarioConfig.
     │   │   │   ├── MusicDirector.java
-    │   │   │   │   # Vanilla transport, Basic deck/history/stop/row play, one Basic pool,
+    │   │   │   │   # Shared transport, Basic deck/history/stop/row play, Custom adapter, one Basic pool,
     │   │   │   │   # truthful channel status/advancement and resolved-file match, jukebox hold and toast.
     │   │   │   ├── TrackSoundInstance.java
     │   │   │   │   # The sound instance for a chosen track. Its identifier stays the pool id so
@@ -234,9 +274,10 @@ whostoppedthemusic/
     │   │   │       ├── Situation.java       # immutable camera/player/screen snapshot, biome tags and block precipitation
     │   │   │       ├── ContextResolver.java # stateless priority/tie/settings resolution with explicit previous winners
     │   │   │       ├── Resolution.java      # sorted winners/key, raw merged entries, interrupt/settings and silence
-    │   │   │       ├── SituationReader.java # planned; reader alone touches live game state
+    │   │   │       ├── SituationReader.java # one live camera/player/screen snapshot per manager tick
     │   │   │       ├── CustomDefaults.java  # loaded dimension/biome/special defaults, source Music metadata and silence
-    │   │   │       ├── BiomeCatalog.java    # planned registry discovery
+    │   │   │       ├── BiomeCatalog.java    # joined registry rows/groups/dimensions; persistent known biomes via Settings
+    │   │   │       ├── CustomPlayback.java  # effective defaults/resolution, synthetic Music and 32-key LRU decks
     │   │   │       └── Preview.java         # planned existing-channel pause, midpoint excerpt, fade/resume
     │   │   ├── custom/
     │   │   │   └── MusicFolder.java
@@ -264,7 +305,7 @@ whostoppedthemusic/
     │   │   │       ├── TrackList.java       # shared smooth clipped browser; ranked/sectioned rows, selection/play or local-only removal
     │   │   │       └── WeightSlider.java    # planned 1–100 slider with weight/chance text
     │   │   └── mixin/
-    │   │       ├── MusicManagerAccessor.java        # currentMusic read-only, truthful cassette status
+    │   │       ├── MusicManagerAccessor.java        # currentMusic/frequency/delay access and vanilla fade invoker
     │   │       ├── MusicManagerMixin.java           # owns director; observes automatic/manual starts and holds pause
     │   │       ├── PauseScreenMixin.java            # hides duplicate vanilla pause-menu song line
     │   │       ├── SoundManagerAccessor.java        # read-only sound engine access for current music channel
@@ -275,7 +316,7 @@ whostoppedthemusic/
     │   │       ├── SoundEventReferenceAccessor.java # event-reference Sound in vanilla's weighted wrapper
     │   │       ├── SoundLibraryMixin.java           # rebuild library after loaded sound registry applies
     │   │       ├── TimelineMusicAccessor.java        # read-only timeline attribute tracks for music keyframes
-    │   │       ├── MusicWorldMixin.java             # keep Basic source during world changes; rebuild library from new registries
+    │   │       ├── MusicWorldMixin.java             # keep Basic source during world changes; rebuild library/catalog from new registries
     │   │       ├── LevelSoundMixin.java             # stop other world sources and clear scheduled/ticking sounds
     │   │       ├── NowPlayingToastMixin.java        # suppress vanilla duplicate in both modes, including its slide-out
     │   │       └── WeighedSoundEventsAccessor.java  # read-only access to a pool's entries (accessor, no logic)
@@ -288,7 +329,7 @@ whostoppedthemusic/
     ├── test/java/xyz/pyrehaven/whostoppedthemusic/
     │   ├── DeckTest.java            # weights, deck cycle, no repeat across refills, prev/next, empty deck
     │   ├── ContextResolverTest.java # pure precedence/ties/raw sums/settings/interrupt, 96 weather cases, underground and aquatic
-    │   ├── SettingsTest.java        # defaults, round trip, bad/unknown file, atomic write, first-run flag
+    │   ├── SettingsTest.java        # v1/v2 sparse round trip, absent/empty songs, known/future biomes, bounds, broken recovery, atomic save
     │   ├── TrackNamesTest.java      # metadata, translated names/fallback and search ranking
     │   ├── OverflowMotionTest.java  # waits, speed, reversal, fitting and content clocks
     │   ├── MusicFolderTest.java     # folder/identity, numbered exact copies, source retention, remove and link/path boundaries
@@ -298,6 +339,7 @@ whostoppedthemusic/
         ├── java/xyz/pyrehaven/whostoppedthemusic/
         │   ├── ClientSmokeGameTest.java # packaged UI/transport; controlsOnly/artworkOnly/ownSongsOnly/addSongsOnly focused selections
         │   ├── DiscoveryGameTest.java   # discoveryOnly: loaded discovery/default odds, 67 biomes, creative Deck, aliases/cycle/bounds/reload
+        │   ├── CustomPlaybackGameTest.java # customOnly: packaged scenario playback/settings/transport/weather/jukebox/silence/LRU/mode regression
         │   └── test/mixin/TransportStreamGate.java # holds decoded vanilla streams before source attachment
         └── resources/
             ├── fabric.mod.json         # development-only client test entrypoint
@@ -530,7 +572,7 @@ immediately, followed by artist, sharing the same independent overflow renderer.
 
 ## Settings file
 
-`config/whostoppedthemusic.json`. Unknown keys are ignored. A broken file is renamed to `.broken` and defaults are used. No migration from 1.1.x: the old `whostoppedthemusic.properties` is ignored. Current implementation stores v1 configVersion, firstRunDone, mode (VANILLA/BASIC), jukebox and basic.shuffle/unticked. The v2 target below is planned; it preserves v1 Basic settings and adds sparse scenario overrides.
+`config/whostoppedthemusic.json`. Unknown keys are ignored. A broken file is renamed to `.broken` and defaults are used. No migration from 1.1.x: the old `whostoppedthemusic.properties` is ignored. Settings writes configVersion 2, preserving firstRunDone, global jukebox and Basic shuffle/unticked values from v1. Custom adds sparse scenario overrides and known biome groups; unedited song lists are computed from loaded resources rather than persisted. Writes retain the existing same-directory temp-file/atomic-move path.
 
 ```json
 {
@@ -624,9 +666,9 @@ real OpenAL source gain to zero and back while Master stays unchanged. It shorte
 the outgoing song via vanilla SoundManager.stop rather than waiting a full song.
 This is source-state/gain verification, not human listening acceptance.
 
-Five `SettingsTest` cases cover
+Seven `SettingsTest` cases cover
 defaults, first-run idempotence, round trip/unknown keys/temp cleanup, corrupt
-file recovery, failed first-run initialization, Basic mode/shuffle/unticked round trip and new-track defaults. Three Deck cases cover weighted cycles/history/empty/single and two names cases cover active translation keys and fallback. CI rejects missing/empty/skipped
+file recovery, failed first-run initialization, Basic mode/shuffle/unticked round trip, v1 migration, sparse v2 song inheritance/silence, absent/future biomes, apply-all defaults and load clamping. Three Deck cases cover weighted cycles/history/empty/single and two names cases cover active translation keys and fallback. CI rejects missing/empty/skipped
 JUnit reports, missing UI screenshots or pass marker, and source-output loading
 instead of the packaged jar. No empty suite is called passed.
 
