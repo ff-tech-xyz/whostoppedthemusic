@@ -56,7 +56,7 @@ public final class MusicControls {
 
     public void scenarioSettings(int x, int y, int width, Consumer<AbstractWidget> add, boolean concise) {
         conciseSettings = concise;
-        frequency = new SettingButton(x, y, width, frequencyLabel(), button -> {
+        frequency = new SettingButton(x, y, width, text("frequency_short"), text("frequency_hint"), frequencyLabel(), button -> {
             if (custom()) {
                 var values = ScenarioConfig.Frequency.values();
                 var value = values[(currentFrequency().ordinal() + 1) % values.length];
@@ -72,7 +72,7 @@ public final class MusicControls {
             var value = currentFrequency();
             client.gui.setScreen(new ApplyToAllPopup(client.gui.screen(), frequency, () -> settings.applyFrequencyToAll(value)));
         });
-        jukebox = new SettingButton(x, y + Theme.ROW, width, jukeboxLabel(), button -> {
+        jukebox = new SettingButton(x, y + Theme.ROW, width, text("jukebox_short"), text("jukebox_hint"), jukeboxLabel(), button -> {
             if (custom()) {
                 var value = currentJukebox().next();
                 editScenarios(c -> c.withJukebox(value));
@@ -83,10 +83,7 @@ public final class MusicControls {
             var value = currentJukebox();
             client.gui.setScreen(new ApplyToAllPopup(client.gui.screen(), jukebox, () -> settings.applyJukeboxToAll(value)));
         });
-        if (concise) {
-            frequency.overflow();
-            jukebox.overflow();
-        }
+
         add.accept(frequency);
         add.accept(jukebox);
     }
@@ -153,7 +150,7 @@ public final class MusicControls {
                     if (!ids.isEmpty() && !ScenarioLabels.fixed(ids.getFirst())) label.append(text("scenario.priority", config(ids.getFirst()).priority()));
                     setMessage(label);
                     setTooltip(Tooltip.create(label));
-                    line.draw(graphics, client.font, label, getX(), getRight(), getY(), Theme.TEXT, true);
+                    line.draw(graphics, client.font, label, getX(), getRight(), getY(), Theme.TEXT, true, false, isHovered());
                 }
             };
             add.accept(caption);

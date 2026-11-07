@@ -13,14 +13,15 @@ import xyz.pyrehaven.whostoppedthemusic.ui.Theme;
 public final class SettingButton extends Button {
     private final Runnable applyAll;
     private Component description;
-    private boolean overflow;
+    private final Component caption;
+    private final Component help;
     private final xyz.pyrehaven.whostoppedthemusic.ui.OverflowText line = new xyz.pyrehaven.whostoppedthemusic.ui.OverflowText();
 
-    public void overflow() { overflow = true; }
-
-    public SettingButton(int x, int y, int width, Component label, OnPress cycle, Runnable applyAll) {
+    public SettingButton(int x, int y, int width, Component caption, Component help, Component label, OnPress cycle, Runnable applyAll) {
         super(x, y, width, Theme.CONTROL_HEIGHT, label, cycle, supplier -> supplier.get());
         this.applyAll = applyAll;
+        this.caption = caption;
+        this.help = help;
         label(label);
     }
 
@@ -28,7 +29,7 @@ public final class SettingButton extends Button {
         if (!value.equals(description)) {
             description = value;
             setMessage(value);
-            setTooltip(Tooltip.create(value));
+            setTooltip(Tooltip.create(value.copy().append("\n").append(help)));
         }
     }
 
@@ -42,7 +43,6 @@ public final class SettingButton extends Button {
     }
 
     @Override protected void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
-        if (overflow) Theme.scenarioContents(graphics, this, getMessage(), line, getX() + Theme.GAP, getRight() - Theme.GAP);
-        else Theme.settingContents(graphics, this);
+        Theme.scenarioContents(graphics, this, caption, line, getX() + Theme.GAP, getRight() - Theme.GAP);
     }
 }

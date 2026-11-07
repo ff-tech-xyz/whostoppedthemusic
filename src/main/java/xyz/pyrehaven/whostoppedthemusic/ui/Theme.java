@@ -14,6 +14,10 @@ public final class Theme {
 
     public static final int SCENARIO_ROW = 34;
     public static final int LIBRARY_ROW = 24;
+    public static final int CASE_SPINE = 7;
+    public static final int DRAG_WIDTH = 116;
+    public static final int DRAG_HEIGHT = 64;
+    public static final int INSERT_MILLIS = 260;
 
     public static final int EDITOR_BACK_WIDTH = 48;
     public static final int INTEGER_LENGTH = 11;
@@ -90,29 +94,23 @@ public final class Theme {
     }
 
     public static Button button(int x, int y, int width, Component label, Button.OnPress action) {
-        return button(x, y, width, label, action, false);
+        return captionButton(x, y, width, null, label, action);
     }
 
     public static Button scenarioButton(int x, int y, int width, Component label, Button.OnPress action) {
-        return button(x, y, width, label, action, true);
+        return button(x, y, width, label, action);
     }
 
-    private static Button button(int x, int y, int width, Component label, Button.OnPress action, boolean overflow) {
-        return new Button(x, y, width, CONTROL_HEIGHT, label, action, supplier -> supplier.get()) {
+    public static Button captionButton(int x, int y, int width, Component caption, Component description, Button.OnPress action) {
+        var button = new Button(x, y, width, CONTROL_HEIGHT, description, action, supplier -> supplier.get()) {
             private final OverflowText line = new OverflowText();
             @Override
             protected void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
-                if (overflow) scenarioContents(graphics, this, getMessage(), line, getX() + GAP, getRight() - GAP);
-                else settingContents(graphics, this);
+                scenarioContents(graphics, this, caption == null ? getMessage() : caption, line, getX() + GAP, getRight() - GAP);
             }
         };
-    }
-
-    public static void settingContents(GuiGraphicsExtractor graphics, Button button) {
-        buttonFrame(graphics, button);
-        graphics.textRendererForWidget(button, GuiGraphicsExtractor.HoveredTextEffects.NONE)
-                .acceptScrollingWithDefaultCenter(button.getMessage().copy().withColor(button.active ? TEXT : BLUE),
-                        button.getX() + GAP, button.getRight() - GAP, button.getY(), button.getBottom());
+        button.setTooltip(net.minecraft.client.gui.components.Tooltip.create(description));
+        return button;
     }
 
     public static void scenarioContents(GuiGraphicsExtractor graphics, Button button, Component label, OverflowText line, int left, int right) {
@@ -120,7 +118,7 @@ public final class Theme {
         var font = net.minecraft.client.Minecraft.getInstance().font;
         int inset = Math.max(0, (right - left - font.width(label)) / 2);
         line.draw(graphics, font, label, left + inset, right,
-                button.getY() + (button.getHeight() - font.lineHeight) / 2, button.active ? TEXT : ARTIST, false, false);
+                button.getY() + (button.getHeight() - font.lineHeight) / 2, button.active ? TEXT : ARTIST, false, false, button.isHovered());
     }
 
     public static net.minecraft.client.gui.components.EditBox search(net.minecraft.client.gui.Font font) {
@@ -153,5 +151,9 @@ public final class Theme {
                 button.active && button.isHoveredOrFocused() ? GLOW : BLUE);
         graphics.fill(button.getX(), button.getY(), button.getX() + ACCENT, button.getBottom(),
                 button.active ? ORANGE : BLUE);
+        graphics.fill(button.getX() + ACCENT, button.getBottom() - ACCENT, button.getRight() - BORDER,
+                button.getBottom() - BORDER, BACKGROUND);
+        if (button.active && button.isHoveredOrFocused()) graphics.fill(button.getX() + ACCENT,
+                button.getY() + BORDER, button.getRight() - BORDER, button.getY() + ACCENT, GLOW);
     }
 }

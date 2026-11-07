@@ -1,16 +1,18 @@
 package xyz.pyrehaven.whostoppedthemusic.music;
 
-/** One content clock per line; size changes keep the clock, content changes restart it. */
+/** One hover clock per line; leaving, fitting or changing content resets it. */
 public final class OverflowMotion {
     private String content;
     private long started;
+    private boolean hovering;
 
-    public double offset(String content, double overflow, long now) {
-        if (!content.equals(this.content)) {
+    public double offset(String content, double overflow, long now, boolean hovered) {
+        if (!hovered || overflow <= 0 || !hovering || !content.equals(this.content)) {
             this.content = content;
             started = now;
         }
-        return offset(overflow, now - started);
+        hovering = hovered && overflow > 0;
+        return hovering ? offset(overflow, now - started) : 0;
     }
 
     public static double offset(double overflow, long elapsedMillis) {

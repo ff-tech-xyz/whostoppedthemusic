@@ -35,6 +35,33 @@ public final class CassetteArtwork {
         graphics.fill(widget.getX(), widget.getY(), widget.getRight(), widget.getBottom(), Theme.MISSING_OVERLAY);
     }
 
+    /** Closed library cases retain a spine and label at the existing row height. */
+    public void drawCase(GuiGraphicsExtractor graphics, AbstractWidget widget, Track track, boolean included) {
+        var font = net.minecraft.client.Minecraft.getInstance().font;
+        int x = widget.getX();
+        int y = widget.getY();
+        int w = widget.getWidth();
+        int h = widget.getHeight();
+        var full = track.metadata().description();
+        if (included) full = full.copy().append(Component.translatable("whostoppedthemusic.in_list"));
+        widget.setMessage(full);
+        widget.setTooltip(Tooltip.create(full));
+        graphics.fill(x, y, x + w, y + h, Theme.BLUE);
+        graphics.outline(x, y, w, h, widget.isHoveredOrFocused() ? Theme.GLOW : Theme.BLUE);
+        graphics.fill(x + Theme.CASE_SPINE, y + Theme.ACCENT, x + w - Theme.ACCENT, y + h - Theme.ACCENT, Theme.CARD);
+        graphics.fill(x + Theme.ACCENT, y + Theme.ACCENT, x + Theme.CASE_SPINE - Theme.BORDER,
+                y + h - Theme.ACCENT, included ? Theme.GLOW : Theme.ORANGE);
+        graphics.fill(x + w - Theme.GAP, y + h / 3, x + w - Theme.ACCENT, y + h * 2 / 3, Theme.BLUE);
+        title.draw(graphics, font, track.title(), x + Theme.CASE_SPINE + Theme.LABEL_PADDING,
+                x + w - Theme.GAP - Theme.LABEL_PADDING, y + (h - font.lineHeight) / 2,
+                included ? Theme.ARTIST : Theme.TEXT, false, false, widget.isHovered());
+    }
+
+    /** Loose cassettes have open holes; red rods belong exclusively to a player. */
+    public void drawLoose(GuiGraphicsExtractor graphics, AbstractWidget widget, Track track) {
+        draw(graphics, widget, track.metadata(), Component.empty(), false, false, true, false, 0);
+    }
+
     /** Shared across widgets and screen rebuilds; transport remains owned by the director. */
     public static double reelAngle(MusicDirector director) {
         long now = System.nanoTime();
@@ -122,14 +149,14 @@ public final class CassetteArtwork {
         spindles(graphics, geometry, player ? Theme.SPINDLE : Theme.BACKGROUND);
         int textY = labelY + Math.max(Theme.LABEL_PADDING, (labelH - textHeight) / 2);
         title.draw(graphics, font, metadata.title(), left + reelSize + Theme.LABEL_PADDING,
-                right - Theme.LABEL_PADDING, textY, Theme.TEXT, true);
+                right - Theme.LABEL_PADDING, textY, Theme.TEXT, true, false, widget.isHovered());
         artist.draw(graphics, font, metadata.artist(), left + reelSize + Theme.LABEL_PADDING,
-                right - Theme.LABEL_PADDING, textY + font.lineHeight + Theme.LABEL_LINE_GAP, Theme.ARTIST, true);
+                right - Theme.LABEL_PADDING, textY + font.lineHeight + Theme.LABEL_LINE_GAP, Theme.ARTIST, true, false, widget.isHovered());
         if (!state.getString().isEmpty()) {
             if (compact) status.draw(graphics, font, state, Theme.MARGIN, widget.getX() - Theme.GAP,
-                    widget.getY() + (widget.getHeight() - font.lineHeight) / 2, Theme.ORANGE, true);
+                    widget.getY() + (widget.getHeight() - font.lineHeight) / 2, Theme.ORANGE, true, false, widget.isHovered());
             else status.draw(graphics, font, state, x + Theme.GAP, x + w - Theme.GAP,
-                    y + h - font.lineHeight - Theme.BORDER, Theme.ORANGE, true);
+                    y + h - font.lineHeight - Theme.BORDER, Theme.ORANGE, true, false, widget.isHovered());
         }
         if (!compact && state.getString().isEmpty()) {
             int baseY = y + h - Math.max(8, h / 10);

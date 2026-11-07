@@ -18,6 +18,7 @@ import xyz.pyrehaven.whostoppedthemusic.music.MusicDirector;
 import xyz.pyrehaven.whostoppedthemusic.music.custom.ScenarioId;
 import xyz.pyrehaven.whostoppedthemusic.music.custom.ScenarioConfig;
 import xyz.pyrehaven.whostoppedthemusic.ui.MusicControls;
+import xyz.pyrehaven.whostoppedthemusic.ui.CassetteArtwork;
 import xyz.pyrehaven.whostoppedthemusic.ui.OverflowText;
 import xyz.pyrehaven.whostoppedthemusic.ui.Theme;
 import xyz.pyrehaven.whostoppedthemusic.ui.widget.TrackList;
@@ -39,6 +40,13 @@ public final class ScenarioScreen extends Screen {
     private Button preview;
     private Button priority;
     private Track dragging;
+    private final Button heldTape = new Button(0, 0, Theme.DRAG_WIDTH, Theme.DRAG_HEIGHT, Component.empty(),
+            button -> {}, supplier -> supplier.get()) {
+        private final CassetteArtwork artwork = new CassetteArtwork();
+        @Override protected void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
+            artwork.drawLoose(graphics, this, dragging);
+        }
+    };
     private List<Track> libraryRevision;
     private List<Deck.Entry> songRevision;
     private int rightX;
@@ -136,14 +144,14 @@ public final class ScenarioScreen extends Screen {
             }
         }
         int resetX = special && !fixed ? x + cell + Theme.GAP : x;
-        var reset = addRenderableWidget(Theme.scenarioButton(resetX, second, cell, text(special ? "reset_default" : "reset_vanilla"), button -> edit(c -> c.withSongs(defaults().songs()))));
+        var reset = addRenderableWidget(Theme.captionButton(resetX, second, cell, text("reset_short"), text(special ? "reset_default" : "reset_vanilla"), button -> edit(c -> c.withSongs(defaults().songs()))));
         reset.setTooltip(Tooltip.create(reset.getMessage()));
-        var copy = addRenderableWidget(Theme.scenarioButton(resetX + cell + Theme.GAP, second, cell, text("copy_songs"), button -> minecraft.gui.setScreen(new CopyPicker())));
+        var copy = addRenderableWidget(Theme.captionButton(resetX + cell + Theme.GAP, second, cell, text("copy_short"), text("copy_songs"), button -> minecraft.gui.setScreen(new CopyPicker())));
         copy.setTooltip(Tooltip.create(copy.getMessage()));
     }
 
     private void toggle(int x, int y, int width, String key, java.util.function.BooleanSupplier value, Runnable change) {
-        var toggle = new Toggle(text(key), value, change);
+        var toggle = new Toggle(text(key + "_short"), text(key), value, change);
         toggle.setRectangle(width, Theme.CONTROL_HEIGHT, x, y);
         addRenderableWidget(toggle);
     }
@@ -191,6 +199,7 @@ public final class ScenarioScreen extends Screen {
         });
         songs.refresh();
         songs.selectSong(track.id());
+        songs.inserted(track.id());
     }
 
     @Override public boolean mouseReleased(MouseButtonEvent event) {
@@ -210,9 +219,11 @@ public final class ScenarioScreen extends Screen {
         var label = title.copy().append("  (").append(description()).append(")");
         if (settings.songsEdited(scenario, defaults())) label.append(text("scenario.edited"));
         heading.draw(graphics, font, label, left + Theme.PADDING + Theme.EDITOR_BACK_WIDTH + Theme.GAP,
-                left + contentWidth - Theme.PADDING, Theme.MARGIN + Theme.GAP, Theme.TEXT, false, false);
+                left + contentWidth - Theme.PADDING, Theme.MARGIN + Theme.GAP, Theme.TEXT, false, false,
+                mouseY >= Theme.MARGIN && mouseY < Theme.BASIC_TOP && mouseX >= left + Theme.PADDING + Theme.EDITOR_BACK_WIDTH + Theme.GAP && mouseX < left + contentWidth - Theme.PADDING);
         graphics.text(font, text("song_library"), left + Theme.PADDING, bodyY, Theme.TEXT, false);
-        count.draw(graphics, font, text("songs_in", title, config().songs().size()), rightX, rightX + columnWidth, bodyY, Theme.TEXT, false, false);
+        count.draw(graphics, font, text("songs_in", title, config().songs().size()), rightX, rightX + columnWidth, bodyY, Theme.TEXT, false, false,
+                mouseX >= rightX && mouseX < rightX + columnWidth && mouseY >= bodyY && mouseY < bodyY + Theme.LINE);
     }
 
     @Override public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
@@ -236,9 +247,14 @@ public final class ScenarioScreen extends Screen {
         var selected = focused();
         if (selected != null) {
             probability.draw(graphics, font, weight.getMessage(),
-                    rightX, rightX + columnWidth, weight.getBottom() + Theme.BORDER, Theme.TEXT, false, false);
+                    rightX, rightX + columnWidth, weight.getBottom() + Theme.BORDER, Theme.TEXT, false, false, weight.isHovered());
         }
-        if (dragging != null) graphics.text(font, dragging.title(), mouseX + Theme.GAP, mouseY + Theme.GAP, Theme.TEXT, false);
+        if (dragging != null) {
+            if (songs.isMouseOver(mouseX, mouseY)) graphics.outline(songs.getX(), songs.getY(), songs.getWidth(), songs.getHeight(), Theme.GLOW);
+            heldTape.setPosition(Math.clamp(mouseX - Theme.DRAG_WIDTH / 2, Theme.MARGIN, width - Theme.DRAG_WIDTH - Theme.MARGIN),
+                    Math.clamp(mouseY - Theme.DRAG_HEIGHT / 2, Theme.MARGIN, height - Theme.DRAG_HEIGHT - Theme.MARGIN));
+            heldTape.extractRenderState(graphics, -1, -1, delta);
+        }
     }
 
     private Component description() {

@@ -58,7 +58,8 @@ sits beneath the metadata. Full metadata/status is available in tooltips and
 widget narration; browser tapes participate in keyboard focus/narration too.
 
 `CassetteArtwork.drawPlayer` owns compact/settings players; `drawTrack` owns
-library tapes. One geometry calculation positions the old 2×2 reel centers at
+browser tapes, `drawCase` owns the compact Custom library cases, and `drawLoose`
+owns the held drag cassette. One geometry calculation positions the old 2×2 reel centers at
 every scale: red rods belong to the player, dark open holes belong to list
 cassettes. No live channel shows only a player outline and those two rods,
 without shell, label or reels. Paused and muted music retain the loaded tape.
@@ -247,7 +248,7 @@ whostoppedthemusic/
     │   │   ├── music/
     │   │   │   ├── Track.java               # id, kind, translated display source, resolved title/artist metadata, loaded Sound
     │   │   │   ├── TrackNames.java          # pure: naming convention, structured names and normalized title/artist/typo search ranking
-    │   │   │   ├── OverflowMotion.java      # pure: endpoint waits and constant-speed bidirectional label motion
+    │   │   │   ├── OverflowMotion.java      # pure: hover clock/reset, endpoint waits and constant-speed bidirectional label motion
     │   │   │   ├── TrackLibrary.java
     │   │   │   │   # Builds deduplicated soundtrack/disc tracks from loaded weighted sound entries,
     │   │   │   │   # follows event references with cycle protection; rebuilt after SoundManager.apply
@@ -285,11 +286,11 @@ whostoppedthemusic/
     │   │   │       # Game-directory music/: case-insensitive .mp3/.ogg scan, file-name identity/title; excludes links/directories.
     │   │   │       # Owns exclusive-create numbered copies and folder-confined removal; rejects links. Never runs on a timer.
     │   │   ├── ui/
-    │   │   │   ├── Theme.java               # PyreHaven colours, spacing, shared search construction and text styles
+    │   │   │   ├── Theme.java               # PyreHaven colours, deck-button frames, concise captions, search and text styles
     │   │   │   ├── MusicControls.java       # shared settings/transport/right player; scenario targets and apply-all capture, Basic Stop/Shuffle
     │   │   │   ├── TransportButton.java     # drawn transport symbols, accessible actions and shared button states
     │   │   │   ├── MusicScreen.java         # three-mode routing; retains BasicPanel/CustomPanel query/scroll through rebuilds
-    │   │   │   ├── CassetteArtwork.java     # shared player/list shell, spindle geometry and playback-driven reel clock
+    │   │   │   ├── CassetteArtwork.java     # shared player/list/loose shell, compact cases, spindle geometry and playback-driven reel clock
     │   │   │   ├── MusicVolumeSlider.java   # vertical view of vanilla's Music option; keyboard and drag
     │   │   │   ├── BasicPanel.java          # collapsible song browser and placement of the shared player
     │   │   │   ├── custom/                 # shared components; Theme owns PyreHaven surfaces
@@ -301,12 +302,12 @@ whostoppedthemusic/
     │   │   │   │   └── Toggle.java         # shared pill toggle, translated setting/value tooltip and narration
     │   │   │   ├── AddSongsScreen.java      # shared Add music action, confirmed drops/removal, TrackList management, open folder
     │   │   │   ├── SongToast.java           # title-first two-line Now Playing toast (vanilla Toast interface)
-    │   │   │   ├── OverflowText.java        # per-line content clock and clipped fractional tape/toast rendering
+    │   │   │   ├── OverflowText.java        # per-line hover clock and clipped fractional tape/toast rendering
     │   │   │   ├── CassetteWidget.java      # top compact cassette, live title and settings link
     │   │   │   └── widget/
-    │   │   │       ├── SettingButton.java  # shared left-cycle/right-confirm control with full-label tooltip
+    │   │   │       ├── SettingButton.java  # short captions, full value/function tooltips, shared left-cycle/right-confirm control
     │   │   │       ├── SmoothList.java      # shared wheel target/frame interpolation for TrackList and ScenarioList
-    │   │   │       ├── TrackList.java       # clipped track rows: Basic, local removal, grouped drag-library and focused scenario cassettes
+    │   │   │       ├── TrackList.java       # clipped Basic/local/case/scenario rows; focused accepted-drop slide animation
     │   │   │       └── WeightSlider.java    # integer 1–100 mouse/keyboard editor with this list's weight/chance narration and tooltip
     │   │   └── mixin/
     │   │       ├── MusicManagerAccessor.java        # currentMusic/frequency/delay access and vanilla fade invoker
@@ -336,7 +337,7 @@ whostoppedthemusic/
     │   ├── ContextResolverTest.java # pure precedence/ties/raw sums/settings/interrupt, 96 weather cases, underground and aquatic
     │   ├── SettingsTest.java        # v1/v2 sparse round trip, absent/empty songs, known/future biomes, bounds, broken recovery, atomic save
     │   ├── TrackNamesTest.java      # metadata, translated names/fallback and search ranking
-    │   ├── OverflowMotionTest.java  # waits, speed, reversal, fitting and content clocks
+    │   ├── OverflowMotionTest.java  # hover/leave/fitting reset, endpoint waits, speed, reversal and content clocks
     │   ├── MusicFolderTest.java     # folder/identity, numbered exact copies, source retention, remove and link/path boundaries
     │   └── LocalAudioTest.java      # full generated PCM duration/tone, EOF, bad-file rejection, exact midpoint PCM and fade for MP3/OGG
     ├── test/resources/audio/        # shared generated CC0 sine-wave MP3/OGG fixtures and provenance README
@@ -345,7 +346,7 @@ whostoppedthemusic/
         │   ├── ClientSmokeGameTest.java # packaged UI/transport; controlsOnly/artworkOnly/ownSongsOnly/addSongsOnly focused selections
         │   ├── DiscoveryGameTest.java   # discoveryOnly: loaded discovery/default odds, 67 biomes, creative Deck, aliases/cycle/bounds/reload
         │   ├── CustomPlaybackGameTest.java # customOnly: packaged scenario playback/settings/transport/weather/jukebox/silence/LRU/mode regression
-        │   ├── CustomUiGameTest.java       # customUiOnly: main/editor; previewOnly: native midpoint/duration/resume/cancel/local/mute/jukebox/history
+        │   ├── CustomUiGameTest.java       # customUiOnly: main/editor, hover pixels, rod-free held tape and drop-slide pixels; previewOnly: native midpoint/duration/resume/cancel/local/mute/jukebox/history
         │   └── test/mixin/
         │       ├── NativeBoundary.java      # fail on OpenAL errors before/after native channel operations in the existing harness
         │       └── TransportStreamGate.java # holds decoded vanilla streams before source attachment
@@ -510,9 +511,12 @@ share search ranking, scrolling, row/focus/narration and cassette artwork. The
 editor library groups non-Minecraft IDs, including imported files, under Your
 Songs. Existing IDs display an in-list marker and cannot start a duplicate drag.
 The screen retains only the in-progress drag and focused entry identity; songs,
-weights and settings remain owned by Settings. A release inside the song viewport
-adds once, using the modal existing weight (lowest weight wins a frequency tie)
-or 10 for an empty list. A release outside only clears the drag.
+weights and settings remain owned by Settings. Drag holds a loose cassette with
+dark spindle holes and highlights the valid song viewport. A release inside adds
+once, using the modal existing weight (lowest weight wins a frequency tie) or 10
+for an empty list. TrackList slides the accepted cassette into its focused slot
+over 260 ms; that render-time insertion state never changes playback or settings.
+A release outside only clears the drag.
 
 Clicking a cassette focuses/centers it. WeightSlider edits that entry from 1–100,
 including mouse drag, arrows and Home/End. Its label, tooltip and narration use
@@ -522,9 +526,12 @@ decode failures retain the shared Can't play state. List/resource changes refres
 the retained widgets without resetting the library query/scroll.
 
 The same Toggle handles standalone active/interrupt/outside cells, and the same
-MusicControls/SettingButton handles concise editor frequency/jukebox plus the
-existing apply-all popup. Concise labels use the shared OverflowText without text
-shadows and the same button frame; there is no gray styling path. Biomes omit Active;
+MusicControls/SettingButton handles frequency/jukebox plus the existing apply-all
+popup. Visible setting captions use one word where possible (Frequency, Jukebox,
+Interrupt, Outside, Reset, Copy); priority and its value use at most two. Full
+titles, current values and functions remain in tooltips/narration. Concise labels
+use the shared hover-only OverflowText without text shadows and the same inset
+deck-button frame used on every page. Biomes omit Active;
 weather adds Must be outside; underground exposes an integer Y field with invalid
 text highlighted and unpersisted. Boss/aquatic/creative leave its cell empty;
 menu/credits omit active/priority/interrupt. Priority clamps to 1–10.
@@ -607,6 +614,16 @@ and an absent/future biome. The existing basicUiOnly selection also passes after
 moving the right-player layout into MusicControls. See the plan for commands,
 logs and artifact hash. Human visual/listening acceptance remains pending.
 
+The hover/cassette update also passed on 2026-11-07 with
+`xvfb-run -a ./gradlew jar test --tests '*OverflowMotionTest' runClientGameTest -PcustomUiOnly --console=plain`.
+Three focused unit cases pass. Packaged-client pixel comparisons prove idle
+overflow is stationary, hover scrolls and leaving resets; the held tape has reel
+artwork without red rods, and an accepted drop visibly slides into its slot.
+The editor's existing duplicate/outside-drop, settings, popup, normal/narrow and
+scale-4 checks still pass. Normal and 320×240 captures were inspected; final human
+visual acceptance remains open. The log is
+`runtime/whostoppedthemusic/evidence/hover-cassette-client.log`.
+
 ## Hooks
 
 Implemented hooks are checked against 26.3 bytecode and the packaged client.
@@ -640,10 +657,12 @@ Fabric API instead of mixins:
 - The jukebox check runs there only when the setting is Pause and `JukeboxWatcher` has an entry.
 - The toast uses vanilla's toast manager.
 - `OverflowText` shares clipped, fractional-position rendering across cassette title,
-  artist and separate status lines and SongToast. Each line owns an `OverflowMotion`
-  content clock: fitting text stays still; overflow waits 1 second at each endpoint
-  and travels at 20 GUI pixels/second in alternating directions. Only changed line
-  content restarts its clock; resizing and unrelated metadata/status changes do not.
+  artist, status, scenario names, settings and SongToast. Each interactive line
+  receives its actual mouse-hover state (keyboard focus alone does not scroll).
+  Overflow waits 1 second, then travels at 20 GUI pixels/second in alternating
+  directions with endpoint waits. Leaving, changed text or fitting width resets
+  the line to its beginning; a later hover starts a fresh wait. The noninteractive
+  toast remains static. Reel motion still follows native playback independently.
 - The music folder is scanned on Basic's first initialization and resource reload,
   on vanilla's IO executor. Later Add Songs actions explicitly request refresh after
   copy/removal. Never on a timer. A revision rejects superseded scans; publication

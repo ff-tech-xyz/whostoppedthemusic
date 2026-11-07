@@ -15,8 +15,14 @@ public final class OverflowText {
 
     public void draw(GuiGraphicsExtractor graphics, Font font, Component text,
                      int left, int right, int y, int color, boolean center, boolean shadow) {
+        draw(graphics, font, text, left, right, y, color, center, shadow, false);
+    }
+
+    public void draw(GuiGraphicsExtractor graphics, Font font, Component text,
+                     int left, int right, int y, int color, boolean center, boolean shadow, boolean hovered) {
+        if (right <= left) return;
         int width = font.width(text);
-        double offset = motion.offset(text.getString(), width - (right - left), net.minecraft.util.Util.getMillis());
+        double offset = motion.offset(text.getString(), width - (right - left), net.minecraft.util.Util.getMillis(), hovered);
         float x = left + (center && width <= right - left ? (right - left - width) / 2f : 0) - (float) offset;
         graphics.enableScissor(left, y - Theme.BORDER, right, y + font.lineHeight + Theme.BORDER);
         graphics.pose().pushMatrix();

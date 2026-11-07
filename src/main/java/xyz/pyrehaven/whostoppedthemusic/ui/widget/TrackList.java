@@ -28,6 +28,13 @@ public final class TrackList extends SmoothList<TrackList.Row> {
     private java.util.function.Supplier<List<xyz.pyrehaven.whostoppedthemusic.music.Deck.Entry>> songs;
 
     private String focusedId;
+    private String insertedId;
+    private long insertedAt;
+
+    public void inserted(String id) {
+        insertedId = id;
+        insertedAt = net.minecraft.util.Util.getMillis();
+    }
 
     /** Compact drag rows and cassette rows share the same search, scroll and input owner. */
     public void library(java.util.function.Consumer<Track> drag, java.util.function.Predicate<String> contains) {
@@ -161,16 +168,9 @@ public final class TrackList extends SmoothList<TrackList.Row> {
                 else if (drag != null && !contains.test(songId)) drag.accept(track);
             }, supplier -> supplier.get()) {
                 private final CassetteArtwork artwork = new CassetteArtwork();
-                private final xyz.pyrehaven.whostoppedthemusic.ui.OverflowText label = new xyz.pyrehaven.whostoppedthemusic.ui.OverflowText();
                 @Override protected void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
                     if (drag != null) {
-                        graphics.fill(getX(), getY(), getRight(), getBottom(), Theme.BLUE);
-                        var text = title.copy();
-                        if (contains.test(songId)) text.append(Component.translatable("whostoppedthemusic.in_list"));
-                        setMessage(text);
-                        setTooltip(net.minecraft.client.gui.components.Tooltip.create(text));
-                        label.draw(graphics, minecraft.font, text, getX() + Theme.GAP, getRight() - Theme.GAP,
-                                getY() + Theme.GAP, Theme.TEXT, false, false);
+                        artwork.drawCase(graphics, this, track, contains.test(songId));
                     } else if (track == null) artwork.drawMissing(graphics, this, title);
                     else artwork.drawTrack(graphics, this, track, MusicDirector.get(minecraft));
                     if (songs != null && songId.equals(focusedId)) graphics.outline(getX(), getY(), getWidth(), getHeight(), Theme.ORANGE);
@@ -193,7 +193,14 @@ public final class TrackList extends SmoothList<TrackList.Row> {
             }
             if (songs != null || drag != null) {
                 tape.setRectangle(getContentWidth(), getContentHeight() - Theme.GAP, getContentX(), getContentY());
+                graphics.pose().pushMatrix();
+                if (songId.equals(insertedId)) {
+                    double progress = Math.clamp((net.minecraft.util.Util.getMillis() - insertedAt) / (double) Theme.INSERT_MILLIS, 0, 1);
+                    graphics.pose().translate((float) ((1 - progress) * (1 - progress) * Theme.DRAG_WIDTH), 0);
+                    if (progress == 1) insertedId = null;
+                }
                 tape.extractRenderState(graphics, mouseX, mouseY, delta);
+                graphics.pose().popMatrix();
                 return;
             }
             boolean narrow = getContentWidth() < Theme.TRACK_SIDE_CONTROLS_MIN;

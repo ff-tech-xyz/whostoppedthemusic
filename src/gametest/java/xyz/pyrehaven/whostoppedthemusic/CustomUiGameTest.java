@@ -468,6 +468,8 @@ final class CustomUiGameTest {
                         Files.copy(input, folder.resolve(entry.getValue()), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
                     }
                 }
+                Files.copy(folder.resolve("Editor-check.mp3"), folder.resolve("Hover-check cassette title longer than the library window.mp3"),
+                        java.nio.file.StandardCopyOption.REPLACE_EXISTING);
             } catch (java.io.IOException error) { throw new java.io.UncheckedIOException(error); }
             var settings = WhoStoppedTheMusic.settings();
             var defaults = MusicDirector.get(client).customPlayback().defaults(forest).config();
@@ -479,6 +481,7 @@ final class CustomUiGameTest {
         context.setScreen(() -> new ScenarioScreen(parent, WhoStoppedTheMusic.settings(), forest));
         context.waitTicks(4);
         fit(context);
+        hoverCase(context);
         drag(context, "Pigstep", true);
         context.runOnClient(client -> check(config(client, forest).songs().size() == 1 && config(client, forest).songs().getFirst().weight() == 10,
                 "empty drag starts at 10"));
@@ -667,13 +670,82 @@ final class CustomUiGameTest {
                     .map(AbstractWidget.class::cast).filter(w -> w.getMessage().getString().toLowerCase(java.util.Locale.ROOT).contains(query.toLowerCase(java.util.Locale.ROOT).replace(".mp3", "").replace(".ogg", "")))
                     .findFirst().orElseThrow(() -> new AssertionError("Missing drag row: " + query));
             click(client, row, 0);
+        });
+        boolean capture = query.equals("Pigstep") && inside && context.computeOnClient(client -> field(client.gui.screen(), "dragging") != null);
+        if (capture) {
+            context.getInput().setCursorPos(420, 320);
+            context.waitTicks(2);
+            var image = context.takeScreenshot("cassette-held-pigstep");
+            context.runOnClient(client -> {
+                var tape = (AbstractWidget) field(client.gui.screen(), "heldTape");
+                var pixels = labelPixels(client, image, tape, false);
+                check(Arrays.stream(pixels).noneMatch(p -> p == Theme.SPINDLE), "loose held tape has no red player rods");
+                check(Arrays.stream(pixels).anyMatch(p -> p == Theme.GLOW), "held artwork contains reel edges, not just a title");
+            });
+        }
+        context.runOnClient(client -> {
+            var lists = editorLists(client);
             var target = lists.get(1);
             var event = new MouseButtonEvent(inside ? target.getX() + target.getWidth() / 2.0 : 0,
                     inside ? target.getY() + target.getHeight() / 2.0 : 0, new MouseButtonInfo(InputConstants.MOUSE_BUTTON_LEFT, 0));
-            client.gui.screen().mouseDragged(event, event.x() - row.getX(), event.y() - row.getY());
+            client.gui.screen().mouseDragged(event, 1, 1);
             client.gui.screen().mouseReleased(event);
         });
+        if (capture) {
+            var arriving = context.takeScreenshot("cassette-inserting");
+            context.waitTicks(8);
+            var settled = context.takeScreenshot("cassette-inserted");
+            context.runOnClient(client -> {
+                var tape = editorLists(client).get(1).children().getFirst().children().stream()
+                        .map(AbstractWidget.class::cast).findFirst().orElseThrow();
+                check(!Arrays.equals(labelPixels(client, arriving, tape, false), labelPixels(client, settled, tape, false)),
+                        "dropped tape visibly slides into the focused deck slot");
+                check(field(client.gui.screen(), "dragging") == null, "release clears held tape");
+            });
+            org.slf4j.LoggerFactory.getLogger("whostoppedthemusic-test").info("CASSETTE DRAG PASS: held reel artwork has no red rods; accepted drop slides into focused slot and clears drag");
+        }
         context.waitTicks(4);
+    }
+
+    private static void hoverCase(ClientGameTestContext context) {
+        search(context, "Hover-check");
+        context.getInput().setCursorPos(0, 0);
+        context.waitTicks(3);
+        var row = context.computeOnClient(client -> editorLists(client).getFirst().children().stream()
+                .flatMap(r -> r.children().stream()).map(AbstractWidget.class::cast).findFirst().orElseThrow());
+        var first = context.takeScreenshot("case-idle-start");
+        context.waitTicks(35);
+        var idle = context.takeScreenshot("case-idle-later");
+        context.runOnClient(client -> check(Arrays.equals(labelPixels(client, first, row, true), labelPixels(client, idle, row, true)),
+                "overflowing case title stays pixel-identical without hover"));
+        var scale = context.computeOnClient(client -> client.getWindow().getGuiScale());
+        context.getInput().setCursorPos((row.getX() + row.getWidth() / 2.0) * scale,
+                (row.getY() + row.getHeight() / 2.0) * scale);
+        context.waitTicks(3);
+        var start = context.takeScreenshot("case-hover-start");
+        context.waitTicks(35);
+        var moving = context.takeScreenshot("case-hover-moving");
+        context.runOnClient(client -> check(!Arrays.equals(labelPixels(client, start, row, true), labelPixels(client, moving, row, true)),
+                "hovering moves overflowing case title"));
+        context.getInput().setCursorPos(0, 0);
+        context.waitTicks(2);
+        var reset = context.takeScreenshot("case-leave-reset");
+        context.runOnClient(client -> check(Arrays.equals(labelPixels(client, first, row, true), labelPixels(client, reset, row, true)),
+                "leaving resets case title pixels immediately"));
+        org.slf4j.LoggerFactory.getLogger("whostoppedthemusic-test").info("HOVER CASE PASS: stationary idle, hover-only motion, reset on leave using packaged renderer pixels");
+    }
+
+    private static int[] labelPixels(Minecraft client, Path path, AbstractWidget widget, boolean labelOnly) {
+        try {
+            var image = javax.imageio.ImageIO.read(path.toFile());
+            double scale = client.getWindow().getGuiScale();
+            int inset = labelOnly ? Theme.CASE_SPINE + Theme.LABEL_PADDING : 0;
+            int x = (int) ((widget.getX() + inset) * scale);
+            int y = (int) ((widget.getY() + (labelOnly ? Theme.ACCENT : 0)) * scale);
+            int w = (int) ((widget.getWidth() - inset - (labelOnly ? Theme.GAP + Theme.LABEL_PADDING : 0)) * scale);
+            int h = (int) ((widget.getHeight() - (labelOnly ? Theme.ACCENT * 2 : 0)) * scale);
+            return image.getRGB(x, y, w, h, null, 0, w);
+        } catch (java.io.IOException error) { throw new java.io.UncheckedIOException(error); }
     }
 
     private static void addLink(ClientGameTestContext context) {
