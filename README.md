@@ -1,53 +1,147 @@
 # Who Stopped The Music
 
-Choose what Minecraft plays without replacing its music player. Keep vanilla's choices, make one song list for the whole game, or give each biome and situation its own soundtrack. Music discs and your own MP3 and OGG files work as background music too.
+Who Stopped The Music is a full soundtrack editor for Minecraft 26.3. Choose what music plays and when, using the game's soundtrack, music discs, or your own MP3 and OGG files.
 
-Press **M**, or click the bottom-left cassette on the title or pause menu. The mode button cycles **Vanilla → Basic → Custom**. M can be rebound in Controls → Who Stopped The Music.
+Keep Minecraft's usual music choices with a few extra controls, build one playlist for the whole game, or give each biome and situation its own soundtrack.
 
-## One list, everywhere
+Press **M (rebindable)** to open the editor, or click the cassette in the bottom-left corner of the title or pause menu. Change the key in **Controls → Who Stopped The Music**. Click the mode button to switch between **Vanilla**, **Basic** and **Custom**.
 
-**Basic** plays your selected songs across biomes, dimensions and the title screen. For example, select Sweden and Pigstep and those are the songs you get, even when you leave the Overworld.
+*The music controls have moved in. Bottom-left, rent-free.*
 
-![Basic song browser with shared transport and current-song cassette](docs/images/basic.png)
+![Cassette music controls on the pause menu](docs/images/pause-menu.png)
 
-Tick songs to include them, or press a row's Play button to hear it immediately. Search by title or artist; hide the browser with the inward arrow when you only want the player. Previous and Next use your playback history. Shuffle off plays the selected list in order; Shuffle on draws without replacement before refilling. Stop holds silence until Play, Next or a row's Play, or a game restart. An empty selection stays silent.
+## Vanilla mode
 
-**Vanilla** keeps Minecraft's song selection and offers Play, Pause/Resume and Next. In every mode, Pause/Resume keeps the current song's position. The Music slider changes only background music; Master and Music Toast stay in Minecraft's sound options.
+Vanilla mode leaves Minecraft's process for choosing songs intact, so the music you hear is still picked for the same places and situations as the base game.
 
-Song changes use Minecraft's left-side Now Playing notification in every mode, including your imported songs. The title and pause menus keep their cassette player and Next button.
+You can start music, pause and resume the current song, or skip it and let Minecraft choose another. You also get controls for music volume, how often songs play, and whether a nearby jukebox pauses background music or plays alongside it.
 
-## Music for each place
+*Minecraft still picks the songs. You just get a skip button.*
 
-**Custom** groups biomes under collapsed Overworld, Nether, End and other namespace sections, followed by Misc scenarios. Click a section or search to find a biome. Vanilla biomes are available from the title menu; joining a world loads its exact biome registry, including modded and datapack biomes. Open Forest to choose its songs, or enable Thunder and give storms their own soundtrack.
+![Vanilla mode with playback, frequency, jukebox and volume controls](docs/images/vanilla-mode.webp)
 
-![Custom specials beside the current Swamp music player](docs/images/custom.png)
+## Basic mode
 
-The highest-priority active scenario wins. Equal priorities combine song lists and add the weights of shared songs. An active winner with no songs means silence; turning a special off lets another scenario take over. Underground and weather specials start off, so enabling them is your choice.
+Basic mode gives you one music pool for the whole game, including the title screen and every dimension. Select the songs you want from the soundtrack, music discs and your imported files; those are the songs that play wherever you go.
 
-![Forest editor with song library, cassette weights, preview and removal](docs/images/forest-editor.png)
+Search by song or artist, select individual tracks, or use **Select All** and remove the ones you don't want. Turn Shuffle on for shuffled playback, or off to play your selection in order.
 
-Drag a song from the library into the right-hand list. Focus a cassette to change its weight from 1–100, preview up to three seconds from its midpoint, or remove it. Preview pauses background music and then resumes the same song. Reset restores only the songs; Copy songs replaces only the songs and weights, leaving that scenario's other settings alone.
+Basic includes the same volume, frequency and jukebox settings as Vanilla, along with Previous, Next and Stop controls. You can also play a song directly from the browser without adding it to your selection.
 
-The playing song's library case and scenario cassette show red spindle dots, turning reels and music notes. They follow actual playback, including previews; paused tapes stop turning and silence emits no notes. A tape held while dragging stays detached from the player.
+*Pigstep in the Overworld? Your playlist, your rules.*
 
-On the main Custom screen, Frequency and Jukebox name the current winning scenarios and edit those scenarios together. Right-click either setting and confirm Yes to apply its current value to every scenario, including biomes discovered later.
+![Basic mode's searchable song selection and music player](docs/images/basic-mode.webp)
 
-## Bring your own songs
+## Custom mode
 
-Choose **Add music** in Basic or Custom. Drop regular `.mp3` or `.ogg` files onto that screen, then confirm the copy. Existing files stay intact; duplicate names get numbered copies. **Open music folder** opens the instance's `music/` directory, where you can also place files yourself.
+Custom mode opens a scenario-based soundtrack editor. Give a flower forest a peaceful playlist, choose something heavier for thunderstorms, or replace the menu music with your own song.
 
-![Add music screen showing imported files and Remove controls](docs/images/add-music.png)
+Biomes come from the world's biome registry, so modded and datapack biomes can appear too. Join a world to load its biome list, then expand a group or search for the biome you want.
 
-Your Songs appears in Basic and in the Custom editor's library. Filenames supply the titles. Remove on the Add music screen permanently deletes that local copy after confirmation; Remove in a scenario editor only removes the entry from that list. Broken files show Can't play. Missing scenario entries keep their settings and are skipped until the file returns.
+Alongside biomes, the **Misc** section includes:
 
-Music Frequency starts at **Constant** on first launch. You can change it in the screen; Custom keeps its own frequency per scenario. **Pause music** holds background music while a jukebox plays within 64 blocks; **Play over** lets both play. Transport never stops the jukebox itself.
+- **Menu:** while you're outside a world.
+- **Credits:** while the credits are showing.
+- **Boss:** when Minecraft requests boss music, normally during the Ender Dragon fight.
+- **Aquatic:** while you're underwater in an ocean or river biome.
+- **Creative:** while you're in Creative mode.
+- **Underground:** below your chosen Y level, without a view of the sky.
+- **Thunder:** during thunderstorms where the biome has precipitation.
+- **Rain:** where it's raining.
+- **Snow:** where it's snowing.
 
-## Install
+*Every biome gets a say. Some just get a louder say.*
 
-Use the 1.2.0 jar in a **Minecraft 26.3 Fabric** instance with **Java 25**, **Fabric Loader 0.19.5 or newer** and **Fabric API 0.162.0+26.3 or newer for 26.3**. Put the mod and Fabric API in that instance's `mods/` folder. The MP3 decoder is bundled.
+![Custom mode's biome groups and Misc scenarios](docs/images/custom-mode.webp)
 
-Install on your client for singleplayer or multiplayer. Servers don't need the mod.
+Open a scenario, then drag songs from the library into its music list. Each song has its own weight, so you can make favourites more likely without removing the rest.
 
-See the [configuration guide](docs/CONFIGURATION.md) for defaults, scenario conditions, file examples and v1 settings compatibility. The [changelog](CHANGELOG.md) records the rebuild's player-facing changes. Contributor build instructions and ownership live in [the architecture](docs/ARCHITECTURE.md); implementation evidence and remaining acceptance are in [the sole 1.2.0 plan](docs/plans/1.2.0.md).
+*Featherfall has been promoted to forest management.*
+
+![Flower Forest editor with its song list and selected song weight](docs/images/flower-forest.webp)
+
+## Settings and controls
+
+### Playback and volume
+
+**Play** starts music when nothing is playing. **Pause** holds the current song's position, and **Resume** continues from there.
+
+**Next** moves to another song; in Vanilla mode, Minecraft chooses it for the current situation. **Previous** is available in Basic and Custom and returns through your playback history.
+
+Basic mode also has **Stop**, which keeps the music silent until you start it again or restart the game.
+
+The **Music** slider controls the same Music volume setting as Minecraft's own sound options; it isn't a separate volume control stacked on top. It changes background music without changing sound effects or jukebox volume. Minecraft's **Music Toast** setting controls the song-change notification, including notifications for imported songs.
+
+### Frequency
+
+Frequency controls the gap between songs:
+
+- **Default** uses Minecraft's normal music delays.
+- **Frequent** shortens the wait.
+- **Constant** removes the usual wait between songs.
+
+Changing Frequency doesn't cut off the song already playing. The mod starts with **Constant** selected.
+
+Vanilla and Basic use Minecraft's global frequency setting. Custom lets each scenario have its own.
+
+### Jukebox
+
+Choose **Pause music** to hold background music while a jukebox plays within 64 blocks, or **Play over** to let both play together. These controls don't stop the jukebox itself.
+
+Custom can use a different jukebox setting for each scenario.
+
+*One song at a time. Unless you specifically asked for two.*
+
+![Jukebox setting with the Pause music tooltip](docs/images/jukebox-setting.webp)
+
+### Scenario settings
+
+**Active** enables or disables a Misc scenario. Weather and Underground start disabled, so you can add their songs before switching them on. Biome scenarios are always on and have no Active toggle. Menu and Credits always apply on their respective screens.
+
+**Priority** decides which scenario wins when several apply. Higher numbers win; equal priorities combine their song lists, adding the weights of shared songs. Menu and Credits take precedence on their screens. An empty winning list means silence, so disable an unwanted scenario rather than emptying it if you want another scenario to take over.
+
+**Interrupt** lets a newly winning scenario replace the current song immediately. With it off, the outgoing song can finish first.
+
+**Outside** makes a weather scenario require exposure to the weather. Turn it off if you want that weather's soundtrack while sheltered too.
+
+**Y level** sets Underground's upper boundary. With 64 selected, you must be below Y64 and unable to see the sky.
+
+**Weight** controls how often a song appears in the shuffled pool, from 1–100. A song with weight 20 gets twice as many entries as one with weight 10. Each entry is used once before the pool refills, so a song with multiple entries can repeat before every other song has played. The editor shows each song's share of that list's total weight.
+
+**Preview** plays up to three seconds from the middle of a song, then resumes your background music.
+
+**Reset** restores the scenario's default songs. **Copy** replaces its songs and weights with those from another scenario. Neither changes its other settings.
+
+Frequency and Jukebox on the main Custom screen affect the currently winning scenarios. Right-click either control and confirm to apply its displayed value to every scenario, including biomes discovered later.
+
+## Bring your own music
+
+Click **Add music** in Basic or Custom, drop MP3 or OGG files onto the screen, then confirm the copy. Your originals stay where they are, and duplicate filenames get numbered copies.
+
+You can also click **Open music folder** and put files directly in that instance's `music/` folder. Your files appear under **Your Songs**, ready to add to Basic's pool or any Custom scenario.
+
+Removing a song from a scenario only removes that list entry. Removing it from the Add music screen permanently deletes the imported local copy after confirmation.
+
+*The soundtrack committee is now accepting submissions.*
+
+![Add music screen showing an imported song](docs/images/import-music.webp)
+
+## Installation
+
+For **Minecraft 26.3**, use **Java 25+**, **Fabric Loader 0.19.5+** and **Fabric API 0.162.0+26.3** or a later compatible version.
+
+Put Who Stopped The Music and Fabric API in your Fabric instance's `mods` folder, then launch the game.
+
+This is a **client-only mod** for singleplayer and multiplayer. Servers don't need it installed. MP3 support is bundled.
+
+## Made by PyreHaven
+
+Made by [PyreHaven](https://pyrehaven.xyz).
+
+[Source code on GitHub](https://github.com/ff-tech-xyz/whostoppedthemusic)
+
+---
+
+[Configuration reference](docs/CONFIGURATION.md) · [Changelog](CHANGELOG.md) · [Architecture and build instructions](docs/ARCHITECTURE.md) · [Development plan](docs/plans/1.2.0.md)
 
 Our code is CC0-1.0. The unmodified bundled JLayer decoder retains its [LGPL 2.1 license](LICENSE_jlayer).
