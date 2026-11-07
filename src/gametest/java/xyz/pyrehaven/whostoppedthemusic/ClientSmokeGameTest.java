@@ -11,6 +11,8 @@ import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.MusicToastDisplayState;
 import net.minecraft.client.gui.components.AbstractWidget;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.PauseScreen;
 import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.client.sounds.MusicManager.MusicFrequency;
@@ -21,6 +23,8 @@ import xyz.pyrehaven.whostoppedthemusic.mixin.MusicManagerAccessor;
 import xyz.pyrehaven.whostoppedthemusic.ui.CassetteWidget;
 import xyz.pyrehaven.whostoppedthemusic.ui.MusicScreen;
 import xyz.pyrehaven.whostoppedthemusic.ui.MusicVolumeSlider;
+import xyz.pyrehaven.whostoppedthemusic.ui.Theme;
+import xyz.pyrehaven.whostoppedthemusic.ui.widget.TrackList;
 import xyz.pyrehaven.whostoppedthemusic.music.MusicDirector;
 import xyz.pyrehaven.whostoppedthemusic.mixin.SoundManagerAccessor;
 import xyz.pyrehaven.whostoppedthemusic.mixin.SoundEngineAccessor;
@@ -38,7 +42,8 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
 
     @Override
     public void onInitializeClient() {
-        if (Boolean.getBoolean("whostoppedthemusic.transportOnly") || Boolean.getBoolean("whostoppedthemusic.basicOnly")) {
+        if (Boolean.getBoolean("whostoppedthemusic.transportOnly") || Boolean.getBoolean("whostoppedthemusic.basicOnly")
+                || Boolean.getBoolean("whostoppedthemusic.basicUiOnly")) {
             return;
         }
         // Entrypoint order is not guaranteed. Check after all startup callbacks,
@@ -52,6 +57,10 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
     @Override
     public void runTest(ClientGameTestContext context) {
         context.waitForScreen(TitleScreen.class);
+        if (Boolean.getBoolean("whostoppedthemusic.basicUiOnly")) {
+            checkBasicUi(context);
+            return;
+        }
         if (Boolean.getBoolean("whostoppedthemusic.basicOnly")) {
             checkBasic(context);
             return;
@@ -114,6 +123,154 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
                 "WHOSTOPPEDTHEMUSIC CLIENT PASS: first-run Constant, Vanilla UI, M/rebind, options/persistence, top cassette, live song/silence, Play/Next/Pause/Resume, music-only volume, inert mode, 320x240");
     }
 
+    private static void checkBasicUi(ClientGameTestContext context) {
+        context.getInput().resizeWindow(960, 720);
+        context.runOnClient(client -> {
+            var settings = WhoStoppedTheMusic.settings();
+            settings.setMode(Mode.BASIC);
+            settings.setAllTicked(WhoStoppedTheMusic.LIBRARY.tracks().stream().map(t -> t.id()).toList(), true);
+            client.options.guiScale().set(2);
+            client.options.getSoundSourceOptionInstance(SoundSource.MASTER).set(0.7);
+            client.options.getSoundSourceOptionInstance(SoundSource.MUSIC).set(0.7);
+            MusicDirector.get(client).syncMode();
+            client.gui.setScreen(new MusicScreen(client.gui.screen(), settings));
+        });
+        context.waitForScreen(MusicScreen.class);
+        context.waitTicks(5);
+        assertWidgetsFit(context);
+        var list = context.computeOnClient(client -> trackList(client.gui.screen()));
+        context.runOnClient(client -> {
+            check(list.children().stream().filter(row -> row.children().isEmpty()).count() == 2, "empty search has two sections");
+            list.setScrollAmount(Theme.TRACK_HEADER_HEIGHT + list.children().get(1).getHeight() * 0.75);
+        });
+        context.waitTicks(2);
+        context.runOnClient(client -> {
+            var rows = list.children().stream().filter(row -> !row.children().isEmpty()).toList();
+            check(rows.get(0).getY() < list.getY() && rows.get(0).getY() + rows.get(0).getHeight() > list.getY(), "previous cassette clipped above");
+            check(rows.get(1).getY() >= list.getY() && rows.get(1).getY() + rows.get(1).getHeight() <= list.getBottom(), "main cassette fully visible");
+            check(rows.get(2).getY() < list.getBottom() && rows.get(2).getY() + rows.get(2).getHeight() > list.getBottom(), "next cassette clipped below");
+        });
+        context.getInput().setCursorPos(0, 0);
+        context.takeScreenshot("basic-ui-expanded");
+        double start = context.computeOnClient(client -> list.scrollAmount());
+        context.runOnClient(client -> {
+            list.mouseScrolled(list.getX() + 1, list.getY() + 1, 0, -1);
+            check(list.scrollAmount() == start, "wheel sets a smooth target, not an immediate jump");
+        });
+        context.waitTicks(8);
+        context.runOnClient(client -> check(list.scrollAmount() > start, "smooth wheel scrolling advances the viewport"));
+        var all = namedWidget(context, "Select All");
+        var none = namedWidget(context, "Deselect All");
+        context.runOnClient(client -> {
+            searchBox(client.gui.screen()).setValue("  C418  ");
+            check(!all.visible && !all.active && !none.visible && !none.active, "search hides and disables both bulk controls");
+            int count = MusicDirector.get(client).selected().size();
+            ((Button) none).onPress(null);
+            check(MusicDirector.get(client).selected().size() == count, "bulk action guarded while searching");
+            check(list.children().stream().allMatch(row -> row.children().size() == 2), "ranked search has no headers");
+            list.setScrollAmount(list.children().getFirst().getHeight());
+        });
+        double savedScroll = context.computeOnClient(client -> list.scrollAmount());
+        clickWidget(context, namedWidget(context, "<", Theme.BASIC_TOP));
+        context.waitTicks(2);
+        assertWidgetsFit(context);
+        context.runOnClient(client -> {
+            check(Screens.getWidgets(client.gui.screen()).stream().noneMatch(TrackList.class::isInstance), "collapsed browser removed from input and render tree");
+            var mode = Screens.getWidgets(client.gui.screen()).stream().filter(w -> w.getMessage().getString().equals("Basic")).findFirst().orElseThrow();
+            check(Math.abs(mode.getX() + mode.getWidth() / 2.0 - client.gui.screen().width / 2.0) <= 1, "collapsed player centered");
+        });
+        context.getInput().setCursorPos(0, 0);
+        context.takeScreenshot("basic-ui-collapsed");
+        clickWidget(context, namedWidget(context, ">", Theme.BASIC_TOP));
+        context.runOnClient(client -> {
+            check(searchBox(client.gui.screen()).getValue().equals("  C418  "), "collapse restores exact query");
+            check(trackList(client.gui.screen()) == list && Math.abs(list.scrollAmount() - savedScroll) < 1, "collapse restores same browser and scroll");
+            searchBox(client.gui.screen()).setValue("cat");
+            var cat = WhoStoppedTheMusic.LIBRARY.tracks().stream().filter(track -> track.id().equals("minecraft:records/cat")).findFirst().orElseThrow();
+            check(list.children().getFirst().children().size() == 2, "first ranked result is a song");
+            ((Button) list.children().getFirst().children().getLast()).onPress(null);
+            check(MusicDirector.get(client).current().getSound().getLocation().equals(cat.sound().getLocation()), "exact Cat disc ranks first across sections");
+        });
+        context.waitFor(client -> channelState(client, MusicDirector.get(client).current(), true).join());
+        context.getInput().setCursorPos(0, 0);
+        context.waitTicks(2);
+        context.takeScreenshot("basic-ui-search");
+        context.runOnClient(client -> searchBox(client.gui.screen()).setValue("swedn"));
+        context.waitTicks(2);
+        var row = context.computeOnClient(client -> list.children().getFirst());
+        boolean ticked = context.computeOnClient(client -> WhoStoppedTheMusic.settings().ticked("minecraft:music/game/sweden"));
+        clickWidget(context, (AbstractWidget) row.children().getFirst());
+        context.runOnClient(client -> check(WhoStoppedTheMusic.settings().ticked("minecraft:music/game/sweden") != ticked, "approximate result tick works"));
+        context.runOnClient(client -> {
+            client.gui.screen().setFocused(list);
+            list.setFocused(row);
+            row.setFocused(row.children().getFirst());
+        });
+        context.getInput().pressKey(InputConstants.KEY_SPACE);
+        context.runOnClient(client -> check(WhoStoppedTheMusic.settings().ticked("minecraft:music/game/sweden") == ticked, "row selection works by keyboard"));
+        context.getInput().pressKey(InputConstants.KEY_SPACE);
+        clickWidget(context, (AbstractWidget) row.children().getLast());
+        context.waitFor(client -> channelState(client, MusicDirector.get(client).current(), true).join());
+        context.runOnClient(client -> {
+            check(MusicDirector.get(client).status().getString().equals("C418 - Sweden"), "row Play starts exact ranked song on a real channel");
+            check(Screens.getWidgets(client.gui.screen()).stream().anyMatch(w -> w.getY() > Theme.BASIC_TOP + Theme.ROW * 4
+                    && w.getMessage().getString().equals("C418 - Sweden")), "current-song cassette below transport updates live");
+            searchBox(client.gui.screen()).setValue("C418");
+            list.setScrollAmount(list.children().getFirst().getHeight());
+        });
+        context.getInput().resizeWindow(320, 240);
+        context.waitTicks(5);
+        assertWidgetsFit(context);
+        context.runOnClient(client -> {
+            check(searchBox(client.gui.screen()).getValue().equals("C418"), "resize preserves query");
+            check(Math.abs(list.scrollAmount() / list.children().getFirst().getHeight() - 1) < 0.05, "resize preserves relative song position");
+            check(WhoStoppedTheMusic.settings().ticked("minecraft:music/game/sweden") != ticked, "resize preserves selection");
+            check(!all.visible && !all.active && !none.visible && !none.active, "resized search bulk controls stay disabled");
+        });
+        context.getInput().setCursorPos(0, 0);
+        context.takeScreenshot("basic-ui-small-search");
+        context.runOnClient(client -> searchBox(client.gui.screen()).setValue("   "));
+        context.waitTicks(2);
+        context.runOnClient(client -> check(all.visible && all.active && none.visible && none.active, "blank query restores bulk controls below list"));
+        clickWidget(context, none);
+        context.runOnClient(client -> check(MusicDirector.get(client).selected().isEmpty(), "Deselect All works with blank query"));
+        clickWidget(context, all);
+        context.runOnClient(client -> check(MusicDirector.get(client).selected().size() == WhoStoppedTheMusic.LIBRARY.tracks().size(), "Select All restores library"));
+        context.getInput().setCursorPos(0, 0);
+        context.takeScreenshot("basic-ui-small-expanded");
+        clickWidget(context, namedWidget(context, "<", Theme.BASIC_TOP));
+        context.waitTicks(2);
+        assertWidgetsFit(context);
+        context.takeScreenshot("basic-ui-small-collapsed");
+        context.clickScreenButton("gui.done");
+        context.waitForScreen(TitleScreen.class);
+        LoggerFactory.getLogger("whostoppedthemusic-test").info("BASIC UI PASS: expanded/clipped tapes, smooth wheel, ranked ungrouped search, hidden/disabled bulk, collapse/centering/restore, row tick/real-channel play, live cassette, resize/query/scroll/selection and 320x240");
+    }
+
+    private static TrackList trackList(net.minecraft.client.gui.screens.Screen screen) {
+        return Screens.getWidgets(screen).stream().filter(TrackList.class::isInstance).map(TrackList.class::cast).findFirst().orElseThrow();
+    }
+
+    private static EditBox searchBox(net.minecraft.client.gui.screens.Screen screen) {
+        return Screens.getWidgets(screen).stream().filter(EditBox.class::isInstance).map(EditBox.class::cast).findFirst().orElseThrow();
+    }
+
+    private static AbstractWidget namedWidget(ClientGameTestContext context, String prefix) {
+        return context.computeOnClient(client -> Screens.getWidgets(client.gui.screen()).stream()
+                .filter(w -> w.getMessage().getString().startsWith(prefix)).findFirst().orElseThrow());
+    }
+
+    private static AbstractWidget namedWidget(ClientGameTestContext context, String label, int y) {
+        return context.computeOnClient(client -> Screens.getWidgets(client.gui.screen()).stream()
+                .filter(w -> w.getY() == y && w.getMessage().getString().equals(label)).findFirst().orElseThrow());
+    }
+
+    private static AbstractWidget basicNext(ClientGameTestContext context) {
+        return context.computeOnClient(client -> Screens.getWidgets(client.gui.screen()).stream()
+                .filter(w -> w.getY() == Theme.BASIC_TOP + Theme.ROW * 3 && w.getMessage().getString().equals(">"))
+                .max(java.util.Comparator.comparingInt(AbstractWidget::getX)).orElseThrow());
+    }
+
     private static void checkBasic(ClientGameTestContext context) {
         SoundInstance carried;
         try (var world = context.worldBuilder().create()) {
@@ -153,7 +310,7 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
             context.runOnClient(client -> check(MusicDirector.get(client).current() == carried, "same Basic source in another world"));
             context.getInput().pressKey(InputConstants.KEY_M);
             context.waitForScreen(MusicScreen.class);
-            clickWidget(context, widget(context, 0));
+            context.clickScreenButton("whostoppedthemusic.mode.basic");
             context.runOnClient(client -> MusicDirector.get(client).next());
             context.waitFor(client -> MusicDirector.get(client).active() && !(MusicDirector.get(client).current()
                     instanceof xyz.pyrehaven.whostoppedthemusic.music.TrackSoundInstance));
@@ -176,16 +333,18 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
         context.waitTicks(5);
         assertWidgetsFit(context);
         context.takeScreenshot("whostoppedthemusic-basic-small");
-        clickWidget(context, widget(context, 3));
+        clickWidget(context, namedWidget(context, "Shuffle:"));
         context.runOnClient(client -> check(WhoStoppedTheMusic.settings().shuffle(), "Shuffle toggles on"));
-        clickWidget(context, widget(context, 3));
+        clickWidget(context, namedWidget(context, "Shuffle:"));
         context.runOnClient(client -> {
             var search = Screens.getWidgets(client.gui.screen()).stream().filter(net.minecraft.client.gui.components.EditBox.class::isInstance)
                     .map(net.minecraft.client.gui.components.EditBox.class::cast).findFirst().orElseThrow();
             search.setValue("cat");
             var list = Screens.getWidgets(client.gui.screen()).stream().filter(xyz.pyrehaven.whostoppedthemusic.ui.widget.TrackList.class::isInstance)
                     .map(xyz.pyrehaven.whostoppedthemusic.ui.widget.TrackList.class::cast).findFirst().orElseThrow();
-            check(list.children().size() >= 2 && list.children().size() < 10, "search filters to cat and section headers");
+            check(!list.children().isEmpty() && list.children().size() < 10
+                    && list.children().stream().allMatch(row -> row.children().size() == 2), "search filters without section headers");
+            search.setValue("");
         });
         context.clickScreenButton("whostoppedthemusic.none");
         context.waitTicks(25);
@@ -193,7 +352,7 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
         context.clickScreenButton("whostoppedthemusic.all");
         context.runOnClient(client -> {
             var settings = WhoStoppedTheMusic.settings();
-            check(MusicDirector.get(client).selected().size() == WhoStoppedTheMusic.LIBRARY.tracks().size(), "All ticks every track despite search");
+            check(MusicDirector.get(client).selected().size() == WhoStoppedTheMusic.LIBRARY.tracks().size(), "All ticks every track with empty search");
             settings.setAllTicked(WhoStoppedTheMusic.LIBRARY.tracks().stream().map(t -> t.id()).toList(), false);
             for (var track : WhoStoppedTheMusic.LIBRARY.tracks()) {
                 if (track.title().getString().equals("C418 - Sweden") || track.title().getString().equals("Lena Raine - Pigstep")) settings.setTicked(track.id(), true);
@@ -203,16 +362,16 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
             check(loaded.mode() == Mode.BASIC && !loaded.shuffle(), "Basic settings reload");
             check(WhoStoppedTheMusic.LIBRARY.tracks().stream().filter(t -> loaded.ticked(t.id())).count() == 2, "only two saved ticks");
         });
-        context.clickScreenButton("whostoppedthemusic.play");
+        clickWidget(context, namedWidget(context, ">", Theme.BASIC_TOP + Theme.ROW * 3));
         context.waitFor(client -> channelState(client, MusicDirector.get(client).current(), true).join());
         var first = context.computeOnClient(client -> MusicDirector.get(client).current().getSound().getLocation());
-        context.clickScreenButton("whostoppedthemusic.next");
+        clickWidget(context, basicNext(context));
         context.waitFor(client -> channelState(client, MusicDirector.get(client).current(), true).join());
         context.runOnClient(client -> check(!MusicDirector.get(client).current().getSound().getLocation().equals(first), "ordered Next uses other ticked track"));
-        context.clickScreenButton("whostoppedthemusic.previous");
+        clickWidget(context, namedWidget(context, "<", Theme.BASIC_TOP + Theme.ROW * 3));
         context.waitFor(client -> channelState(client, MusicDirector.get(client).current(), true).join());
         context.runOnClient(client -> check(MusicDirector.get(client).current().getSound().getLocation().equals(first), "Previous restores exact historical track"));
-        context.clickScreenButton("whostoppedthemusic.stop");
+        clickWidget(context, namedWidget(context, "[]", Theme.BASIC_TOP + Theme.ROW * 3));
         context.waitTicks(40);
         context.runOnClient(client -> {
             var director = MusicDirector.get(client);
@@ -695,10 +854,12 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
             }
             for (int i = 0; i < widgets.size(); i++) {
                 var a = widgets.get(i);
+                if (!a.visible) continue;
                 check(a.getX() >= 0 && a.getY() >= 0 && a.getRight() <= screen.width && a.getBottom() <= screen.height,
                         "widget stays inside the small screen: " + a.getMessage().getString());
                 for (int j = i + 1; j < widgets.size(); j++) {
                     var b = widgets.get(j);
+                    if (!b.visible) continue;
                     check(a.getRight() <= b.getX() || b.getRight() <= a.getX() || a.getBottom() <= b.getY() || b.getBottom() <= a.getY(),
                             "widgets must not overlap: " + a.getMessage().getString() + " / " + b.getMessage().getString());
                 }

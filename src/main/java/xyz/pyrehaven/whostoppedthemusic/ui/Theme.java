@@ -22,18 +22,20 @@ public final class Theme {
     public static final int MAX_WIDTH = 600;
     public static final int DONE_WIDTH = 120;
     public static final int BASIC_TOP = 34;
-    public static final int BASIC_SECOND = BASIC_TOP + ROW;
-    public static final int BASIC_STATUS = BASIC_SECOND + ROW;
-    public static final int BASIC_SEARCH = 100;
-    public static final int BASIC_LIST = BASIC_SEARCH + ROW;
-    public static final int BASIC_MODE_WIDTH = 70;
-    public static final int BASIC_SHUFFLE_WIDTH = 100;
-    public static final int BASIC_BULK_WIDTH = 40;
-    public static final int BASIC_VOLUME_SPACE = 36;
+    public static final int SEARCH_LIMIT = 100;
+    public static final int BASIC_PLAYER_MIN = 122;
+    public static final int BASIC_PLAYER_MAX = 210;
+    public static final int BASIC_VOLUME_SPACE = 30;
+    public static final int BASIC_BROWSER_MAX_HEIGHT = 230;
+
+    public static final int BASIC_TAPE_MAX_HEIGHT = 130;
+    public static final double SCROLL_RESPONSE_MS = 65.0;
+    public static final int SCROLL_MAX_FRAME_MS = 100;
+    public static final double SCROLL_EPSILON = 0.1;
+    public static final int TRACK_SIDE_CONTROLS_MIN = 180;
     public static final int VOLUME_HEIGHT = 120;
-    public static final int BASIC_FOOTER_SPACE = 64;
-    public static final int BASIC_TRANSPORT_BOTTOM = BASIC_FOOTER_SPACE - GAP;
-    public static final int TRACK_HEIGHT = 24;
+    public static final int BASIC_FOOTER_SPACE = MARGIN + CONTROL_HEIGHT + GAP * 2;
+    public static final int TRACK_HEIGHT = 100;
     public static final int TRACK_HEADER_HEIGHT = 18;
     public static final int TRACK_PLAY_WIDTH = 24;
     public static final int TRACK_SCROLLBAR_SPACE = 10;
@@ -44,6 +46,14 @@ public final class Theme {
     private Theme() {
     }
 
+    public static int browserHeight(int width) {
+        boolean narrow = width < TRACK_SIDE_CONTROLS_MIN;
+        int tapeWidth = width - TRACK_SCROLLBAR_SPACE
+                - (narrow ? 0 : CONTROL_HEIGHT + TRACK_PLAY_WIDTH + TRACK_TEXT_GAP * 2);
+        int rowHeight = tapeWidth * 3 / 5 + GAP * 2 + (narrow ? ROW : 0);
+        return Math.min(BASIC_BROWSER_MAX_HEIGHT, rowHeight * 3 / 2);
+    }
+
     public static Button button(int x, int y, int width, Component label, Button.OnPress action) {
         return new Button(x, y, width, CONTROL_HEIGHT, label, action, supplier -> supplier.get()) {
             @Override
@@ -51,8 +61,9 @@ public final class Theme {
                 graphics.fill(getX(), getY(), getRight(), getBottom(), CARD);
                 graphics.outline(getX(), getY(), getWidth(), getHeight(), isHoveredOrFocused() ? GLOW : BLUE);
                 graphics.fill(getX(), getY(), getX() + ACCENT, getBottom(), ORANGE);
-                graphics.centeredText(net.minecraft.client.Minecraft.getInstance().font, getMessage(),
-                        getX() + getWidth() / 2, getY() + GAP, active ? TEXT : BLUE);
+                graphics.textRendererForWidget(this, GuiGraphicsExtractor.HoveredTextEffects.NONE)
+                        .acceptScrollingWithDefaultCenter(getMessage().copy().withColor(active ? TEXT : BLUE),
+                                getX() + GAP, getRight() - GAP, getY(), getBottom());
             }
         };
     }

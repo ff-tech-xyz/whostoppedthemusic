@@ -100,7 +100,7 @@ whostoppedthemusic/
     │   │   ├── music/
     │   │   │   ├── Track.java               # id, SOUNDTRACK/DISC kind, translated title, loaded Sound
     │   │   │   ├── Tag.java                 # record: pool id, display name, group, vanilla entries (track + weight)
-    │   │   │   ├── TrackNames.java          # pure: file id -> lang key -> title; prettify fallback
+    │   │   │   ├── TrackNames.java          # pure: translated names/fallback and normalized title/artist/typo search ranking
     │   │   │   ├── TrackLibrary.java
     │   │   │   │   # Builds deduplicated soundtrack/disc tracks from loaded weighted sound entries,
     │   │   │   │   # follows event references with cycle protection; rebuilt after SoundManager.apply.
@@ -123,17 +123,17 @@ whostoppedthemusic/
     │   │   │       # open the folder. Never runs on a timer.
     │   │   ├── ui/
     │   │   │   ├── Theme.java               # PyreHaven colours, spacing and text styles in one place
-    │   │   │   ├── MusicScreen.java         # left bare tape; right mode/settings/transport and Music volume
+    │   │   │   ├── MusicScreen.java         # Vanilla layout; retains BasicPanel across resize/collapse rebuilds
     │   │   │   ├── CassetteArtwork.java     # shared port of main's shell, label and crossed reels
     │   │   │   ├── MusicVolumeSlider.java   # vertical view of vanilla's Music option; keyboard and drag
-    │   │   │   ├── BasicPanel.java          # Basic body: search, all/none, song list and transport
+    │   │   │   ├── BasicPanel.java          # collapsible browser and centered/expanded player; owns query/widgets and Basic controls
     │   │   │   ├── CustomPanel.java         # Custom body: grid of tag buttons
     │   │   │   ├── TagEditorScreen.java     # picker | songs in tag | song settings
     │   │   │   ├── AddSongsScreen.java      # drop zone, your songs list, remove, open folder
     │   │   │   ├── SongToast.java           # our Now Playing toast (vanilla Toast interface)
     │   │   │   ├── CassetteWidget.java      # top compact cassette, live title and settings link
     │   │   │   └── widget/
-    │   │   │       ├── TrackList.java       # scrolling list; nested Row owns tick/title/play and section headers
+    │   │   │       ├── TrackList.java       # smooth clipped cassette browser; ranked results or sections; nested Row owns tick/tape/play
     │   │   │       ├── TagButton.java       # tag name, song count, "edited" marker
     │   │   │       └── WeightSlider.java    # 1-30 slider with "5 in 34" chance text
     │   │   └── mixin/
@@ -160,11 +160,11 @@ whostoppedthemusic/
     ├── test/java/xyz/pyrehaven/whostoppedthemusic/
     │   ├── DeckTest.java            # weights, deck cycle, no repeat across refills, prev/next, empty deck
     │   ├── SettingsTest.java        # defaults, round trip, bad/unknown file, atomic write, first-run flag
-    │   ├── TrackNamesTest.java      # lang key mapping, disc names, file-name titles, prettify fallback
+    │   ├── TrackNamesTest.java      # translated names/fallback; title/prefix/artist/token/typo ranking and rejected queries
     │   └── MusicFolderTest.java     # file filter, copy, duplicate names, delete
     └── gametest/
         ├── java/xyz/pyrehaven/whostoppedthemusic/
-        │   ├── ClientSmokeGameTest.java # packaged UI, automatic vanilla transport, source gain, Records/effects isolation
+        │   ├── ClientSmokeGameTest.java # packaged UI/transport; basicUiOnly selects browser/layout/row-play checks
         │   └── test/mixin/TransportStreamGate.java # holds decoded vanilla streams before source attachment
         └── resources/
             ├── fabric.mod.json         # development-only client test entrypoint
@@ -199,14 +199,27 @@ whostoppedthemusic/
 - Stop holds silence until the player presses Play, Next or a row's Play, or restarts the game. It is not saved.
 - Defaults: every soundtrack song and every disc ticked. A newly added custom song starts ticked.
 
-The implemented Basic body has Soundtrack and Music Discs only. Mode/Frequency,
-Jukebox/Shuffle, one live title, search and All/None sit above a scrolling list;
-Previous/Play-or-Stop/Next and Done sit below. Music volume stays at the far right.
-List order is stable by kind and file id. Rows have a tick, clipped/scrolling title
-and Play. All/None affect the whole library, not only search matches. Settings
-stores mode, shuffle and unticked ids; stop and bounded transport history stay in
-memory. Previous is unavailable during Stop. Your Songs and Add Songs arrive with
-functions 9–10, not as inert controls.
+The implemented Basic body has Soundtrack and Music Discs only. OG Moo-cow's
+2026-11-07 browser sketch supersedes the earlier full-width list. Left: search,
+a smoothly scrolling cassette viewport, then Select All / Deselect All. Each song
+has a selection toggle and Play Now, with a full central cassette and clipped
+neighbours above/below as the list scrolls. Narrow rows put their controls below
+the tape. Right: stacked Basic mode, Frequency and Jukebox, then Previous /
+Play-or-Stop / Next, Shuffle and a live current-song cassette underneath. Music
+volume is at the far right; Done remains below both columns.
+
+The inward arrow removes the browser from rendering, input and keyboard traversal
+and centers the player. The outward arrow restores it. BasicPanel retains the
+same search/list widgets across collapse and resize; TrackList preserves relative
+song position when row height changes. Ticks remain in Settings, not UI state.
+Empty/whitespace search shows stable kind/file-id order and section headings.
+Nonempty search ranks normalized exact titles, title prefixes, artist matches,
+substrings/tokens and bounded edit-distance typos, in that order; ties retain
+library order and no headings appear. Select All / Deselect All are hidden,
+inactive and action-guarded while a trimmed query is nonempty. With an empty
+query they affect the whole library. Settings stores mode, shuffle and unticked
+ids; Stop and bounded transport history stay in memory. Previous is unavailable
+during Stop. Your Songs and Add Songs arrive with functions 9–10.
 
 Basic selects through vanilla's startPlaying sound-instance seam and tick pool
 lookup, using one non-replacing Music with GAME delays. Biome volume fades do not

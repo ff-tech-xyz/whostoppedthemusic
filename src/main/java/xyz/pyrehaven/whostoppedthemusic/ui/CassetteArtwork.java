@@ -31,7 +31,7 @@ public final class CassetteArtwork {
         int labelH = compact ? h - 6 : h * 2 / 3;
         graphics.fill(labelX, labelY, labelX + labelW, labelY + labelH, Theme.CARD);
         graphics.fill(labelX, labelY, labelX + labelW, labelY + 2, Theme.ORANGE);
-        int reelSize = compact ? 10 : Math.clamp(w / 7, 12, 36);
+        int reelSize = compact ? 10 : Math.clamp(Math.min(w / 7, labelH - 4), 6, 36);
         int reelY = labelY + (labelH - reelSize) / 2 + 1;
         int left = labelX + Math.max(3, labelW / 16);
         int right = labelX + labelW - Math.max(3, labelW / 16) - reelSize;
