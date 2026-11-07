@@ -21,7 +21,7 @@ public final class Toggle extends Button {
 
     @Override protected void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
         boolean on = value.getAsBoolean();
-        var description = Component.translatable("whostoppedthemusic.scenario.active", label,
+        var description = Component.translatable("whostoppedthemusic.setting_state", label,
                 Component.translatable(on ? "options.on" : "options.off"));
         setMessage(description);
         setTooltip(Tooltip.create(description));

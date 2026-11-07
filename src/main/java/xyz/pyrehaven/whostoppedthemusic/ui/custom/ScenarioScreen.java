@@ -90,6 +90,7 @@ public final class ScenarioScreen extends Screen {
             var track = focusedTrack();
             if (track != null) MusicDirector.get(minecraft).preview().toggle(track);
         }));
+        preview.setTooltip(Tooltip.create(text("preview_hint")));
         remove = addRenderableWidget(Theme.scenarioButton(rightX + half + Theme.GAP, bottom - Theme.CONTROL_HEIGHT,
                 columnWidth - half - Theme.GAP, text("remove"), button -> removeFocused()));
         // A retained editor may return from a picker after its settings or library changed.
