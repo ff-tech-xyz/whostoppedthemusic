@@ -86,10 +86,10 @@ public final class ScenarioScreen extends Screen {
         weight = addRenderableWidget(new WeightSlider(rightX, detailY, columnWidth, this::focusedWeight,
                 () -> config().songs().stream().mapToInt(Deck.Entry::weight).sum(), this::changeWeight));
         int half = (columnWidth - Theme.GAP) / 2;
-        preview = addRenderableWidget(Theme.scenarioButton(rightX, bottom - Theme.CONTROL_HEIGHT, half, text("preview"), button -> {}));
-        // Function 16 supplies the existing-channel preview, never row Play as a substitute.
-        preview.active = false;
-        preview.setTooltip(Tooltip.create(text("preview_pending")));
+        preview = addRenderableWidget(Theme.scenarioButton(rightX, bottom - Theme.CONTROL_HEIGHT, half, text("preview"), button -> {
+            var track = focusedTrack();
+            if (track != null) MusicDirector.get(minecraft).preview().toggle(track);
+        }));
         remove = addRenderableWidget(Theme.scenarioButton(rightX + half + Theme.GAP, bottom - Theme.CONTROL_HEIGHT,
                 columnWidth - half - Theme.GAP, text("remove"), button -> removeFocused()));
         // A retained editor may return from a picker after its settings or library changed.
@@ -154,9 +154,18 @@ public final class ScenarioScreen extends Screen {
 
     private ScenarioConfig defaults() { return MusicDirector.get(minecraft).customPlayback().defaults(scenario).config(); }
     private ScenarioConfig config() { return settings.scenario(scenario, defaults()); }
-    private void edit(UnaryOperator<ScenarioConfig> edit) { settings.setScenario(scenario, edit.apply(config()), defaults()); }
+    private void edit(UnaryOperator<ScenarioConfig> edit) {
+        var updated = edit.apply(config());
+        settings.setScenario(scenario, updated, defaults());
+        var preview = MusicDirector.get(minecraft).preview();
+        if (preview.active() && updated.songs().stream().noneMatch(e -> preview.playing(e.id()))) preview.cancel();
+    }
     private Deck.Entry focused() { return config().songs().stream().filter(e -> e.id().equals(songs.focusedId())).findFirst().orElse(null); }
     private int focusedWeight() { var entry = focused(); return entry == null ? 1 : entry.weight(); }
+    private Track focusedTrack() {
+        return focused() == null ? null : WhoStoppedTheMusic.LIBRARY.tracks().stream()
+                .filter(t -> t.id().equals(songs.focusedId()) && t.playable()).findFirst().orElse(null);
+    }
 
     private void changeWeight(int value) {
         String id = songs.focusedId();
@@ -164,6 +173,7 @@ public final class ScenarioScreen extends Screen {
     }
 
     private void removeFocused() {
+        MusicDirector.get(minecraft).preview().cancel();
         String id = songs.focusedId();
         edit(c -> c.withSongs(c.songs().stream().filter(e -> !e.id().equals(id)).toList()));
     }
@@ -220,6 +230,7 @@ public final class ScenarioScreen extends Screen {
             songs.refresh();
         }
         weight.active = remove.active = focused() != null;
+        preview.active = focusedTrack() != null;
         super.extractRenderState(graphics, mouseX, mouseY, delta);
         var selected = focused();
         if (selected != null) {
@@ -238,6 +249,11 @@ public final class ScenarioScreen extends Screen {
     }
 
     @Override public void onClose() { dragging = null; minecraft.gui.setScreen(parent); }
+    @Override public void removed() {
+        MusicDirector.get(minecraft).preview().cancel();
+        dragging = null;
+        super.removed();
+    }
 
     private final class CopyPicker extends Screen {
         private ScenarioList list;

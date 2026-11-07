@@ -24,7 +24,6 @@
   "whostoppedthemusic.weight": "Weight %s",
   "whostoppedthemusic.weight_chance": "Weight %1$s · %1$s in %2$s (%3$s%%)",
   "whostoppedthemusic.preview": "▶ Preview",
-  "whostoppedthemusic.preview_pending": "Preview arrives in the next build step.",
   "whostoppedthemusic.scenario.biome_kind": "biome · %s",
   "whostoppedthemusic.scenario.special_kind": "special",
   "whostoppedthemusic.scenario.weather_kind": "special · weather",

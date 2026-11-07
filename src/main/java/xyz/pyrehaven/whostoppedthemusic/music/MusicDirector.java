@@ -20,6 +20,7 @@ import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.Musics;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import xyz.pyrehaven.whostoppedthemusic.music.custom.CustomPlayback;
+import xyz.pyrehaven.whostoppedthemusic.music.custom.Preview;
 import xyz.pyrehaven.whostoppedthemusic.music.custom.SituationReader;
 import net.minecraft.client.sounds.MusicManager.MusicFrequency;
 
@@ -50,6 +51,10 @@ public final class MusicDirector {
     private Track requested;
     private volatile SoundInstance advancing;
     private final CustomPlayback custom = new CustomPlayback(WhoStoppedTheMusic.settings(), WhoStoppedTheMusic.LIBRARY);
+    private final Preview preview;
+
+    public Preview preview() { return preview; }
+    public boolean jukeboxHolding() { return jukebox() == JukeboxSetting.PAUSE_MUSIC && JukeboxWatcher.nearby(client); }
 
     public boolean basic() { return WhoStoppedTheMusic.settings().mode() == Mode.BASIC; }
 
@@ -99,6 +104,7 @@ public final class MusicDirector {
     }
 
     public void libraryChanged() {
+        preview.libraryChanged();
         custom.reload();
         configureDeck();
         if (current() instanceof TrackSoundInstance chosen && chosen.track().local() != null
@@ -112,8 +118,9 @@ public final class MusicDirector {
         syncMode();
         if (custom() && !changed) resolveCustom();
         observeChannel();
+        if (preview.tick()) return true;
         if (paused()) return true;
-        boolean nearby = jukebox() == JukeboxSetting.PAUSE_MUSIC && JukeboxWatcher.nearby(client);
+        boolean nearby = jukeboxHolding();
         if (nearby) {
             jukeboxHeld = true;
             ((MusicManagerAccessor) manager).whostoppedthemusic$fadePlaying(0);
@@ -121,12 +128,15 @@ public final class MusicDirector {
         }
         if (jukeboxHeld) {
             jukeboxHeld = false;
+            var handle = channel();
+            if (handle != null) handle.execute(channel -> ((ChannelControl) channel).whostoppedthemusic$pause(false));
             ((MusicManagerAccessor) manager).whostoppedthemusic$nextSongDelay(0);
         }
         return playlist() && stopped;
     }
 
     public void worldChanged(net.minecraft.client.multiplayer.ClientLevel level) {
+        preview.cancel();
         custom.catalog().rebuild(level == null ? net.minecraft.core.RegistryAccess.EMPTY : level.registryAccess(),
                 level == null ? null : level.dimensionType(), WhoStoppedTheMusic.settings());
         custom.reload();
@@ -139,7 +149,7 @@ public final class MusicDirector {
     private Deck activeDeck() { return custom() ? custom.deck() : deck; }
 
     public boolean mayStart() {
-        return !(jukebox() == JukeboxSetting.PAUSE_MUSIC && JukeboxWatcher.nearby(client))
+        return !preview.active() && !jukeboxHolding()
                 && (!playlist() || !stopped && (requested != null || (custom()
                 ? custom.resolution() != null && !custom.resolution().silent() : !selected().isEmpty())));
     }
@@ -191,6 +201,7 @@ public final class MusicDirector {
     public MusicDirector(Minecraft client, MusicManager manager) {
         this.client = client;
         this.manager = manager;
+        this.preview = new Preview(client, this);
     }
 
     public static MusicDirector get(Minecraft client) {
@@ -288,6 +299,7 @@ public final class MusicDirector {
     }
 
     public void togglePlayback() {
+        preview.cancel();
         if (!active()) {
             next();
             return;
@@ -307,6 +319,7 @@ public final class MusicDirector {
     }
 
     public void stopped() {
+        preview.cancel();
         paused = null;
     }
 
@@ -315,6 +328,7 @@ public final class MusicDirector {
         var engine = ((SoundManagerAccessor) client.getSoundManager()).whostoppedthemusic$engine();
         var handle = ((SoundEngineAccessor) engine).whostoppedthemusic$channels().get(source);
         if (handle != null) handle.execute(com.mojang.blaze3d.audio.Channel::destroy);
+        preview.failed(source);
         if (current() == source) manager.stopPlaying();
     }
 

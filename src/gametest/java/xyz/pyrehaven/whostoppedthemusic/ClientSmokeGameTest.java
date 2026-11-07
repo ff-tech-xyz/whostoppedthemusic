@@ -53,7 +53,8 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
                 || Boolean.getBoolean("whostoppedthemusic.basicUiOnly") || Boolean.getBoolean("whostoppedthemusic.discoveryOnly")
                 || Boolean.getBoolean("whostoppedthemusic.controlsOnly") || Boolean.getBoolean("whostoppedthemusic.artworkOnly")
                 || Boolean.getBoolean("whostoppedthemusic.ownSongsOnly") || Boolean.getBoolean("whostoppedthemusic.addSongsOnly")
-                || Boolean.getBoolean("whostoppedthemusic.customOnly") || Boolean.getBoolean("whostoppedthemusic.customUiOnly")) {
+                || Boolean.getBoolean("whostoppedthemusic.customOnly") || Boolean.getBoolean("whostoppedthemusic.customUiOnly")
+                || Boolean.getBoolean("whostoppedthemusic.previewOnly")) {
             return;
         }
         // Entrypoint order is not guaranteed. Check after all startup callbacks,
@@ -67,6 +68,10 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
     @Override
     public void runTest(ClientGameTestContext context) {
         context.waitForScreen(TitleScreen.class);
+        if (Boolean.getBoolean("whostoppedthemusic.previewOnly")) {
+            CustomUiGameTest.preview(context);
+            return;
+        }
         if (Boolean.getBoolean("whostoppedthemusic.customUiOnly")) {
             CustomUiGameTest.run(context);
             return;

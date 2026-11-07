@@ -21,6 +21,252 @@ import xyz.pyrehaven.whostoppedthemusic.ui.custom.*;
 
 /** Focused selection of the existing packaged-client harness, not a second launcher. */
 final class CustomUiGameTest {
+    static void preview(ClientGameTestContext context) {
+        context.getInput().resizeWindow(960, 720);
+        var menu = ScenarioId.special(Special.MENU);
+        context.runOnClient(client -> {
+            client.options.guiScale().set(2);
+            client.options.getSoundSourceOptionInstance(net.minecraft.sounds.SoundSource.MASTER).set(0.7);
+            client.options.getSoundSourceOptionInstance(net.minecraft.sounds.SoundSource.MUSIC).set(0.7);
+            WhoStoppedTheMusic.settings().setMode(Mode.CUSTOM);
+            var folder = client.gameDirectory.toPath().resolve("music");
+            try {
+                Files.createDirectories(folder);
+                for (var entry : java.util.Map.of("stereo.mp3", "Preview-check.mp3", "mono.ogg", "Preview-check.ogg").entrySet()) {
+                    try (var input = CustomUiGameTest.class.getResourceAsStream("/audio/" + entry.getKey())) {
+                        Files.copy(input, folder.resolve(entry.getValue()), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                    }
+                }
+            } catch (java.io.IOException error) { throw new java.io.UncheckedIOException(error); }
+        });
+        var refresh = context.computeOnClient(client -> WhoStoppedTheMusic.LIBRARY.refreshSongs());
+        context.waitFor(client -> refresh.isDone());
+        winner(context, menu);
+        context.runOnClient(client -> {
+            var defaults = MusicDirector.get(client).customPlayback().defaults(menu).config();
+            WhoStoppedTheMusic.settings().setScenario(menu, defaults.withSongs(List.of(
+                    new xyz.pyrehaven.whostoppedthemusic.music.Deck.Entry("minecraft:music/game/sweden", 1),
+                    new xyz.pyrehaven.whostoppedthemusic.music.Deck.Entry("minecraft:records/pigstep", 1),
+                    new xyz.pyrehaven.whostoppedthemusic.music.Deck.Entry("custom:Preview-check.mp3", 1),
+                    new xyz.pyrehaven.whostoppedthemusic.music.Deck.Entry("custom:Preview-check.ogg", 1))), defaults);
+        });
+        context.waitTicks(3);
+        context.setScreen(() -> new ScenarioScreen(null, WhoStoppedTheMusic.settings(), menu));
+        context.waitTicks(3);
+        context.runOnClient(client -> MusicDirector.get(client).play(track("minecraft:music/game/sweden")));
+        context.waitFor(client -> ClientSmokeGameTest.channelState(client, MusicDirector.get(client).current(), true).join());
+        var background = context.computeOnClient(client -> MusicDirector.get(client).current());
+        var handle = context.computeOnClient(client -> channels(client).get(background));
+        var history = context.computeOnClient(CustomUiGameTest::deckState);
+        var bytes = configBytes();
+        selectPreview(context, "minecraft:records/pigstep");
+        var excerpt = context.computeOnClient(CustomUiGameTest::previewSource);
+        context.waitFor(client -> ClientSmokeGameTest.channelState(client, excerpt, true).join());
+        long start = System.nanoTime();
+        var offset = context.computeOnClient(client -> sampleOffset(client, background));
+        context.waitTicks(8);
+        context.runOnClient(client -> {
+            check(ClientSmokeGameTest.channelState(client, background, false).join(), "background native source is paused");
+            check(sampleOffset(client, background) == offset, "paused background sample position is frozen");
+            check(excerpt.getSource() == net.minecraft.sounds.SoundSource.MUSIC, "preview uses Music category");
+            var stream = nativeStream(client, excerpt);
+            check(stream instanceof xyz.pyrehaven.whostoppedthemusic.music.MidpointAudioStream, "native source owns midpoint stream");
+            long total = (long) field(stream, "totalFrames");
+            check((long) field(stream, "startFrame") == total / 2 && total > 44100 * 10, "resource Ogg midpoint uses real granule sample length");
+            check((long) field(stream, "excerptFrames") == (long) (((net.minecraft.client.sounds.AudioStream) stream).getFormat().getSampleRate() * 3), "native preview contains exactly three seconds");
+        });
+        context.takeScreenshot("preview-menu-active");
+        context.waitFor(client -> !MusicDirector.get(client).preview().active());
+        double elapsed = (System.nanoTime() - start) / 1_000_000_000.0;
+        check(elapsed > 2.5 && elapsed < 4.5, "real preview duration near 3 seconds: " + elapsed);
+        context.waitFor(client -> ClientSmokeGameTest.channelState(client, background, true).join());
+        context.runOnClient(client -> {
+            check(MusicDirector.get(client).current() == background && channels(client).get(background) == handle, "resume retains same sound and native handle");
+            check(deckState(client).equals(history), "preview leaves deck cards/cursor/history exact");
+        });
+        check(Arrays.equals(bytes, configBytes()), "preview changes no persisted settings");
+        previewCancellation(context, menu, background);
+        for (String extension : List.of("mp3", "ogg")) {
+            selectPreview(context, "custom:Preview-check." + extension);
+            var local = context.computeOnClient(CustomUiGameTest::previewSource);
+            context.waitFor(client -> ClientSmokeGameTest.channelState(client, local, true).join());
+            context.runOnClient(client -> {
+                var stream = nativeStream(client, local);
+                long total = (long) field(stream, "totalFrames");
+                check((long) field(stream, "startFrame") == total / 2, "import midpoint: " + extension);
+                check(total > 128000 && total < 150000, "import uses full three-second fixture sample count: " + extension);
+                check(ClientSmokeGameTest.channelGain(client, local).join() > 0, "local preview has actual nonzero Music gain");
+            });
+            context.waitFor(client -> !MusicDirector.get(client).preview().active());
+            context.waitFor(client -> ClientSmokeGameTest.channelState(client, background, true).join());
+        }
+        context.runOnClient(client -> client.options.getSoundSourceOptionInstance(net.minecraft.sounds.SoundSource.MUSIC).set(0.0));
+        selectPreview(context, "minecraft:records/pigstep");
+        var muted = context.computeOnClient(CustomUiGameTest::previewSource);
+        context.waitFor(client -> ClientSmokeGameTest.channelState(client, muted, true).join());
+        context.runOnClient(client -> check(ClientSmokeGameTest.channelGain(client, muted).join() == 0, "muted preview stays silent on real source"));
+        context.runOnClient(client -> MusicDirector.get(client).preview().cancel());
+        context.runOnClient(client -> client.options.getSoundSourceOptionInstance(net.minecraft.sounds.SoundSource.MUSIC).set(0.7));
+        context.runOnClient(client -> MusicDirector.get(client).togglePlayback());
+        selectPreview(context, "minecraft:records/pigstep");
+        context.runOnClient(client -> MusicDirector.get(client).preview().cancel());
+        context.waitTicks(3);
+        context.runOnClient(client -> check(MusicDirector.get(client).paused() && ClientSmokeGameTest.channelState(client, background, false).join(), "preexisting manual pause is preserved"));
+        context.runOnClient(client -> {
+            MusicDirector.get(client).togglePlayback();
+            var defaults = MusicDirector.get(client).customPlayback().defaults(menu).config();
+            WhoStoppedTheMusic.settings().setScenario(menu, defaults.withSongs(List.of()), defaults);
+            client.getMusicManager().stopPlaying();
+        });
+        context.waitTicks(4);
+        context.runOnClient(client -> MusicDirector.get(client).preview().toggle(track("minecraft:records/pigstep")));
+        context.waitFor(client -> ClientSmokeGameTest.channelState(client, previewSource(client), true).join());
+        context.runOnClient(client -> MusicDirector.get(client).preview().cancel());
+        context.waitTicks(4);
+        context.runOnClient(client -> check(MusicDirector.get(client).current() == null && !MusicDirector.get(client).active(), "silence resumes nothing"));
+        context.runOnClient(client -> client.gui.setScreen(null));
+        previewJukebox(context);
+        context.runOnClient(client -> client.gui.setScreen(new net.minecraft.client.gui.screens.TitleScreen()));
+        org.slf4j.LoggerFactory.getLogger("whostoppedthemusic-test").info("MIDPOINT PREVIEW PASS: actual {}s excerpt, Ogg granules/import MP3+OGG, frozen same native source, repeat/replace/remove/exit/close/early cancel, silence/manual-pause/mute/jukebox, unchanged deck and config", elapsed);
+    }
+
+    private static void previewCancellation(ClientGameTestContext context, ScenarioId menu, net.minecraft.client.resources.sounds.SoundInstance background) {
+        selectPreview(context, "minecraft:records/pigstep");
+        var first = context.computeOnClient(CustomUiGameTest::previewSource);
+        selectPreview(context, "minecraft:music/game/sweden");
+        context.waitFor(client -> !ClientSmokeGameTest.channelState(client, first, true).join());
+        check(context.computeOnClient(client -> MusicDirector.get(client).preview().playing("minecraft:music/game/sweden")), "new preview replaces old");
+        press(context, "▶ Preview", 0);
+        context.runOnClient(client -> check(!MusicDirector.get(client).preview().active(), "repeat cancels instead of restarting"));
+        context.waitFor(client -> ClientSmokeGameTest.channelState(client, background, true).join());
+        selectPreview(context, "minecraft:records/pigstep");
+        context.runOnClient(client -> client.gui.screen().onClose());
+        context.runOnClient(client -> check(!MusicDirector.get(client).preview().active(), "closing editor cancels"));
+        context.setScreen(() -> new ScenarioScreen(null, WhoStoppedTheMusic.settings(), menu));
+        selectPreview(context, "minecraft:records/pigstep");
+        press(context, "Copy songs", 0);
+        context.runOnClient(client -> check(!MusicDirector.get(client).preview().active(), "picker transition cancels preview"));
+        context.getInput().pressKey(InputConstants.KEY_ESCAPE);
+        context.waitForScreen(ScenarioScreen.class);
+        selectPreview(context, "custom:Preview-check.ogg");
+        press(context, "Remove", 0);
+        context.runOnClient(client -> check(!MusicDirector.get(client).preview().active(), "removing previewed song cancels"));
+        var early = context.computeOnClient(client -> {
+            var p = MusicDirector.get(client).preview();
+            p.toggle(track("minecraft:records/pigstep"));
+            var source = previewSource(client);
+            p.cancel();
+            return source;
+        });
+        context.waitTicks(12);
+        context.runOnClient(client -> {
+            check(!MusicDirector.get(client).preview().active() && !ClientSmokeGameTest.channelState(client, early, true).join(), "cancel before decoding cannot late-start a native source");
+            var d = MusicDirector.get(client).customPlayback().defaults(menu).config();
+            WhoStoppedTheMusic.settings().setScenario(menu, config(client, menu).withSongs(List.of(
+                    new xyz.pyrehaven.whostoppedthemusic.music.Deck.Entry("minecraft:records/pigstep", 1),
+                    new xyz.pyrehaven.whostoppedthemusic.music.Deck.Entry("custom:Preview-check.mp3", 1),
+                    new xyz.pyrehaven.whostoppedthemusic.music.Deck.Entry("custom:Preview-check.ogg", 1))), d);
+        });
+        context.waitTicks(3);
+    }
+
+    private static void previewJukebox(ClientGameTestContext context) {
+        try (var world = context.worldBuilder().create()) {
+            context.waitForScreen(null);
+            context.runOnClient(client -> WhoStoppedTheMusic.settings().applyJukeboxToAll(JukeboxSetting.PAUSE_MUSIC));
+            context.waitTicks(4);
+            var pos = context.computeOnClient(client -> client.gameRenderer.mainCamera().blockPosition().immutable());
+            context.runOnClient(client -> {
+                var registry = client.level.registryAccess().lookupOrThrow(net.minecraft.core.registries.Registries.JUKEBOX_SONG);
+                client.level.levelEvent(null, 1010, pos, registry.getId(registry.getValueOrThrow(net.minecraft.world.item.JukeboxSongs.CAT)));
+            });
+            context.waitFor(client -> MusicDirector.get(client).jukeboxHolding());
+            context.waitTicks(330);
+            context.runOnClient(client -> check(!MusicDirector.get(client).active(), "jukebox already holds background silence"));
+            context.runOnClient(client -> MusicDirector.get(client).preview().toggle(track("minecraft:records/pigstep")));
+            var source = context.computeOnClient(CustomUiGameTest::previewSource);
+            context.waitFor(client -> ClientSmokeGameTest.channelState(client, source, true).join());
+            context.runOnClient(client -> check(ClientSmokeGameTest.channelGain(client, source).join() > 0, "preview audible over existing jukebox hold"));
+            context.waitFor(client -> !MusicDirector.get(client).preview().active());
+            context.waitTicks(4);
+            context.runOnClient(client -> {
+                check(!MusicDirector.get(client).active() && MusicDirector.get(client).jukeboxHolding(), "preview completion preserves jukebox hold");
+                client.level.levelEvent(null, 1011, pos, 0);
+                MusicDirector.get(client).next();
+            });
+            context.waitFor(client -> ClientSmokeGameTest.channelState(client, MusicDirector.get(client).current(), true).join());
+            var background = context.computeOnClient(client -> MusicDirector.get(client).current());
+            // A jukebox that begins during the preview must not briefly release the old song.
+            context.runOnClient(client -> {
+                MusicDirector.get(client).preview().toggle(track("minecraft:records/pigstep"));
+                var registry = client.level.registryAccess().lookupOrThrow(net.minecraft.core.registries.Registries.JUKEBOX_SONG);
+                client.level.levelEvent(null, 1010, pos, registry.getId(registry.getValueOrThrow(net.minecraft.world.item.JukeboxSongs.CAT)));
+            });
+            var canceled = context.computeOnClient(CustomUiGameTest::previewSource);
+            context.waitFor(client -> MusicDirector.get(client).jukeboxHolding());
+            context.runOnClient(client -> MusicDirector.get(client).preview().cancel());
+            context.waitTicks(3);
+            context.runOnClient(client -> {
+                check(ClientSmokeGameTest.channelState(client, background, false).join(), "jukebox beginning during preview keeps same background paused");
+                client.level.levelEvent(null, 1011, pos, 0);
+            });
+            context.waitFor(client -> ClientSmokeGameTest.channelState(client, background, true).join());
+            context.waitFor(client -> !channels(client).containsKey(canceled));
+        }
+    }
+
+    private static void selectPreview(ClientGameTestContext context, String id) {
+        context.runOnClient(client -> editorLists(client).get(1).selectSong(id));
+        context.waitTicks(2);
+        press(context, "▶ Preview", 0);
+    }
+
+    private static xyz.pyrehaven.whostoppedthemusic.music.Track track(String id) {
+        return WhoStoppedTheMusic.LIBRARY.tracks().stream().filter(t -> t.id().equals(id)).findFirst().orElseThrow();
+    }
+
+    private static Object field(Object owner, String name) {
+        try {
+            var field = owner.getClass().getDeclaredField(name);
+            field.setAccessible(true);
+            return field.get(owner);
+        } catch (ReflectiveOperationException error) { throw new AssertionError(error); }
+    }
+
+    private static java.util.Map<net.minecraft.client.resources.sounds.SoundInstance, net.minecraft.client.sounds.ChannelAccess.ChannelHandle> channels(Minecraft client) {
+        var engine = ((xyz.pyrehaven.whostoppedthemusic.mixin.SoundManagerAccessor) client.getSoundManager()).whostoppedthemusic$engine();
+        return ((xyz.pyrehaven.whostoppedthemusic.mixin.SoundEngineAccessor) engine).whostoppedthemusic$channels();
+    }
+
+    private static net.minecraft.client.resources.sounds.SoundInstance previewSource(Minecraft client) {
+        return (net.minecraft.client.resources.sounds.SoundInstance) field(MusicDirector.get(client).preview(), "source");
+    }
+
+    private static <T> T onSource(Minecraft client, net.minecraft.client.resources.sounds.SoundInstance sound,
+                                   java.util.function.Function<com.mojang.blaze3d.audio.Channel, T> read) {
+        var result = new java.util.concurrent.CompletableFuture<T>();
+        var handle = channels(client).get(sound);
+        check(handle != null && !handle.isStopped(), "native source allocated");
+        handle.execute(channel -> {
+            try { result.complete(read.apply(channel)); }
+            catch (Throwable error) { result.completeExceptionally(error); }
+        });
+        return result.orTimeout(5, java.util.concurrent.TimeUnit.SECONDS).join();
+    }
+
+    private static int sampleOffset(Minecraft client, net.minecraft.client.resources.sounds.SoundInstance sound) {
+        return onSource(client, sound, channel -> org.lwjgl.openal.AL10.alGetSourcei((int) field(channel, "source"), org.lwjgl.openal.AL11.AL_SAMPLE_OFFSET));
+    }
+
+    private static Object nativeStream(Minecraft client, net.minecraft.client.resources.sounds.SoundInstance sound) {
+        return onSource(client, sound, channel -> field(channel, "stream"));
+    }
+
+    private static List<Object> deckState(Minecraft client) {
+        var deck = MusicDirector.get(client).customPlayback().deck();
+        return List.of(List.copyOf((List<?>) field(deck, "history")), List.copyOf((List<?>) field(deck, "cards")), field(deck, "cursor"));
+    }
+
     static void run(ClientGameTestContext context) {
         context.getInput().resizeWindow(960, 720);
         context.runOnClient(client -> {

@@ -63,4 +63,40 @@ final class LocalAudioTest {
         }
         assertThrows(IOException.class, () -> new Mp3AudioStream(new ByteArrayInputStream(new byte[0])));
     }
+
+    @Test void midpointMatchesDecodedHalfAndFadesToZeroForBothLocalFormats() throws Exception {
+        for (String name : new String[]{"stereo.mp3", "mono.ogg"}) {
+            Path file = directory.resolve(name);
+            try (var input = getClass().getResourceAsStream("/audio/" + name)) { Files.copy(input, file); }
+            var song = new LocalSong(new MusicFolder.Song(file));
+            var original = new java.io.ByteArrayOutputStream();
+            int frameSize;
+            float rate;
+            try (var stream = song.open()) {
+                frameSize = stream.getFormat().getFrameSize();
+                rate = stream.getFormat().getFrameRate();
+                for (var buffer = stream.read(8192); buffer.hasRemaining(); buffer = stream.read(8192)) {
+                    byte[] bytes = new byte[buffer.remaining()];
+                    buffer.get(bytes);
+                    original.write(bytes);
+                }
+            }
+            byte[] full = original.toByteArray();
+            int half = (full.length / frameSize / 2) * frameSize;
+            try (var preview = xyz.pyrehaven.whostoppedthemusic.music.MidpointAudioStream.open(
+                    () -> Files.newInputStream(file), song::open, name.endsWith("ogg"))) {
+                var excerpt = new java.io.ByteArrayOutputStream();
+                for (var buffer = preview.read(4096); buffer.hasRemaining(); buffer = preview.read(4096)) {
+                    byte[] bytes = new byte[buffer.remaining()];
+                    buffer.get(bytes);
+                    excerpt.write(bytes);
+                }
+                byte[] audio = excerpt.toByteArray();
+                assertEquals(Math.min(full.length - half, (int) rate * 3 * frameSize), audio.length, name);
+                assertArrayEquals(java.util.Arrays.copyOfRange(full, half, half + 4096), java.util.Arrays.copyOf(audio, 4096), name);
+                for (int i = audio.length - frameSize; i < audio.length; i++) assertEquals(0, audio[i], "fade ends at zero");
+                assertFalse(preview.read(4096).hasRemaining());
+            }
+        }
+    }
 }

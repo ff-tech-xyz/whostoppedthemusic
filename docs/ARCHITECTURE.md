@@ -43,7 +43,7 @@ and nearby jukebox fade/hold in both modes. Imported MP3/OGG files play through
 the same Basic path. Add music manages those files through a shared screen;
 Custom's scenario resolver, loaded runtime defaults, playback integration and
 sparse settings v2, Custom main browser and shared biome/special song editor are
-implemented. Midpoint preview remains authorized work. The M screen cycles Vanilla/Basic/Custom; the
+implemented, including midpoint preview and same-source resume. The M screen cycles Vanilla/Basic/Custom; the
 compact pause cassette retains live title/artist metadata and Next. Shared
 playback-driven reel artwork and empty-player spindle rods are implemented.
 
@@ -265,6 +265,7 @@ whostoppedthemusic/
     │   │   │   │   # vanilla's pool-change logic keeps working. Resolves to the chosen file.
     │   │   │   │   # Reuses loaded Sound on non-positional Music; Fabric getAudioStream opens local MP3/OGG on vanilla IO executor.
     │   │   │   ├── Mp3AudioStream.java      # AudioStream over jlayer-decoder (16-bit PCM)
+    │   │   │   ├── MidpointAudioStream.java # Ogg granule/decoded MP3 sample count, exact half-frame skip, bounded PCM and final 150 ms fade
     │   │   │   ├── LocalSong.java           # scanned file, decode availability, probe/open, late read failures end the stream
     │   │   │   ├── JukeboxWatcher.java      # reads vanilla's event-driven map and live channels near the camera
     │   │   │   └── custom/
@@ -278,7 +279,7 @@ whostoppedthemusic/
     │   │   │       ├── CustomDefaults.java  # loaded dimension/biome/special defaults, source Music metadata and silence
     │   │   │       ├── BiomeCatalog.java    # joined registry rows/groups/dimensions; persistent known biomes via Settings
     │   │   │       ├── CustomPlayback.java  # effective defaults/resolution, synthetic Music and 32-key LRU decks
-    │   │   │       └── Preview.java         # planned existing-channel pause, midpoint excerpt, fade/resume
+    │   │   │       └── Preview.java         # director-owned temporary native source; existing tick, background pause/resume and cancellation
     │   │   ├── custom/
     │   │   │   └── MusicFolder.java
     │   │   │       # Game-directory music/: case-insensitive .mp3/.ogg scan, file-name identity/title; excludes links/directories.
@@ -313,6 +314,7 @@ whostoppedthemusic/
     │   │       ├── SoundManagerAccessor.java        # read-only sound engine access for current music channel
     │   │       ├── SoundEngineAccessor.java         # read-only instance/channel map
     │   │       ├── MusicChannelMixin.java           # music source stop/pause intent across async startup and menu resume
+    │   │       ├── PreviewVolumeMixin.java          # preview-only gain ignores background fades; ordinary Music/Master options still apply
     │   │       ├── ClientJukeboxMixin.java          # read-only LevelEventHandler playingJukeboxSongs map
     │   │       ├── ClientLevelAccessor.java         # current level's LevelEventHandler
     │   │       ├── SoundEventReferenceAccessor.java # event-reference Sound in vanilla's weighted wrapper
@@ -335,14 +337,14 @@ whostoppedthemusic/
     │   ├── TrackNamesTest.java      # metadata, translated names/fallback and search ranking
     │   ├── OverflowMotionTest.java  # waits, speed, reversal, fitting and content clocks
     │   ├── MusicFolderTest.java     # folder/identity, numbered exact copies, source retention, remove and link/path boundaries
-    │   └── LocalAudioTest.java      # full generated PCM duration/tone, EOF, empty/invalid MP3/OGG rejection
+    │   └── LocalAudioTest.java      # full generated PCM duration/tone, EOF, bad-file rejection, exact midpoint PCM and fade for MP3/OGG
     ├── test/resources/audio/        # shared generated CC0 sine-wave MP3/OGG fixtures and provenance README
     └── gametest/
         ├── java/xyz/pyrehaven/whostoppedthemusic/
         │   ├── ClientSmokeGameTest.java # packaged UI/transport; controlsOnly/artworkOnly/ownSongsOnly/addSongsOnly focused selections
         │   ├── DiscoveryGameTest.java   # discoveryOnly: loaded discovery/default odds, 67 biomes, creative Deck, aliases/cycle/bounds/reload
         │   ├── CustomPlaybackGameTest.java # customOnly: packaged scenario playback/settings/transport/weather/jukebox/silence/LRU/mode regression
-        │   ├── CustomUiGameTest.java       # customUiOnly: main/shared player plus editor drag/weights/reset/copy/missing/own-song playback and all narrow variants
+        │   ├── CustomUiGameTest.java       # customUiOnly: main/editor; previewOnly: native midpoint/duration/resume/cancel/local/mute/jukebox/history
         │   └── test/mixin/TransportStreamGate.java # holds decoded vanilla streams before source attachment
         └── resources/
             ├── fabric.mod.json         # development-only client test entrypoint
@@ -398,6 +400,8 @@ external file-manager window remain human integration checks.
 | `MusicDirector` | Decides what plays for the mode/resolution; runs transport and exposes actual source/file/advancement | `Settings`, `TrackLibrary`, `Deck`, `JukeboxWatcher` |
 | `MusicManagerMixin` | Hands vanilla's choice to `MusicDirector` at the right moments | `MusicDirector`, `SongToast` |
 | `TrackSoundInstance` | Plays the chosen file, including MP3/OGG from disk | Sound engine, `Mp3AudioStream` |
+| `Preview` | Holds one temporary excerpt and the paused background identity; ends/resumes on the existing tick | `MusicDirector`, existing sound engine/channel controls |
+| `MidpointAudioStream` | Counts samples, skips exactly half and bounds/fades the PCM excerpt | Ogg pages, existing OGG/MP3 decoders |
 | `MusicScreen` and panels | All the UI | `Settings`, `MusicDirector`, `TrackLibrary` |
 
 ## Modes in detail
@@ -446,7 +450,7 @@ sound-engine reload behavior. A live Basic source survives world exit/entry;
 jukebox entries belong to the old level and cannot leak into the next one.
 
 ### Custom
-Implemented through function 15; midpoint preview remains function 16:
+Implemented through function 16:
 - Main left: searchable specials, then registry biomes grouped by vanilla dimension tags or namespace. Specials except menu/credits have active toggles. Rows show priority/song count, playing and edited distinctions. Right: the shared player/transport/cassette/volume and Add music action; frequency/jukebox labels name all current winners.
 - `SituationReader` captures camera-biome/sky/heightmap/precipitation and player underwater/creative state once per existing tick. Pure `ContextResolver` checks credits before menu, then highest-priority biome/active specials. Ties use sorted IDs, sum duplicate-song weights, strongest frequency, Pause music if any winner requests it, and interrupt if any newly winning scenario requests it. An empty active winner is silence, never fallback.
 - Implemented defaults use loaded runtime weights: creative adds six weight-1 files to game's 32 files weighted 1/2 (total 43). Nested aliases retain leaf weights and duplicate files add; only oversized reduced weights require approximation. Basic's flattening is unchanged. Pale garden/empty pools stay silent. Weather and underground start disabled; frequency starts Constant and jukebox starts Pause music.
@@ -524,8 +528,51 @@ Reset changes only songs to loaded defaults. CopyPicker is a nested navigation
 screen using ScenarioList's explicit picker mode (no toggles), with the shared
 search and scroll owner. Picking replaces songs/weights only; cancel is inert.
 The header and main rows derive edited state from Settings.songsEdited. Preview
-is visibly disabled in this slice, with a pending-step tooltip; function 16 must
-wire the real midpoint excerpt rather than substituting Basic's Play Now.
+is enabled only for a focused playable track and calls the director's Preview;
+missing/unavailable songs retain Remove but cannot start an excerpt.
+
+### Midpoint preview ownership
+
+The director owns one Preview for its manager. The manager's currentMusic and
+channel remain unchanged: Preview uses ChannelControl.pause(true) on that source,
+then asks the existing SoundManager for one non-positional TrackSoundInstance on
+MUSIC. It never calls Deck.next/played/previous or MusicManager.startPlaying.
+The existing holdTick polls its native handle and freezes ordinary manager
+selection/delay/fade while the excerpt exists. There is no preview scheduler,
+background player, UI-owned sound state or history copy.
+
+TrackSoundInstance opens the same local/resource decoder on vanilla's IO pool.
+MidpointAudioStream reads Ogg page granule sample counts; MP3 counts decoded
+frames in a bounded-memory pass, including VBR, then reopens. Both discard exact
+half-frame PCM, preserving over-read decoder chunks. The stream emits at most
+three seconds (less if the remaining half is shorter), with a linear 150 ms
+fade in the final samples. Native channel lifetime owns decoder cleanup.
+Preview forces streaming and pitch 1 so an arbitrary library sound can use this
+excerpt path and sample duration. It retains the track's normal volume modifier.
+
+PreviewVolumeMixin applies vanilla's clamped sound volume and final Music option
+to this instance only, bypassing the background category's environment/jukebox
+fade gain. Master still applies through vanilla. Preview never changes category
+gain, the Music option or another source's volume. A muted preview allocates a
+silent native channel and ends normally.
+
+Same-track Preview cancels; another track cancels/replaces. Removal, reset that
+removes the excerpt, editor removal (including picker/popup transitions), world
+changes, manager stop/mode/transport and missing-library/decode failure end it.
+Cancellation stops the managed source, including asynchronous late startup.
+Only the retained matching background identity resumes; manual pause and a live
+jukebox hold keep it paused. The director's existing jukebox-release branch
+unpauses that source when the hold ends, retaining its position if it still exists.
+Background silence remains silence; preview cannot create a history entry.
+
+The packaged previewOnly selection verifies resource Ogg midpoint/three-second
+native playback, exact frozen sample offset and identical background handle on
+resume, unchanged deck cards/cursor/history and config bytes, all editor cancel
+routes, imported MP3/OGG, manual pause/silence, mute, existing jukebox hold and a
+jukebox beginning during preview. LocalAudioTest compares excerpt PCM against
+independently decoded half-file PCM and checks exact length/zero-ended fade.
+The plan records commands, artifact hash and the observed teardown OpenAL warning;
+human listening and final whole-update acceptance remain pending.
 
 MusicControls accepts a scenario-ID supplier: current resolution winners on the
 main screen (even when silent), or the edited ID on ScenarioScreen. It combines
