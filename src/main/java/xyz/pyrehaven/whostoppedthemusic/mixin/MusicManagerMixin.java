@@ -1,17 +1,14 @@
 package xyz.pyrehaven.whostoppedthemusic.mixin;
 
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.client.sounds.MusicManager;
 import net.minecraft.sounds.Music;
-import net.minecraft.sounds.SoundEvent;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import xyz.pyrehaven.whostoppedthemusic.music.MusicDirector;
 
@@ -33,12 +30,6 @@ public abstract class MusicManagerMixin implements MusicDirector.Access {
         if (whostoppedthemusic$director().paused()) {
             ci.cancel();
         }
-    }
-
-    @Redirect(method = "startPlaying", at = @At(value = "INVOKE",
-            target = "Lnet/minecraft/client/resources/sounds/SimpleSoundInstance;forMusic(Lnet/minecraft/sounds/SoundEvent;)Lnet/minecraft/client/resources/sounds/SimpleSoundInstance;"))
-    private SimpleSoundInstance whostoppedthemusic$resolveHistory(SoundEvent event) {
-        return whostoppedthemusic$director().createSound(event);
     }
 
     @Inject(method = "startPlaying", at = @At("RETURN"))

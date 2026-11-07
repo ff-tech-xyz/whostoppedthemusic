@@ -13,7 +13,6 @@ public final class MusicScreen extends Screen {
     private final Settings settings;
     private int left;
     private int contentWidth;
-    private Button previous;
     private Button pause;
     private Button next;
 
@@ -58,12 +57,11 @@ public final class MusicScreen extends Screen {
         });
         jukebox.setTooltip(Tooltip.create(Component.translatable("whostoppedthemusic.jukebox.saved_only")));
         addRenderableWidget(jukebox);
-        int transportWidth = (controlsWidth - Theme.GAP * 2) / 3;
+        int transportWidth = (controlsWidth - Theme.GAP) / 2;
         int transportY = y + Theme.ROW * 3 + Theme.GAP;
-        previous = transport(controlsX, transportY, transportWidth, "<", "previous", director::previous);
-        pause = transport(controlsX + transportWidth + Theme.GAP, transportY, transportWidth,
-                "||", "pause", director::togglePause);
-        next = transport(controlsX + (transportWidth + Theme.GAP) * 2, transportY, transportWidth,
+        pause = transport(controlsX, transportY, transportWidth,
+                "||", "pause", director::togglePlayback);
+        next = transport(controlsX + transportWidth + Theme.GAP, transportY, transportWidth,
                 ">", "next", director::next);
         addRenderableWidget(new MusicVolumeSlider(minecraft, controlsX + controlsWidth + Theme.GAP, y, 120));
         updateTransport();
@@ -83,11 +81,10 @@ public final class MusicScreen extends Screen {
 
     private void updateTransport() {
         var director = MusicDirector.get(minecraft);
-        previous.active = director.canPrevious();
-        pause.active = director.active();
-        pause.setMessage(Component.literal(director.paused() ? ">" : "||"));
+        pause.active = director.active() || director.canNext();
+        pause.setMessage(Component.literal(!director.active() || director.paused() ? ">" : "||"));
         pause.setTooltip(Tooltip.create(Component.translatable(
-                "whostoppedthemusic." + (director.paused() ? "resume" : "pause"))));
+                "whostoppedthemusic." + (!director.active() ? "play" : director.paused() ? "resume" : "pause"))));
         next.active = director.canNext();
     }
 

@@ -4,7 +4,7 @@
 
 Who Stopped The Music is a client-side Fabric mod that lets players choose what music Minecraft plays. It plugs into vanilla's own music player instead of running a second one next to it. It has three modes:
 
-- **Vanilla:** Minecraft selects the music. Previous, Pause/Resume and Next control its active background music without affecting Records or sound effects.
+- **Vanilla:** Minecraft selects the music. Play, Pause/Resume and Next control its active background music without affecting Records or sound effects.
 - **Basic:** one song list for the whole game. Tick the songs you want and get play, stop, previous, next and shuffle controls.
 - **Custom:** every place music can play (each biome pool, the Nether, the End, underwater, creative, the title screen and so on) is a button. Inside each one you choose the songs and give each a weight from 1 to 30.
 
@@ -33,7 +33,7 @@ A **tag** in this mod is one of those pools. Our hooks sit inside steps 1, 4 and
 
 ## Structure
 
-Current implemented slice (2026-11-06): Settings and first-launch Constant, the M
+Current implemented slice (2026-11-07): Settings and first-launch Constant, the M
 MusicScreen with a bare tape on the left and settings/transport on the right,
 and a compact top pause-menu cassette with Next. Vanilla is the only mode;
 Basic/Custom, library and custom files below remain planned. Jukebox is saved
@@ -47,10 +47,13 @@ put one scrolling/clipped title between two reels and report silence, pause or
 mute truthfully.
 
 `MusicDirector` belongs to each vanilla MusicManager. It observes resolved sounds
-with allocated channels, retains up to 64 history entries, and disables Previous
-without history. Previous replays that exact Sound with its original pool identity;
-Next calls vanilla startPlaying with the current situational Music. Pause/Resume
-uses only currentMusic's channel and preserves its playback position. A held pause
+with allocated channels, including automatic starts from vanilla's own tick. Play
+from silence and Next stop the outgoing instance and call vanilla startPlaying with
+the current situational Music. Play/Pause/Resume uses only currentMusic's channel
+and preserves its playback position on resume. Activity follows the allocated
+channel rather than SoundManager.isActive's deletion-grace bookkeeping. The title
+comes from currentMusic's resolved Sound, not the pool. Vanilla has no Previous
+control, history or sound-selection redirect; Done still returns to the parent. A held pause
 freezes MusicManager.tick. MusicChannelMixin owns transport intent on that source,
 on the sound thread: a stopped source cannot start when its asynchronous stream
 finally attaches; a paused source starts paused and ignores global menu resume.
@@ -105,7 +108,7 @@ whostoppedthemusic/
     │   │   │   │   # Pure logic, no Minecraft classes: weighted shuffle "deck" with history
     │   │   │   │   # for previous/next. Fully unit tested.
     │   │   │   ├── MusicDirector.java
-    │   │   │   │   # Implemented vanilla transport, resolved-song history and channel pause.
+    │   │   │   │   # Implemented vanilla Play/Pause/Resume/Next and current-channel status/pause.
     │   │   │   │   # Later owns Basic/Custom selection; no deck/library behavior yet.
     │   │   │   ├── TrackSoundInstance.java
     │   │   │   │   # The sound instance for a chosen track. Its identifier stays the pool id so
@@ -135,7 +138,7 @@ whostoppedthemusic/
     │   │   │       └── WeightSlider.java    # 1-30 slider with "5 in 34" chance text
     │   │   └── mixin/
     │   │       ├── MusicManagerAccessor.java        # currentMusic read-only, truthful cassette status
-    │   │       ├── MusicManagerMixin.java           # owns director; observes starts, resolves history, holds pause
+    │   │       ├── MusicManagerMixin.java           # owns director; observes automatic/manual starts and holds pause
     │   │       ├── PauseScreenMixin.java            # hides duplicate vanilla pause-menu song line
     │   │       ├── SoundManagerAccessor.java        # read-only sound engine access for current music channel
     │   │       ├── SoundEngineAccessor.java         # read-only instance/channel map
@@ -155,7 +158,7 @@ whostoppedthemusic/
     │   └── MusicFolderTest.java     # file filter, copy, duplicate names, delete
     └── gametest/
         ├── java/xyz/pyrehaven/whostoppedthemusic/
-        │   ├── ClientSmokeGameTest.java # packaged UI, real channel transport, history, Records/effects isolation
+        │   ├── ClientSmokeGameTest.java # packaged UI, automatic vanilla transport, source gain, Records/effects isolation
         │   └── test/mixin/TransportStreamGate.java # holds decoded vanilla streams before source attachment
         └── resources/
             ├── fabric.mod.json         # development-only client test entrypoint
@@ -178,7 +181,7 @@ whostoppedthemusic/
 
 ### Vanilla
 - Song selection and in-game toast stay vanilla. The compact cassette replaces the pause song line.
-- Left: enlarged bare tape, with one live title between two reels. Right: inert Vanilla button, Frequency, saved-only Jukebox and Previous/Pause/Resume/Next. A vertical Music volume slider is at the far right.
+- Left: enlarged bare tape, with one live title between two reels. Right: inert Vanilla button, Frequency, saved-only Jukebox and Play/Pause/Resume/Next. A vertical Music volume slider is at the far right.
 - Master and Music Toast remain in vanilla Options, not this screen. Music and Frequency write the existing vanilla options; Jukebox writes Settings only.
 
 ### Basic
@@ -215,7 +218,7 @@ as well as the surrounding dark surfaces; no player housing surrounds the large 
 │                               [ Vanilla             ] Music│
 │  ┌──── bare tape ──────────┐   [ Frequency: Constant  ]   │  │
 │  │ [reel] song title [reel]│   [ Jukebox: Pause music ]   ●  │
-│  └────────────────────────┘   [ < ] [ || / > ] [ > ]     │  │
+│  └────────────────────────┘   [ > / || ] [ > ]          │  │
 │                                                        70% │
 │                         [ Done ]                           │
 └────────────────────────────────────────────────────────────┘
@@ -233,13 +236,13 @@ packaged client. The Basic/Custom and jukebox extensions below remain planned;
 method names marked **(confirm)** still need checking when those features begin.
 
 1. **`MusicManagerMixin`**
-   - Implemented: hold `tick()` only during an explicit transport pause; observe `startPlaying(Music)` results and substitute an exact historical sound only for Previous; clear held pause on `stopPlaying()`.
+   - Implemented: hold `tick()` only during an explicit transport pause; observe all `startPlaying(Music)` results; clear held pause on `stopPlaying()`.
    - Planned: wrap the `getSituationalMusic()` call.
      - **Basic:** return one constant `Music` (`whostoppedthemusic:basic`, built with `Holder.direct`, vanilla `GAME` delays, `replaceCurrentMusic = false`).
      - **Vanilla / Custom:** pass vanilla's answer through.
      - **Jukebox set to Pause and a nearby jukebox is playing:** fade the current song and hold the next one.
    - `startPlaying(Music)`: the verified `SimpleSoundInstance.forMusic` call is the existing sound-selection seam.
-     - **Vanilla:** normal starts unchanged; Previous uses its resolved historical sound.
+     - **Vanilla:** normal starts and sound resolution are unchanged.
      - **Basic / Custom:** ask `MusicDirector` for a track for this pool. Build a `TrackSoundInstance` whose identifier is the pool id. If there's no track, start nothing.
    - `showNowPlayingToastIfNeeded()`: in Basic/Custom, cancel vanilla's toast and show `SongToast` instead, following `options.musicToast()`. This is how the player never sees two toasts.
 2. **`PauseScreenMixin`:** implemented: return false from `rendersNowPlayingToast()` for the full pause menu so the compact cassette owns the title. The cassette and Next are added through Fabric `ScreenEvents.AFTER_INIT`, not this mixin. `MusicChannelMixin` retains stop/pause intent on MusicManager-owned sources across asynchronous startup and global menu resume; accessors expose the existing channel without replacing the sound engine.
@@ -347,14 +350,25 @@ and `https://www.gnu.org/licenses/old-licenses/lgpl-2.1.txt`.
 Function 1 introduced the packaged-client title-screen test. The Vanilla UI slice
 extends that same test to first-launch Constant (after all startup callbacks),
 M/rebinding, real vanilla options and disk reload, Jukebox persistence, top cassette
-navigation, exact historical Previous, situational Next, channel Pause/Resume,
+navigation, situational Next, channel Pause/Resume,
 Records/non-Music isolation, active song/silence and 320×240 placement/bounds/non-overlap.
 The transport regression holds real decoded vanilla streams before channel attachment:
 the original transport leaves the outgoing OpenAL source playing after Next and
 loses Pause before startup. The fixed source stops without late playback and starts
-paused until explicitly resumed. UI Previous and both Next paths also assert outgoing
+paused until explicitly resumed. Both Next paths also assert outgoing
 source shutdown and incoming playback, including Next from paused music. These are
 source-state checks, not a claim of human listening verification.
+The focused transport selection is
+`xvfb-run -a ./gradlew runClientGameTest -PtransportOnly --console=plain`.
+It bypasses unrelated first-run/rebinding/layout checks and exercises Play from
+silence, Done navigation, automatic tick-selected music (also with delayed streams),
+pause across ticks/global resume, same-source resume, both Next controls, resolved
+song titles and removal of Previous. Clicking Frequency to Constant drives automatic
+replacement after the test ends the outgoing source; the Music slider changes the
+real OpenAL source gain to zero and back while Master stays unchanged. It shortens
+the outgoing song via vanilla SoundManager.stop rather than waiting a full song.
+This is source-state/gain verification, not human listening acceptance.
+
 Four `SettingsTest` cases cover
 defaults, first-run idempotence, round trip/unknown keys/temp cleanup, corrupt
 file recovery and failed first-run initialization. CI rejects missing/empty/skipped

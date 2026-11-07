@@ -38,6 +38,9 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
 
     @Override
     public void onInitializeClient() {
+        if (Boolean.getBoolean("whostoppedthemusic.transportOnly")) {
+            return;
+        }
         // Entrypoint order is not guaranteed. Check after all startup callbacks,
         // before the first tick starts gametests and resets the vanilla options.
         ClientLifecycleEvents.CLIENT_STARTED.register(client -> client.schedule(() -> {
@@ -49,6 +52,35 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
     @Override
     public void runTest(ClientGameTestContext context) {
         context.waitForScreen(TitleScreen.class);
+        if (Boolean.getBoolean("whostoppedthemusic.transportOnly")) {
+            try (var world = context.worldBuilder().create()) {
+                context.waitForScreen(null);
+                context.runOnClient(client -> {
+                    client.options.getSoundSourceOptionInstance(SoundSource.MASTER).set(0.7);
+                    client.options.getSoundSourceOptionInstance(SoundSource.MUSIC).set(0.7);
+                    client.getMusicManager().stopPlaying();
+                });
+                context.getInput().pressKey(InputConstants.KEY_M);
+                context.waitForScreen(MusicScreen.class);
+                context.runOnClient(client -> {
+                    var controls = Screens.getWidgets(client.gui.screen());
+                    var play = controls.get(4);
+                    check(play.active, "Play must be available when vanilla is silent");
+                    check(controls.stream().noneMatch(w -> w.getMessage().getString().equals("<")),
+                            "Vanilla has no previous-track button");
+                });
+                clickWidget(context, widget(context, 4));
+                context.waitFor(client -> channelState(client, MusicDirector.get(client).current(), true).join());
+                context.runOnClient(client -> check(MusicDirector.get(client).active(), "Play starts vanilla music"));
+                context.clickScreenButton("gui.done");
+                context.waitForScreen(null);
+                context.getInput().pressKey(InputConstants.KEY_ESCAPE);
+                context.waitForScreen(PauseScreen.class);
+                checkTransport(context);
+            }
+            LoggerFactory.getLogger("whostoppedthemusic-test").info("VANILLA TRANSPORT PASS");
+            return;
+        }
         check(firstRunObserved, "first-launch Constant was observed before gametest resets vanilla options");
         Path settingsFile = FabricLoader.getInstance().getConfigDir().resolve("whostoppedthemusic.json");
         check(Settings.load(settingsFile).firstRunDone(), "startup must finish first-run settings");
@@ -75,7 +107,7 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
             context.takeScreenshot("whostoppedthemusic-vanilla-small");
         }
         LoggerFactory.getLogger("whostoppedthemusic-test").info(
-                "WHOSTOPPEDTHEMUSIC CLIENT PASS: first-run Constant, Vanilla UI, M/rebind, options/persistence, top cassette, live song/silence, Next/Previous/Pause/Resume, music-only volume, inert mode, 320x240");
+                "WHOSTOPPEDTHEMUSIC CLIENT PASS: first-run Constant, Vanilla UI, M/rebind, options/persistence, top cassette, live song/silence, Play/Next/Pause/Resume, music-only volume, inert mode, 320x240");
     }
 
     private static void checkSharedControls(ClientGameTestContext context, Path settingsFile) {
@@ -85,13 +117,13 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
         context.runOnClient(client -> {
             check(client.gui.screen() instanceof MusicScreen, "Vanilla mode stays on the same screen");
             check(Screens.getWidgets(client.gui.screen()).get(1).getMessage().getString().equals("Vanilla"), "mode is inert Vanilla");
-            check(Screens.getWidgets(client.gui.screen()).size() == 9, "only tape, mode, frequency, jukebox, transports, music volume and Done");
+            check(Screens.getWidgets(client.gui.screen()).size() == 8, "only tape, mode, frequency, jukebox, transports, music volume and Done");
         });
         var frequency = context.computeOnClient(client -> client.options.musicFrequency().get());
         clickWidget(context, widget(context, 2));
         context.runOnClient(client -> check(client.options.musicFrequency().get() != frequency, "frequency widget updates vanilla"));
         double music = context.computeOnClient(client -> client.options.getSoundSourceOptionInstance(SoundSource.MUSIC).get());
-        clickWidget(context, widget(context, 7));
+        clickWidget(context, widget(context, 6));
         context.waitTicks(25);
         context.runOnClient(client -> check(client.options.getSoundSourceOptionInstance(SoundSource.MUSIC).get() != music,
                 "music slider updates vanilla"));
@@ -175,15 +207,14 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
 
     private static void checkTransport(ClientGameTestContext context) {
         checkDelayedTransport(context);
+        // Let vanilla's real tick select the source; never manually start the main transport case.
         context.runOnClient(client -> {
-            check(!new MusicDirector(client, new net.minecraft.client.sounds.MusicManager(client)).canPrevious(),
-                    "Previous disabled without observed history");
-            client.getMusicManager().startPlaying(Musics.MENU);
+            client.options.musicFrequency().set(MusicFrequency.DEFAULT);
+            client.options.musicFrequency().set(MusicFrequency.CONSTANT);
         });
         context.waitFor(client -> MusicDirector.get(client).active());
         var old = context.computeOnClient(client -> MusicDirector.get(client).current());
         context.waitFor(client -> channelState(client, old, true).join());
-        var file = old.getSound().getLocation();
         var topNext = context.computeOnClient(client -> Screens.getWidgets(client.gui.screen()).stream()
                 .filter(w -> w.getMessage().getString().equals(">") && w.getY() == 11).findFirst().orElseThrow());
         clickWidget(context, topNext);
@@ -198,13 +229,15 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
         });
         clickWidget(context, context.computeOnClient(client -> cassette(client.gui.screen())));
         context.waitForScreen(MusicScreen.class);
-        clickWidget(context, widget(context, 4));
-        context.waitFor(client -> channelStopped(client, next));
-        var previous = context.computeOnClient(client -> MusicDirector.get(client).current());
-        context.waitFor(client -> channelState(client, previous, true).join());
-        context.runOnClient(client -> check(MusicDirector.get(client).current().getSound().getLocation().equals(file),
-                "Previous restores the actual resolved historical song, not a random pool entry"));
-        context.waitTicks(10);
+        context.runOnClient(client -> {
+            var controls = Screens.getWidgets(client.gui.screen());
+            check(controls.size() == 8, "Vanilla controls omit Previous and retain Done");
+            check(controls.stream().noneMatch(w -> w.getMessage().getString().equals("<")), "no previous-track button");
+            var director = MusicDirector.get(client);
+            var resolved = director.current().getSound().getLocation().toShortLanguageKey().replace('/', '.');
+            check(director.status().getString().equals(net.minecraft.network.chat.Component.translatable(resolved).getString()),
+                    "title comes from the resolved file, not the situational pool");
+        });
         var music = context.computeOnClient(client -> MusicDirector.get(client).current());
         context.waitFor(client -> channelState(client, music, true).join());
         var record = context.computeOnClient(client -> {
@@ -221,15 +254,17 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
             return sound;
         });
         context.waitFor(client -> channelState(client, effect, true).join());
-        clickWidget(context, widget(context, 5));
+        clickWidget(context, widget(context, 4));
         context.waitFor(client -> channelState(client, music, false).join());
         context.runOnClient(client -> {
             check(MusicDirector.get(client).paused(), "pause holds the current vanilla instance");
             check(MusicDirector.get(client).status().getString().startsWith("Paused:"), "truthful paused label");
             client.getSoundManager().resume();
         });
-        context.waitTicks(5);
+        context.waitTicks(30);
         context.runOnClient(client -> {
+            check(MusicDirector.get(client).current() == music && MusicDirector.get(client).paused(),
+                    "pause survives automatic vanilla ticks without replacement");
             check(channelState(client, music, false).join(), "global menu resume cannot unpause held music");
             check(channelState(client, record, true).join(), "Pause never touches Records");
             check(channelState(client, effect, true).join(), "Pause never touches non-music effects");
@@ -237,13 +272,13 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
         context.getInput().setCursorPos(0, 0);
         context.waitTicks(2);
         context.takeScreenshot("whostoppedthemusic-paused");
-        clickWidget(context, widget(context, 5));
+        clickWidget(context, widget(context, 4));
         context.waitFor(client -> channelState(client, music, true).join());
         context.runOnClient(client -> check(MusicDirector.get(client).current() == music
                 && !MusicDirector.get(client).paused(), "Resume continues the same channel, not a restart"));
-        clickWidget(context, widget(context, 5));
+        clickWidget(context, widget(context, 4));
         context.waitFor(client -> channelState(client, music, false).join());
-        clickWidget(context, widget(context, 6));
+        clickWidget(context, widget(context, 5));
         context.waitFor(client -> channelStopped(client, music));
         context.waitFor(client -> channelState(client, MusicDirector.get(client).current(), true).join());
         context.runOnClient(client -> {
@@ -254,6 +289,36 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
             client.getSoundManager().stop(record);
             client.getSoundManager().stop(effect);
         });
+        // The same option callbacks used by vanilla must drive its automatic loop.
+        var beforeConstant = context.computeOnClient(client -> MusicDirector.get(client).current());
+        context.runOnClient(client -> client.options.musicFrequency().set(MusicFrequency.FREQUENT));
+        clickWidget(context, widget(context, 2));
+        context.runOnClient(client -> {
+            check(client.options.musicFrequency().get() == MusicFrequency.CONSTANT,
+                    "Frequency button selects vanilla Constant");
+            client.getSoundManager().stop(MusicDirector.get(client).current());
+        });
+        context.waitFor(client -> channelStopped(client, beforeConstant)
+                && MusicDirector.get(client).current() != beforeConstant && MusicDirector.get(client).active()
+                && channelState(client, MusicDirector.get(client).current(), true).join());
+        var automatic = context.computeOnClient(client -> MusicDirector.get(client).current());
+        var slider = widget(context, 6);
+        clickWidget(context, slider);
+        context.getInput().pressKey(InputConstants.KEY_HOME);
+        context.runOnClient(client -> check(client.options.getSoundSourceOptionInstance(SoundSource.MUSIC).get() == 0,
+                "Music slider keyboard Home sets vanilla zero volume"));
+        context.waitFor(client -> channelGain(client, automatic).join() == 0.0f);
+        context.runOnClient(client -> {
+            check(client.options.getSoundSourceOptionInstance(SoundSource.MUSIC).get() == 0,
+                    "Music slider mutes the actual vanilla source");
+            check(client.options.getSoundSourceOptionInstance(SoundSource.MASTER).get() == 0.7,
+                    "Music slider leaves Master unchanged");
+        });
+        context.getInput().pressKey(InputConstants.KEY_END);
+        context.waitFor(client -> MusicDirector.get(client).current() == automatic
+                && channelState(client, automatic, true).join() && channelGain(client, automatic).join() > 0.0f);
+        context.runOnClient(client -> check(client.options.getSoundSourceOptionInstance(SoundSource.MUSIC).get() == 1,
+                "unmuting restores automatic vanilla playback"));
         context.getInput().setCursorPos(0, 0);
         context.waitTicks(2);
         context.takeScreenshot("whostoppedthemusic-transport");
@@ -263,14 +328,15 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
 
     private static void checkDelayedTransport(ClientGameTestContext context) {
         var stopGate = new CompletableFuture<Void>();
-        var old = context.computeOnClient(client -> {
+        context.runOnClient(client -> {
             client.getMusicManager().stopPlaying();
             streamGate = stopGate;
             streamReady = new CompletableFuture<>();
-            client.getMusicManager().startPlaying(Musics.MENU);
-            return MusicDirector.get(client).current();
+            client.options.musicFrequency().set(MusicFrequency.DEFAULT);
+            client.options.musicFrequency().set(MusicFrequency.CONSTANT);
         });
         context.waitFor(client -> streamReady.isDone());
+        var old = context.computeOnClient(client -> MusicDirector.get(client).current());
         context.runOnClient(client -> {
             check(streamGate == null, "vanilla stream startup is held before channel.play");
             MusicDirector.get(client).next();
@@ -279,25 +345,27 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
         context.waitFor(client -> channelState(client, MusicDirector.get(client).current(), true).join());
         boolean stopped = context.computeOnClient(client -> channelStopped(client, old));
         var pauseGate = new CompletableFuture<Void>();
-        var music = context.computeOnClient(client -> {
+        context.runOnClient(client -> {
             client.getMusicManager().stopPlaying();
             streamGate = pauseGate;
             streamReady = new CompletableFuture<>();
-            client.getMusicManager().startPlaying(Musics.MENU);
-            return MusicDirector.get(client).current();
+            client.options.musicFrequency().set(MusicFrequency.DEFAULT);
+            client.options.musicFrequency().set(MusicFrequency.CONSTANT);
         });
         context.waitFor(client -> streamReady.isDone());
+        var music = context.computeOnClient(client -> MusicDirector.get(client).current());
         context.runOnClient(client -> {
-            MusicDirector.get(client).togglePause();
+            MusicDirector.get(client).togglePlayback();
             pauseGate.complete(null);
         });
         context.waitTicks(20);
-        boolean held = context.computeOnClient(client -> channelState(client, music, false).join());
+        boolean held = context.computeOnClient(client -> MusicDirector.get(client).current() == music
+                && MusicDirector.get(client).paused() && channelState(client, music, false).join());
         LoggerFactory.getLogger("whostoppedthemusic-test").info(
                 "Delayed real-channel results: outgoingStopped={}, incomingPaused={}", stopped, held);
         check(stopped, "Next must stop the outgoing source even when its stream finishes after stop");
         check(held, "Pause before stream startup must hold the actual source paused");
-        context.runOnClient(client -> MusicDirector.get(client).togglePause());
+        context.runOnClient(client -> MusicDirector.get(client).togglePlayback());
         context.waitFor(client -> channelState(client, music, true).join());
         context.runOnClient(client -> client.getMusicManager().stopPlaying());
         LoggerFactory.getLogger("whostoppedthemusic-test").info(
@@ -331,6 +399,23 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
         return result.orTimeout(5, java.util.concurrent.TimeUnit.SECONDS);
     }
 
+    private static CompletableFuture<Float> channelGain(net.minecraft.client.Minecraft client, SoundInstance sound) {
+        var engine = ((SoundManagerAccessor) client.getSoundManager()).whostoppedthemusic$engine();
+        var handle = ((SoundEngineAccessor) engine).whostoppedthemusic$channels().get(sound);
+        var result = new CompletableFuture<Float>();
+        check(handle != null && !handle.isStopped(), "volume check requires a real allocated source");
+        handle.execute(channel -> {
+            try {
+                var source = com.mojang.blaze3d.audio.Channel.class.getDeclaredField("source");
+                source.setAccessible(true);
+                result.complete(org.lwjgl.openal.AL10.alGetSourcef(source.getInt(channel), org.lwjgl.openal.AL10.AL_GAIN));
+            } catch (ReflectiveOperationException exception) {
+                result.completeExceptionally(exception);
+            }
+        });
+        return result.orTimeout(5, java.util.concurrent.TimeUnit.SECONDS);
+    }
+
     private static AbstractWidget widget(ClientGameTestContext context, int index) {
         return context.computeOnClient(client -> Screens.getWidgets(client.gui.screen()).get(index));
     }
@@ -356,7 +441,7 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
             if (screen instanceof MusicScreen) {
                 var tape = widgets.get(0);
                 var mode = widgets.get(1);
-                var volume = widgets.get(7);
+                var volume = widgets.get(6);
                 check(volume instanceof MusicVolumeSlider, "vertical Music-only control at far right");
                 check(tape.getRight() < mode.getX() && mode.getRight() < volume.getX(), "left tape, right controls, far-right volume");
                 check(widgets.get(2).getY() > mode.getY() && widgets.get(3).getY() > widgets.get(2).getY(),
