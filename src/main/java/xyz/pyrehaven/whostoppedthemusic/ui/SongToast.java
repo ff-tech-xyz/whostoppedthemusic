@@ -7,19 +7,22 @@ import net.minecraft.client.gui.components.toasts.ToastManager;
 import net.minecraft.client.resources.sounds.SoundInstance;
 import net.minecraft.network.chat.Component;
 import xyz.pyrehaven.whostoppedthemusic.music.MusicDirector;
+import xyz.pyrehaven.whostoppedthemusic.music.Track;
 
 public final class SongToast implements Toast {
     private SoundInstance sound;
-    private Component title;
+    private Track.Metadata metadata;
+    private final OverflowText title = new OverflowText();
+    private final OverflowText artist = new OverflowText();
     private long started = -1;
     private Visibility visibility = Visibility.SHOW;
 
-    public SongToast(SoundInstance sound, Component title) { replace(sound, title); }
+    public SongToast(SoundInstance sound, Track.Metadata metadata) { replace(sound, metadata); }
 
-    public void replace(SoundInstance sound, Component title) {
+    public void replace(SoundInstance sound, Track.Metadata metadata) {
         if (this.sound == sound) return;
         this.sound = sound;
-        this.title = title;
+        this.metadata = metadata;
         started = -1;
         visibility = Visibility.SHOW;
     }
@@ -43,9 +46,7 @@ public final class SongToast implements Toast {
                 || !net.minecraft.client.Minecraft.getInstance().options.musicToast().get().renderToast()) return;
         graphics.fill(0, 0, width(), height(), Theme.CARD);
         graphics.fill(0, 0, Theme.ACCENT, height(), Theme.ORANGE);
-        graphics.text(font, Component.translatable("whostoppedthemusic.now_playing"), Theme.MARGIN, Theme.TOAST_TITLE_Y, Theme.ORANGE);
-        graphics.enableScissor(Theme.MARGIN, Theme.TOAST_SONG_Y - Theme.ACCENT, width() - Theme.GAP, height());
-        graphics.text(font, title, Theme.MARGIN, Theme.TOAST_SONG_Y, Theme.TEXT);
-        graphics.disableScissor();
+        title.draw(graphics, font, metadata.title(), Theme.MARGIN, width() - Theme.GAP, Theme.TOAST_TITLE_Y, Theme.TEXT, false);
+        artist.draw(graphics, font, metadata.artist(), Theme.MARGIN, width() - Theme.GAP, Theme.TOAST_SONG_Y, Theme.ARTIST, false);
     }
 }

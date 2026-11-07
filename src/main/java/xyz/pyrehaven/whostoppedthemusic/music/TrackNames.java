@@ -6,6 +6,15 @@ import java.util.function.Function;
 public final class TrackNames {
     private TrackNames() { }
 
+    public record Metadata(String title, String artist) { }
+
+    public static Metadata metadata(String display) {
+        int separator = display.indexOf(" - ");
+        return separator > 0 && separator + 3 < display.length()
+                ? new Metadata(display.substring(separator + 3), display.substring(0, separator))
+                : new Metadata(display, "");
+    }
+
     public static String key(String fileId, String discEvent) {
         String[] parts = fileId.split(":", 2);
         if (discEvent != null) {
@@ -34,12 +43,15 @@ public final class TrackNames {
 
     /** Lower scores sort first; artist and file names remain searchable behind titles. */
     public static int searchRank(String query, String title, String id) {
+        return searchRank(query, metadata(title), id);
+    }
+
+    public static int searchRank(String query, Metadata metadata, String id) {
         String needle = normalize(query);
         if (needle.isEmpty()) return 0;
-        String full = normalize(title);
-        String[] parts = title.split(" - ", 2);
-        String song = normalize(parts.length == 2 ? parts[1] : title);
-        String artist = parts.length == 2 ? normalize(parts[0]) : "";
+        String full = normalize(metadata.artist() + " " + metadata.title());
+        String song = normalize(metadata.title());
+        String artist = normalize(metadata.artist());
         if (song.equals(needle) || full.equals(needle)) return 0;
         if (song.startsWith(needle)) return 10;
         if (song.contains(" " + needle)) return 20;

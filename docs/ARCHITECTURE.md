@@ -37,14 +37,17 @@ Current implemented slice (2026-11-07): Settings and first-launch Constant, Vani
 transport, Basic soundtrack/disc selection and playback, shared controls and one SongToast in both modes,
 and nearby jukebox fade/hold in both modes. Custom, imported files and Add Songs
 remain planned. The M screen cycles Vanilla/Basic; the compact pause cassette
-retains one live title and Next.
+retains live title/artist metadata and Next.
 
-The compact cassette retains its player housing, main's centered width/30-pixel
-height and y=6 placement. Its title always comes from the actual music instance;
+The compact cassette retains its player housing, centered width and y=6 placement.
+Its 34-pixel height reserves two font-height lines without touching Game Menu.
+Its metadata always comes from the actual resolved music instance;
 the duplicate vanilla pause song line is suppressed without changing the toast
 option. SongToast replaces the in-game notification in both modes. Clicking the tape opens MusicScreen. Both tape views
-put one scrolling/clipped title between two reels and report silence, pause or
-mute truthfully.
+put a bright title over a quieter artist between two reels. Unknown artists stay
+blank. Pause status sits separately to the left of its housing; settings status
+sits beneath the metadata. Full metadata/status is available in tooltips and
+widget narration; browser tapes participate in keyboard focus/narration too.
 
 `MusicDirector` belongs to each vanilla MusicManager. It observes resolved sounds
 with allocated channels, including automatic starts from vanilla's own tick. Play
@@ -98,9 +101,10 @@ whostoppedthemusic/
     │   │   │   # loaded once at startup, saved only when the player changes something,
     │   │   │   # written to a temp file and atomically moved into place (same pattern as RealSize).
     │   │   ├── music/
-    │   │   │   ├── Track.java               # id, SOUNDTRACK/DISC kind, translated title, loaded Sound
+    │   │   │   ├── Track.java               # id, kind, translated display source, resolved title/artist metadata, loaded Sound
     │   │   │   ├── Tag.java                 # record: pool id, display name, group, vanilla entries (track + weight)
-    │   │   │   ├── TrackNames.java          # pure: translated names/fallback and normalized title/artist/typo search ranking
+    │   │   │   ├── TrackNames.java          # pure: naming convention, structured names and normalized title/artist/typo search ranking
+    │   │   │   ├── OverflowMotion.java      # pure: endpoint waits and constant-speed bidirectional label motion
     │   │   │   ├── TrackLibrary.java
     │   │   │   │   # Builds deduplicated soundtrack/disc tracks from loaded weighted sound entries,
     │   │   │   │   # follows event references with cycle protection; rebuilt after SoundManager.apply
@@ -134,7 +138,8 @@ whostoppedthemusic/
     │   │   │   ├── CustomPanel.java         # Custom body: grid of tag buttons
     │   │   │   ├── TagEditorScreen.java     # picker | songs in tag | song settings
     │   │   │   ├── AddSongsScreen.java      # drop zone, your songs list, remove, open folder
-    │   │   │   ├── SongToast.java           # our Now Playing toast (vanilla Toast interface)
+    │   │   │   ├── SongToast.java           # title-first two-line Now Playing toast (vanilla Toast interface)
+    │   │   │   ├── OverflowText.java        # per-line content clock and clipped fractional tape/toast rendering
     │   │   │   ├── CassetteWidget.java      # top compact cassette, live title and settings link
     │   │   │   └── widget/
     │   │   │       ├── TrackList.java       # smooth clipped cassette browser; ranked results or sections; nested Row owns tick/tape/play
@@ -165,7 +170,8 @@ whostoppedthemusic/
     ├── test/java/xyz/pyrehaven/whostoppedthemusic/
     │   ├── DeckTest.java            # weights, deck cycle, no repeat across refills, prev/next, empty deck
     │   ├── SettingsTest.java        # defaults, round trip, bad/unknown file, atomic write, first-run flag
-    │   ├── TrackNamesTest.java      # translated names/fallback; title/prefix/artist/token/typo ranking and rejected queries
+    │   ├── TrackNamesTest.java      # metadata, translated names/fallback and search ranking
+    │   ├── OverflowMotionTest.java  # waits, speed, reversal, fitting and content clocks
     │   └── MusicFolderTest.java     # file filter, copy, duplicate names, delete
     └── gametest/
         ├── java/xyz/pyrehaven/whostoppedthemusic/
@@ -195,7 +201,7 @@ whostoppedthemusic/
 
 ### Vanilla
 - Song selection stays vanilla. The shared SongToast replaces the in-game notification; the compact cassette replaces the pause song line.
-- Left: enlarged bare tape, with one live title between two reels. Right: Vanilla/Basic mode button, Frequency, Jukebox and Play/Pause/Resume/Next. A vertical Music volume slider is at the far right.
+- Left: enlarged bare tape, with live title and artist between two reels. Right: Vanilla/Basic mode button, Frequency, Jukebox and Play/Pause/Resume/Next. A vertical Music volume slider is at the far right.
 - Master and Music Toast remain in vanilla Options, not this screen. Music and Frequency write the existing vanilla options; Jukebox is saved in Settings and used by the director.
 
 ### Basic
@@ -306,10 +312,25 @@ Fabric API instead of mixins:
 - Music logic only runs inside vanilla's `MusicManager.tick`.
 - The jukebox check runs there only when the setting is Pause and `JukeboxWatcher` has an entry.
 - The toast uses vanilla's toast manager.
-- Long titles scroll by render time.
+- `OverflowText` shares clipped, fractional-position rendering across cassette title,
+  artist and separate status lines and SongToast. Each line owns an `OverflowMotion`
+  content clock: fitting text stays still; overflow waits 1 second at each endpoint
+  and travels at 20 GUI pixels/second in alternating directions. Only changed line
+  content restarts its clock; resizing and unrelated metadata/status changes do not.
 - The music folder is scanned when a screen opens, after a drop and on resource reload. Never on a timer.
 
 ## Tracks and names
+
+`Track` retains its translated display component and exposes structured component
+metadata. Explicit title/artist fields take precedence. Otherwise `TrackNames`
+recognizes the existing `Artist - Title` convention once at the naming boundary,
+preserving remaining hyphens; component slicing retains translated sibling styles.
+Resolution happens in the current language, not as a resource-apply snapshot.
+Unknown artists remain empty. Search ranks structured title/artist and file IDs.
+`MusicDirector.metadata()` resolves Basic's Track directly and Vanilla's actual
+sound-file identity through the library, with translated/prettified fallback.
+`playbackStatus()` is independent of that metadata. SongToast begins with title
+immediately, followed by artist, sharing the same independent overflow renderer.
 
 - **Discovery:** loaded sound events whose path contains `music` or `theme` (namespace alone does not qualify), plus events referenced by built-in music and loaded biome/dimension background music (default, creative and underwater), timeline music keyframes and jukebox songs regardless of event name. Rebuild after sound resources apply and world registry transitions; server definitions become available after joining that server. Only referenced weighted sound entries are flattened, with cycle protection and file-id dedupe. Jukebox definitions and legacy `music_disc.` pools take DISC precedence over soundtrack aliases of the same file; jukebox descriptions supply their titles.
 - **Tags:** planned pool UI uses these discovered events.
@@ -426,6 +447,11 @@ instead of the packaged jar. No empty suite is called passed.
 ## How to build
 
 Focused shared-controls verification: `xvfb-run -a ./gradlew jar runClientGameTest -PcontrolsOnly --console=plain`.
+Phase-2 metadata/overflow verification adds
+`test --tests '*TrackNamesTest' --tests '*OverflowMotionTest'` to that same command.
+The selection includes 48 targeted label captures at normal and 320×240 sizes,
+with translated/styled/explicit/hyphenated/unknown/modded metadata and changed tracks
+on both modes' players, browser, pause and toast. Full suites remain release/checkpoint work.
 The existing packaged-client harness exercises both modes' Play/Pause/same-source
 Resume and Next from pause, pause-menu Next, Basic row Play and held Stop, one
 updated SongToast on manual/automatic transitions, Music Toast Never, notification

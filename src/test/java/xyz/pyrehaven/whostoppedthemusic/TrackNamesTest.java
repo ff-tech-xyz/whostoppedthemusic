@@ -5,6 +5,14 @@ import org.junit.jupiter.api.Test;
 import xyz.pyrehaven.whostoppedthemusic.music.TrackNames;
 
 final class TrackNamesTest {
+    @Test void metadataPreservesHyphensAndUnknownArtists() {
+        assertEquals(new TrackNames.Metadata("Sweden", "C418"), TrackNames.metadata("C418 - Sweden"));
+        assertEquals(new TrackNames.Metadata("Night-Song - Reprise", "Artist-Name"),
+                TrackNames.metadata("Artist-Name - Night-Song - Reprise"));
+        assertEquals(new TrackNames.Metadata("Night-Song", ""), TrackNames.metadata("Night-Song"));
+        assertEquals(new TrackNames.Metadata("Forest Theme", ""), TrackNames.metadata("Forest Theme"));
+        assertEquals(60, TrackNames.searchRank("other forest", "Night-Song", "other:music/forest_theme"));
+    }
     @Test void soundtrackAndDiscKeysUseVanillaTranslations() {
         assertEquals("music.game.sweden", TrackNames.key("minecraft:music/game/sweden", null));
         assertEquals("C418 - Sweden", TrackNames.title("minecraft:music/game/sweden", null,

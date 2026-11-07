@@ -29,6 +29,9 @@ import xyz.pyrehaven.whostoppedthemusic.ui.TransportButton;
 import net.minecraft.client.gui.components.toasts.Toast;
 import xyz.pyrehaven.whostoppedthemusic.ui.widget.TrackList;
 import xyz.pyrehaven.whostoppedthemusic.music.MusicDirector;
+import xyz.pyrehaven.whostoppedthemusic.music.Track;
+import xyz.pyrehaven.whostoppedthemusic.music.TrackNames;
+import net.minecraft.network.chat.Component;
 import xyz.pyrehaven.whostoppedthemusic.mixin.SoundManagerAccessor;
 import xyz.pyrehaven.whostoppedthemusic.mixin.SoundEngineAccessor;
 import net.minecraft.client.resources.sounds.SoundInstance;
@@ -169,9 +172,125 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
                 client.getSoundManager().stop(record);
                 client.getSoundManager().stop(effect);
             });
+            checkCassetteLabels(context);
         }
         LoggerFactory.getLogger("whostoppedthemusic-test").info(
                 "SHARED CONTROLS PASS: Vanilla/Basic Play/Pause/same-source Resume/paused Next, pause-menu Next, row Play, held Basic Stop, automatic transitions, single reused toast, duration multiplier, Never, Records/effects isolation, browser state and 320x240");
+    }
+
+    private static void checkCassetteLabels(ClientGameTestContext context) {
+        var original = context.computeOnClient(client -> WhoStoppedTheMusic.LIBRARY.tracks());
+        var translated = Component.translatable("music.game.sweden");
+        var shortName = Track.metadata(translated);
+        check(shortName.title().getString().equals("Sweden") && shortName.artist().getString().equals("C418"),
+                "translated component supplies separate metadata");
+        var styled = Track.metadata(Component.literal("Artist-Name - ").append(Component.literal("Night-Song - Reprise")
+                .withStyle(net.minecraft.ChatFormatting.BOLD)));
+        check(styled.title().getString().equals("Night-Song - Reprise")
+                && styled.title().toFlatList(net.minecraft.network.chat.Style.EMPTY).getFirst().getStyle().isBold(),
+                "hyphens and component sibling styles survive naming");
+        var longName = new Track.Metadata(Component.literal("Night-Song - Reprise across the very distant mountains"),
+                Component.literal("Artist-Name and the extraordinarily long orchestra credit"));
+        var unknown = Track.metadata(Component.translatableWithFallback("test.missing.modded.name",
+                TrackNames.prettify("other:music/forest_theme")));
+        check(unknown.title().getString().equals("Forest Theme") && unknown.artist().getString().isEmpty(),
+                "modded fallback keeps artist genuinely blank");
+        var fixtures = java.util.List.of(shortName, longName, unknown);
+        try {
+            for (int size : new int[]{960, 320}) {
+                context.getInput().resizeWindow(size, size == 320 ? 240 : 720);
+                for (int index = 0; index < fixtures.size(); index++) {
+                    var fixture = fixtures.get(index);
+                    context.runOnClient(client -> {
+                        var tracks = original.stream().map(track -> new Track(track.id(), track.kind(), track.title(),
+                                track.sound(), fixture)).toList();
+                        setTestTracks(tracks);
+                        check(tracks.getFirst().metadata() == fixture, "explicit metadata takes precedence over display convention");
+                    });
+                    for (Mode mode : Mode.values()) {
+                        String capture = "labels-" + size + "-" + index + "-" + mode.name().toLowerCase(java.util.Locale.ROOT);
+                        context.runOnClient(client -> {
+                            WhoStoppedTheMusic.settings().setMode(mode);
+                            var director = MusicDirector.get(client);
+                            director.syncMode();
+                            client.gui.setScreen(null);
+                            client.options.musicToast().set(MusicToastDisplayState.PAUSE_AND_TOAST);
+                            client.options.notificationDisplayTime().set(2.0);
+                            client.gui.toastManager().clear();
+                            director.next();
+                        });
+                        context.waitFor(client -> channelState(client, MusicDirector.get(client).current(), true).join());
+                        context.runOnClient(client -> {
+                            check(MusicDirector.get(client).metadata().equals(fixture), "director exposes resolved library metadata");
+                            checkSingleSongToast(client);
+                        });
+                        long toastStart = net.minecraft.util.Util.getMillis();
+                        context.waitFor(client -> net.minecraft.util.Util.getMillis() - toastStart >= 700);
+                        context.takeScreenshot(capture + "-toast");
+                        context.runOnClient(client -> {
+                            client.gui.toastManager().clear();
+                            client.gui.setScreen(new MusicScreen(null, WhoStoppedTheMusic.settings()));
+                        });
+                        context.waitFor(client -> Screens.getWidgets(client.gui.screen()).stream().anyMatch(widget ->
+                                widget.getMessage().getString().equals(fixture.description().getString())));
+                        assertWidgetsFit(context);
+                        context.runOnClient(client -> {
+                            var description = fixture.description().getString();
+                            check(Screens.getWidgets(client.gui.screen()).stream().anyMatch(widget ->
+                                    widget.getMessage().getString().equals(description)),
+                                    "settings tape exposes full metadata to narration");
+                            if (mode == Mode.BASIC) {
+                                var list = trackList(client.gui.screen());
+                                check(list.children().get(1).children().size() == 3, "browser tape participates in focus/narration");
+                            }
+                        });
+                        context.getInput().setCursorPos(0, 0);
+                        context.takeScreenshot(capture + "-settings");
+                        if (index == 1) {
+                            context.waitTicks(30);
+                            context.takeScreenshot(capture + "-moving");
+                        }
+                        context.runOnClient(client -> client.gui.setScreen(new PauseScreen(true)));
+                        context.waitFor(client -> cassette(client.gui.screen()).getMessage().getString()
+                                .equals(fixture.description().getString()));
+                        assertWidgetsFit(context);
+                        context.runOnClient(client -> check(cassette(client.gui.screen()).getMessage().getString()
+                                .equals(fixture.description().getString()), "pause tape keeps title/artist distinct"));
+                        context.takeScreenshot(capture + "-pause");
+                        if (index == 1) {
+                            context.runOnClient(client -> MusicDirector.get(client).togglePlayback());
+                            context.waitTicks(2);
+                            context.takeScreenshot(capture + "-paused");
+                            var tape = context.computeOnClient(client -> cassette(client.gui.screen()));
+                            double scale = context.computeOnClient(client -> client.getWindow().getGuiScale());
+                            context.getInput().setCursorPos((tape.getX() + tape.getWidth() / 2.0) * scale,
+                                    (tape.getY() + tape.getHeight() / 2.0) * scale);
+                            context.waitTicks(3);
+                            context.takeScreenshot(capture + "-tooltip");
+                            context.getInput().setCursorPos(0, 0);
+                            context.runOnClient(client -> {
+                                check(MusicDirector.get(client).metadata().equals(fixture), "status never contaminates metadata");
+                                MusicDirector.get(client).togglePlayback();
+                            });
+                        }
+                    }
+                }
+            }
+        } finally {
+            context.runOnClient(client -> setTestTracks(original));
+        }
+        LoggerFactory.getLogger("whostoppedthemusic-test").info(
+                "CASSETTE LABELS PASS: translated/styled/explicit/hyphenated/modded/unknown metadata, changed tracks, both modes, pause/settings/browser/toast at normal and 320x240");
+    }
+
+    private static void setTestTracks(java.util.List<Track> tracks) {
+        try {
+            var field = xyz.pyrehaven.whostoppedthemusic.music.TrackLibrary.class.getDeclaredField("tracks");
+            field.setAccessible(true);
+            field.set(WhoStoppedTheMusic.LIBRARY, tracks);
+        } catch (ReflectiveOperationException exception) {
+            throw new AssertionError(exception);
+        }
     }
 
     private static void checkModeControls(ClientGameTestContext context, Mode mode, SoundInstance record, SoundInstance effect) {
@@ -196,9 +315,9 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
             // Controlled elapsed times exercise the real toast's multiplier and duplicate callback.
             MusicDirector.get(client).showToast(manager);
             check(manager.getToast(SongToast.class, Toast.NO_TOKEN) == toast, "duplicate callback reuses same toast");
-            var timed = new SongToast(sound, MusicDirector.get(client).status());
+            var timed = new SongToast(sound, MusicDirector.get(client).metadata());
             timed.update(manager, 100000);
-            timed.replace(sound, MusicDirector.get(client).status());
+            timed.replace(sound, MusicDirector.get(client).metadata());
             timed.update(manager, 109999);
             check(timed.getWantedVisibility() == Toast.Visibility.SHOW, "2x notification lasts almost ten seconds");
             timed.update(manager, 110001);
@@ -328,7 +447,7 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
             int count = MusicDirector.get(client).selected().size();
             ((Button) none).onPress(null);
             check(MusicDirector.get(client).selected().size() == count, "bulk action guarded while searching");
-            check(list.children().stream().allMatch(row -> row.children().size() == 2), "ranked search has no headers");
+            check(list.children().stream().allMatch(row -> row.children().size() == 3), "ranked search has no headers");
             list.setScrollAmount(list.children().getFirst().getHeight());
         });
         double savedScroll = context.computeOnClient(client -> list.scrollAmount());
@@ -348,7 +467,7 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
             check(trackList(client.gui.screen()) == list && Math.abs(list.scrollAmount() - savedScroll) < 1, "collapse restores same browser and scroll");
             searchBox(client.gui.screen()).setValue("cat");
             var cat = WhoStoppedTheMusic.LIBRARY.tracks().stream().filter(track -> track.id().equals("minecraft:records/cat")).findFirst().orElseThrow();
-            check(list.children().getFirst().children().size() == 2, "first ranked result is a song");
+            check(list.children().getFirst().children().size() == 3, "first ranked result is a song");
             ((Button) list.children().getFirst().children().getLast()).onPress(null);
             check(MusicDirector.get(client).current().getSound().getLocation().equals(cat.sound().getLocation()), "exact Cat disc ranks first across sections");
         });
@@ -375,7 +494,7 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
         context.runOnClient(client -> {
             check(MusicDirector.get(client).status().getString().equals("C418 - Sweden"), "row Play starts exact ranked song on a real channel");
             check(Screens.getWidgets(client.gui.screen()).stream().anyMatch(w -> w.getY() > Theme.BASIC_TOP + Theme.ROW * 4
-                    && w.getMessage().getString().equals("C418 - Sweden")), "current-song cassette below transport updates live");
+                    && w.getMessage().getString().equals("Sweden\nC418")), "current-song cassette below transport updates live");
             searchBox(client.gui.screen()).setValue("C418");
             list.setScrollAmount(list.children().getFirst().getHeight());
         });
@@ -504,7 +623,7 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
             var list = Screens.getWidgets(client.gui.screen()).stream().filter(xyz.pyrehaven.whostoppedthemusic.ui.widget.TrackList.class::isInstance)
                     .map(xyz.pyrehaven.whostoppedthemusic.ui.widget.TrackList.class::cast).findFirst().orElseThrow();
             check(!list.children().isEmpty() && list.children().size() < 10
-                    && list.children().stream().allMatch(row -> row.children().size() == 2), "search filters without section headers");
+                    && list.children().stream().allMatch(row -> row.children().size() == 3), "search filters without section headers");
             search.setValue("");
         });
         context.clickScreenButton("whostoppedthemusic.none");

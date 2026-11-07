@@ -94,12 +94,12 @@ public final class BasicPanel {
             director.playlistChanged();
             button.setMessage(shuffleLabel());
         }));
-        int tapeY = transportY + Theme.ROW * 2;
+        int tapeY = transportY + Theme.ROW * 2 - Theme.GAP + Theme.ACCENT;
         int tapeHeight = Math.min(Math.min(Theme.BASIC_TAPE_MAX_HEIGHT, playerWidth * 3 / 5), bottom - tapeY);
         var tape = new Button(playerX, tapeY, playerWidth, tapeHeight, director.status(), button -> { }, supplier -> supplier.get()) {
+            private final CassetteArtwork artwork = new CassetteArtwork();
             @Override protected void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
-                setMessage(director.status());
-                CassetteArtwork.draw(graphics, this, getMessage(), false);
+                artwork.draw(graphics, this, director.metadata(), director.playbackStatus(), false);
             }
         };
         add.accept(tape);

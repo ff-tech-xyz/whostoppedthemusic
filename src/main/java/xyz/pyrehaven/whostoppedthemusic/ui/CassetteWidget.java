@@ -11,10 +11,11 @@ import xyz.pyrehaven.whostoppedthemusic.music.MusicDirector;
 
 public final class CassetteWidget extends Button {
     private final Minecraft client;
+    private final CassetteArtwork artwork = new CassetteArtwork();
 
     public CassetteWidget(Minecraft client, PauseScreen parent, Settings settings) {
         super(parent.width / 2 - cassetteWidth(parent.width) / 2, 6,
-                cassetteWidth(parent.width), 30,
+                cassetteWidth(parent.width), Theme.PAUSE_TAPE_HEIGHT,
                 Component.translatable("whostoppedthemusic.cassette.open"),
                 button -> client.gui.setScreen(new MusicScreen(parent, settings)), DEFAULT_NARRATION);
         this.client = client;
@@ -31,8 +32,7 @@ public final class CassetteWidget extends Button {
 
     @Override
     protected void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
-        Component status = status();
-        setMessage(Component.translatable("whostoppedthemusic.cassette.narration", status));
-        CassetteArtwork.draw(graphics, this, status, true);
+        var director = MusicDirector.get(client);
+        artwork.draw(graphics, this, director.metadata(), director.playbackStatus(), true);
     }
 }

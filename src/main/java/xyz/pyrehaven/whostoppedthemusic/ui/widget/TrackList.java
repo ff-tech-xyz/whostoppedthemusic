@@ -37,7 +37,11 @@ public final class TrackList extends ContainerObjectSelectionList<TrackList.Row>
         clearEntries();
         record Match(Track track, int rank) { }
         var matches = WhoStoppedTheMusic.LIBRARY.tracks().stream()
-                .map(track -> new Match(track, TrackNames.searchRank(this.query, track.title().getString(), track.id())))
+                .map(track -> {
+                    var metadata = track.metadata();
+                    return new Match(track, TrackNames.searchRank(this.query,
+                            new TrackNames.Metadata(metadata.title().getString(), metadata.artist().getString()), track.id()));
+                })
                 .filter(match -> match.rank() != Integer.MAX_VALUE)
                 .sorted(java.util.Comparator.comparingInt(Match::rank)).toList();
         Track.Kind previous = null;
@@ -54,7 +58,8 @@ public final class TrackList extends ContainerObjectSelectionList<TrackList.Row>
 
     public void layout(int x, int y, int width, int height) {
         double position = scrollAmount() / rowHeight;
-        int newRowHeight = height * 2 / 3;
+        int newRowHeight = Math.max(height * 2 / 3, Theme.LABEL_MIN_TAPE_HEIGHT + Theme.GAP
+                + (width < Theme.TRACK_SIDE_CONTROLS_MIN ? Theme.ROW : 0));
         updateSizeAndPosition(width, height, x, y);
         if (rowHeight != newRowHeight) {
             rowHeight = newRowHeight;
@@ -104,8 +109,9 @@ public final class TrackList extends ContainerObjectSelectionList<TrackList.Row>
             play = new TransportButton(0, 0, Theme.TRACK_PLAY_WIDTH, TransportButton.Action.PLAY,
                     () -> MusicDirector.get(minecraft).play(track));
             tape = new Button(0, 0, Theme.CONTROL_HEIGHT, Theme.CONTROL_HEIGHT, title, button -> { }, supplier -> supplier.get()) {
+                private final CassetteArtwork artwork = new CassetteArtwork();
                 @Override protected void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
-                    CassetteArtwork.draw(graphics, this, title, false);
+                    artwork.draw(graphics, this, track.metadata(), Component.empty(), false);
                 }
             };
             if (track != null) {
@@ -135,7 +141,7 @@ public final class TrackList extends ContainerObjectSelectionList<TrackList.Row>
             tape.extractRenderState(graphics, mouseX, mouseY, delta);
         }
 
-        @Override public List<? extends GuiEventListener> children() { return track == null ? List.of() : List.of(tick, play); }
-        @Override public List<? extends NarratableEntry> narratables() { return track == null ? List.of() : List.of(tick, play); }
+        @Override public List<? extends GuiEventListener> children() { return track == null ? List.of() : List.of(tick, tape, play); }
+        @Override public List<? extends NarratableEntry> narratables() { return track == null ? List.of() : List.of(tick, tape, play); }
     }
 }

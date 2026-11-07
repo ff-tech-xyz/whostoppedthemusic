@@ -24,6 +24,8 @@
   "whostoppedthemusic.next": "Next",
   "whostoppedthemusic.paused": "Paused: %s",
   "whostoppedthemusic.muted": "Muted: %s",
+  "whostoppedthemusic.state.paused": "Paused",
+  "whostoppedthemusic.state.muted": "Muted",
   "whostoppedthemusic.jukebox": "Jukebox: %s",
   "whostoppedthemusic.jukebox.play_over": "Play over",
   "whostoppedthemusic.jukebox.pause_music": "Pause music",

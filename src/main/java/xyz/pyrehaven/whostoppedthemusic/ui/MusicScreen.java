@@ -40,10 +40,10 @@ public final class MusicScreen extends Screen {
         int tapeHeight = Math.min(Theme.VANILLA_TAPE_MAX_HEIGHT, Math.max(Theme.VANILLA_TAPE_MIN_HEIGHT, tapeWidth * 3 / 5));
         var tape = new Button(x, y + (Theme.VOLUME_HEIGHT - tapeHeight) / 2, tapeWidth, tapeHeight,
                 director.status(), button -> { }, supplier -> supplier.get()) {
+            private final CassetteArtwork artwork = new CassetteArtwork();
             @Override
             protected void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
-                setMessage(director.status());
-                CassetteArtwork.draw(graphics, this, getMessage(), false);
+                artwork.draw(graphics, this, director.metadata(), director.playbackStatus(), false);
             }
         };
         addRenderableWidget(tape);

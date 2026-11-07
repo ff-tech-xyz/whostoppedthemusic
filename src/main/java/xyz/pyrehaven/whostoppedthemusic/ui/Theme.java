@@ -11,6 +11,12 @@ public final class Theme {
     public static final int BACKGROUND = 0xFF070B10;
     public static final int CARD = 0xFF0E141C;
     public static final int TEXT = 0xFFF2F4F7;
+    public static final int ARTIST = 0xFFB7CADA;
+    public static final int LABEL_PADDING = 3;
+    public static final int LABEL_LINE_GAP = 2;
+    public static final int PAUSE_TAPE_HEIGHT = 34;
+    public static final int SMALL_REEL = 6;
+    public static final int LABEL_MIN_TAPE_HEIGHT = 34;
     public static final int MARGIN = 8;
     public static final int PADDING = 12;
     public static final int GAP = 6;
@@ -46,7 +52,7 @@ public final class Theme {
     public static final int TRANSPORT_BAR = 2;
     public static final int BASIC_STOP_WIDTH = 44;
     public static final int PAUSE_NEXT_WIDTH = 28;
-    public static final int PAUSE_NEXT_Y = 11;
+    public static final int PAUSE_NEXT_Y = 13;
     public static final int PAUSE_NEXT_GAP = 4;
     public static final int VANILLA_NARROW_THRESHOLD = 360;
     public static final int VANILLA_CONTROLS_WIDTH = 170;

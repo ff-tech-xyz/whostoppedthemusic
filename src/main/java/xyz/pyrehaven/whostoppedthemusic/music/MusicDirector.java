@@ -136,8 +136,8 @@ public final class MusicDirector {
         if (current() == null || manager.getCurrentMusicTranslationKey() == null
                 || !client.options.musicToast().get().renderToast()) return;
         var toast = toasts.getToast(SongToast.class, net.minecraft.client.gui.components.toasts.Toast.NO_TOKEN);
-        if (toast == null) toasts.addToast(new SongToast(current(), title()));
-        else toast.replace(current(), title());
+        if (toast == null) toasts.addToast(new SongToast(current(), metadata()));
+        else toast.replace(current(), metadata());
     }
 
     public MusicDirector(Minecraft client, MusicManager manager) {
@@ -182,6 +182,23 @@ public final class MusicDirector {
     private Component title() {
         return current() instanceof TrackSoundInstance track ? track.track().title()
                 : Component.translatable(manager.getCurrentMusicTranslationKey().replace('/', '.'));
+    }
+
+    public Track.Metadata metadata() {
+        if (!active() || manager.getCurrentMusicTranslationKey() == null)
+            return new Track.Metadata(Component.empty(), Component.empty());
+        if (current() instanceof TrackSoundInstance track) return track.track().metadata();
+        String id = current().getSound().getLocation().toString();
+        return WhoStoppedTheMusic.LIBRARY.tracks().stream().filter(track -> track.id().equals(id))
+                .findFirst().map(Track::metadata).orElseGet(() -> Track.metadata(Component.translatableWithFallback(
+                        manager.getCurrentMusicTranslationKey().replace('/', '.'), TrackNames.prettify(id))));
+    }
+
+    public Component playbackStatus() {
+        if (!active()) return Component.translatable("whostoppedthemusic.cassette.silence");
+        if (paused()) return Component.translatable("whostoppedthemusic.state.paused");
+        return client.options.getFinalSoundSourceVolume(SoundSource.MUSIC) > 0 ? Component.empty()
+                : Component.translatable("whostoppedthemusic.state.muted");
     }
 
     /** Vanilla has resolved the sound and allocated its channel; stream loading may still be pending. */
