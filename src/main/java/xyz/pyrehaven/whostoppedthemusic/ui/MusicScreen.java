@@ -43,7 +43,7 @@ public final class MusicScreen extends Screen {
             private final CassetteArtwork artwork = new CassetteArtwork();
             @Override
             protected void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
-                artwork.draw(graphics, this, director.metadata(), director.playbackStatus(), false);
+                artwork.drawPlayer(graphics, this, director, false);
             }
         };
         addRenderableWidget(tape);

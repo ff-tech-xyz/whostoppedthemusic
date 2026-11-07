@@ -6,7 +6,7 @@ Who Stopped The Music is a client-side Fabric mod that lets players choose what 
 
 - **Vanilla:** Minecraft selects the music. Play, Pause/Resume and Next control its active background music without affecting Records or sound effects.
 - **Basic:** one song list for the whole game. Tick the songs you want and get Play/Pause/Resume, separate Stop, Previous, Next and Shuffle controls.
-- **Custom:** every place music can play (each biome pool, the Nether, the End, underwater, creative, the title screen and so on) is a button. Inside each one you choose the songs and give each a weight from 1 to 30.
+- **Custom:** every registry biome and special scenario has songs with weights 1–100, priority, interrupt, frequency and jukebox settings. Tied winners merge their lists. An empty active winner means silence.
 
 Players can also drop their own `.mp3` and `.ogg` files into a `music` folder, or drag them onto the Add Songs screen, and use them in Basic or Custom. Music discs can be used too.
 
@@ -29,15 +29,19 @@ Version 1.2.0 is a **complete rebuild**. The compact cassette artwork/placement 
 4. Otherwise it counts down the delay, which the Music Frequency option (Default / Frequent / Constant) shortens. Then `startPlaying(Music)` creates a sound instance for the pool, and the sound engine picks a random file from the pool's weighted entries in `sounds.json`.
 5. `showNowPlayingToastIfNeeded()` shows vanilla's `NowPlayingToast`. The pause screen also draws it when `options.musicToast()` allows.
 
-A **tag** in this mod is one of those pools. Our hooks sit inside steps 1, 4 and 5. We never add a second tick loop.
+Custom scenarios are registry biomes or specials, not sound-pool tags. Our hooks
+sit inside steps 1, 4 and 5. We never add a second tick loop. The supplied
+`runtime/whostoppedthemusic/inputs/custom-1.2.0/CUSTOM_SPEC.md` defines the
+authorized Custom behavior; the sole remaining-work tracker is `plans/1.2.0.md`.
 
 ## Structure
 
 Current implemented slice (2026-11-07): Settings and first-launch Constant, Vanilla
 transport, Basic soundtrack/disc selection and playback, shared controls and one SongToast in both modes,
 and nearby jukebox fade/hold in both modes. Custom, imported files and Add Songs
-remain planned. The M screen cycles Vanilla/Basic; the compact pause cassette
-retains live title/artist metadata and Next.
+remain authorized, unimplemented work. The M screen cycles Vanilla/Basic; the
+compact pause cassette retains live title/artist metadata and Next. Shared
+playback-driven reel artwork and empty-player spindle rods are implemented.
 
 The compact cassette retains its player housing, centered width and y=6 placement.
 Its 34-pixel height reserves two font-height lines without touching Game Menu.
@@ -48,6 +52,25 @@ put a bright title over a quieter artist between two reels. Unknown artists stay
 blank. Pause status sits separately to the left of its housing; settings status
 sits beneath the metadata. Full metadata/status is available in tooltips and
 widget narration; browser tapes participate in keyboard focus/narration too.
+
+`CassetteArtwork.drawPlayer` owns compact/settings players; `drawTrack` owns
+library tapes. One geometry calculation positions the old 2×2 reel centers at
+every scale: red rods belong to the player, dark open holes belong to list
+cassettes. No live channel shows only a player outline and those two rods,
+without shell, label or reels. Paused and muted music retain the loaded tape.
+The shared artwork clock uses elapsed nanoseconds for one revolution per two
+seconds; three thin spokes remain visible at the six-pixel narrow reel size.
+Only the resolved playing file's list tape turns. Current tapes have an orange
+border, focus/hover uses glow, and selection remains the independent tick.
+
+The director samples native `Channel.playing()` on the sound executor from its
+existing MusicManager tick, including held-pause and jukebox-fade ticks. Its one
+observed advancing identity is checked against the current live source, so
+pending streams and stopped/replaced channels do not drive animation. Explicit
+Pause freezes immediately; mute leaves advancing channels turning. The artwork
+owns one shared visual clock, not one playback timer/map per widget. Future
+Custom/import screens reuse these exact shared UI owners; Theme also owns any
+gray scenario surfaces, rather than a separate styling framework.
 
 `MusicDirector` belongs to each vanilla MusicManager. It observes resolved sounds
 with allocated channels, including automatic starts from vanilla's own tick. Play
@@ -102,7 +125,6 @@ whostoppedthemusic/
     │   │   │   # written to a temp file and atomically moved into place (same pattern as RealSize).
     │   │   ├── music/
     │   │   │   ├── Track.java               # id, kind, translated display source, resolved title/artist metadata, loaded Sound
-    │   │   │   ├── Tag.java                 # record: pool id, display name, group, vanilla entries (track + weight)
     │   │   │   ├── TrackNames.java          # pure: naming convention, structured names and normalized title/artist/typo search ranking
     │   │   │   ├── OverflowMotion.java      # pure: endpoint waits and constant-speed bidirectional label motion
     │   │   │   ├── TrackLibrary.java
@@ -110,19 +132,25 @@ whostoppedthemusic/
     │   │   │   │   # follows event references with cycle protection; rebuilt after SoundManager.apply
     │   │   │   │   # and world registry changes. Matches music/theme in event paths and loaded
     │   │   │   │   # biome/dimension/timeline music plus jukebox definitions; discs win file dedupe.
-    │   │   │   │   # Tags and imported files remain planned.
+    │   │   │   │   # Exact-odds Custom poolEntries and imported files remain planned.
     │   │   │   ├── Deck.java
     │   │   │   │   # Pure logic, no Minecraft classes: weighted shuffle "deck" with history
     │   │   │   │   # for previous/next. Fully unit tested.
     │   │   │   ├── MusicDirector.java
     │   │   │   │   # Vanilla transport, Basic deck/history/stop/row play, one Basic pool,
-    │   │   │   │   # truthful current-channel status, jukebox hold and toast selection.
+    │   │   │   │   # truthful channel status/advancement and resolved-file match, jukebox hold and toast.
     │   │   │   ├── TrackSoundInstance.java
     │   │   │   │   # The sound instance for a chosen track. Its identifier stays the pool id so
     │   │   │   │   # vanilla's pool-change logic keeps working. Resolves to the chosen file.
     │   │   │   │   # Reuses the loaded Sound on non-positional Music; custom streams remain planned.
     │   │   │   ├── Mp3AudioStream.java      # AudioStream over jlayer-decoder (16-bit PCM)
-    │   │   │   └── JukeboxWatcher.java      # reads vanilla's event-driven map and live channels near the camera
+    │   │   │   ├── JukeboxWatcher.java      # reads vanilla's event-driven map and live channels near the camera
+    │   │   │   └── custom/                 # planned scenario implementation, supplied spec §7
+    │   │   │       ├── Special.java, ScenarioId.java, ScenarioConfig.java
+    │   │   │       ├── Situation.java, SituationReader.java # snapshot; reader alone touches live game state
+    │   │   │       ├── ContextResolver.java, Resolution.java # pure priority/tie/settings resolution
+    │   │   │       ├── CustomDefaults.java, BiomeCatalog.java # exact odds and registry discovery
+    │   │   │       └── Preview.java         # existing-channel pause, midpoint excerpt, fade/resume
     │   │   ├── custom/
     │   │   │   └── MusicFolder.java
     │   │   │       # .minecraft/music/: scan for .mp3/.ogg, copy dropped files in, delete a song,
@@ -132,19 +160,22 @@ whostoppedthemusic/
     │   │   │   ├── MusicControls.java       # shared settings and live transport; panels place Basic additions
     │   │   │   ├── TransportButton.java     # drawn transport symbols, accessible actions and shared button states
     │   │   │   ├── MusicScreen.java         # Vanilla layout; retains BasicPanel across resize/collapse rebuilds
-    │   │   │   ├── CassetteArtwork.java     # shared port of main's shell, label and crossed reels
+    │   │   │   ├── CassetteArtwork.java     # shared player/list shell, spindle geometry and playback-driven reel clock
     │   │   │   ├── MusicVolumeSlider.java   # vertical view of vanilla's Music option; keyboard and drag
     │   │   │   ├── BasicPanel.java          # collapsible browser, player placement and Basic-only Previous/Stop/Shuffle
-    │   │   │   ├── CustomPanel.java         # Custom body: grid of tag buttons
-    │   │   │   ├── TagEditorScreen.java     # picker | songs in tag | song settings
+    │   │   │   ├── custom/                 # planned; reuses actual shared components, Theme owns gray surfaces
+    │   │   │   │   ├── CustomPanel.java    # scenario search/list, active toggles and shared right player
+    │   │   │   │   ├── ScenarioScreen.java # biome/special editor, settings and songs
+    │   │   │   │   ├── SongLibraryList.java # shared library search/list drag source
+    │   │   │   │   ├── ApplyToAllPopup.java # right-click confirmation, all known/future scenarios
+    │   │   │   │   └── Toggle.java         # shared pill toggle
     │   │   │   ├── AddSongsScreen.java      # drop zone, your songs list, remove, open folder
     │   │   │   ├── SongToast.java           # title-first two-line Now Playing toast (vanilla Toast interface)
     │   │   │   ├── OverflowText.java        # per-line content clock and clipped fractional tape/toast rendering
     │   │   │   ├── CassetteWidget.java      # top compact cassette, live title and settings link
     │   │   │   └── widget/
     │   │   │       ├── TrackList.java       # smooth clipped cassette browser; ranked results or sections; nested Row owns tick/tape/play
-    │   │   │       ├── TagButton.java       # tag name, song count, "edited" marker
-    │   │   │       └── WeightSlider.java    # 1-30 slider with "5 in 34" chance text
+    │   │   │       └── WeightSlider.java    # planned 1–100 slider with weight/chance text
     │   │   └── mixin/
     │   │       ├── MusicManagerAccessor.java        # currentMusic read-only, truthful cassette status
     │   │       ├── MusicManagerMixin.java           # owns director; observes automatic/manual starts and holds pause
@@ -175,7 +206,7 @@ whostoppedthemusic/
     │   └── MusicFolderTest.java     # file filter, copy, duplicate names, delete
     └── gametest/
         ├── java/xyz/pyrehaven/whostoppedthemusic/
-        │   ├── ClientSmokeGameTest.java # packaged UI/transport; controlsOnly selects shared transport/toast/held Stop/isolation
+        │   ├── ClientSmokeGameTest.java # packaged UI/transport; controlsOnly for controls/labels; artworkOnly for phase-3 pixels
         │   ├── DiscoveryGameTest.java   # discoveryOnly: real loaded events, definition registries, dedupe, reload/world lifecycle
         │   └── test/mixin/TransportStreamGate.java # holds decoded vanilla streams before source attachment
         └── resources/
@@ -190,9 +221,9 @@ whostoppedthemusic/
 | Piece | Job | Talks to |
 | --- | --- | --- |
 | `Settings` | Holds and saves every mod setting | Everything reads it; only UI actions change it |
-| `TrackLibrary` | Knows every track (soundtrack, discs, custom files) and every tag with its vanilla songs and weights | `SoundManager`, `MusicFolder`, `TrackNames` |
+| `TrackLibrary` | Knows tracks and loaded pools; planned exact-odds expansion supplies Custom defaults | `SoundManager`, `MusicFolder`, `TrackNames` |
 | `Deck` | Picks the next song from a weighted list; remembers history | Used only by `MusicDirector` |
-| `MusicDirector` | Decides what plays for the current mode and tag; runs the buttons | `Settings`, `TrackLibrary`, `Deck`, `JukeboxWatcher` |
+| `MusicDirector` | Decides what plays for the mode/resolution; runs transport and exposes actual source/file/advancement | `Settings`, `TrackLibrary`, `Deck`, `JukeboxWatcher` |
 | `MusicManagerMixin` | Hands vanilla's choice to `MusicDirector` at the right moments | `MusicDirector`, `SongToast` |
 | `TrackSoundInstance` | Plays the chosen file, including MP3/OGG from disk | Sound engine, `Mp3AudioStream` |
 | `MusicScreen` and panels | All the UI | `Settings`, `MusicDirector`, `TrackLibrary` |
@@ -243,16 +274,14 @@ sound-engine reload behavior. A live Basic source survives world exit/entry;
 jukebox entries belong to the old level and cannot leak into the next one.
 
 ### Custom
-- The body is a grid of **tag buttons**, one per pool, grouped: Title Screen & Special (menu, credits, dragon), Overworld, Nether, End, Underwater & Creative, and Other for pools from mods or resource packs.
-- Each button shows the song count and an "Edited" marker once changed.
-- **Every tag starts exactly as vanilla has it** (same songs, vanilla weights clamped to 1–30) until the player changes it. Only edited tags are saved.
-- Clicking a tag opens the **Tag Editor**:
-  - **Middle:** the songs in this tag.
-  - **+ button:** opens the **left side**, a list of every available song (soundtrack, discs, your songs) with a search bar. Drag a song into the middle to add it. Double-click also adds it, for trackpads.
-  - **Click a song in the middle:** the **right side** shows its settings in this tag: a weight slider from 1 to 30, its chance (for example "5 in 34 (15%)"), Preview, and Remove from tag.
-  - **Reset to vanilla** button for the tag.
-- **Weight means "how many copies of the song are in the deck."** With weights 5 and 29, a full deck has 34 cards, and the first song plays 5 of them. The deck is drawn without putting cards back and refills when empty. The same song never plays twice in a row across a refill when the tag has two or more songs.
-- A tag with no songs: nothing plays there.
+Authorized target, not implemented yet:
+- Main left: searchable specials, then registry biomes grouped by vanilla dimension tags or namespace. Specials except menu/credits have active toggles. Rows show priority/song count, playing and edited distinctions. Right: the shared player/transport/cassette/volume and Add music action; frequency/jukebox labels name all current winners.
+- `SituationReader` captures camera-biome/sky/heightmap/precipitation and player underwater/creative state once per existing tick. Pure `ContextResolver` checks credits before menu, then highest-priority biome/active specials. Ties use sorted IDs, sum duplicate-song weights, strongest frequency, Pause music if any winner requests it, and interrupt if any newly winning scenario requests it. An empty active winner is silence, never fallback.
+- Defaults use loaded pools and exact nested probabilities; creative expands to 6 weights of 32 plus 32 weights of 1. Preserve Basic's existing flattening. Pale garden/empty pools stay silent. Weather and underground start disabled; per-scenario frequency starts Constant and jukebox starts Pause music.
+- Custom uses MusicManager → director → existing Deck/TrackSoundInstance, synthetic pool identifiers per resolution, and 32-entry LRU deck history. Vanilla's pool-change/fade/delay logic stays authoritative. Scenario frequency does not overwrite vanilla's global option; edited lists bypass vanilla's zero-volume trap.
+- One biome/special editor shares existing search, cassette scrolling, transport/tooltips and Theme. Library drag adds unique songs; focused tape edits weight 1–100 and chance, previews or removes. Reset restores songs only; copy replaces songs/weights only. Right-click frequency/jukebox confirms apply-to-all, including known unloaded and future biomes; Esc/outside/no does nothing.
+- Preview pauses the existing background channel, uses about three seconds from the song midpoint, then fades and resumes the same source. Repeated preview, removal or leaving closes it immediately, without deck-history mutation. Imported songs share this path; missing IDs remain stored and are skipped at playback.
+- Complete conditions, priorities, schema and supplied screen hierarchy remain in CUSTOM_SPEC.md; functions 11–17 in the plan are the implementation sequence.
 
 ## The screen
 
@@ -263,7 +292,8 @@ transport for both panels. Panels place them; Basic adds Previous, labeled Stop
 and Shuffle. TransportButton draws Play/Resume, Pause and distinct Next/Previous
 symbols, with translated narration and tooltips. The pause-menu Next and browser
 row Play use this same button. Theme owns their dimensions, button frames and
-colors as well as surrounding dark surfaces; no player housing surrounds the large tape.
+colors as well as surrounding dark surfaces. Loaded settings players show a bare
+tape; silence shows only an empty player outline and red spindle rods.
 
 ```text
 ┌────────────────────────────────────────────────────────────┐
@@ -333,9 +363,7 @@ sound-file identity through the library, with translated/prettified fallback.
 immediately, followed by artist, sharing the same independent overflow renderer.
 
 - **Discovery:** loaded sound events whose path contains `music` or `theme` (namespace alone does not qualify), plus events referenced by built-in music and loaded biome/dimension background music (default, creative and underwater), timeline music keyframes and jukebox songs regardless of event name. Rebuild after sound resources apply and world registry transitions; server definitions become available after joining that server. Only referenced weighted sound entries are flattened, with cycle protection and file-id dedupe. Jukebox definitions and legacy `music_disc.` pools take DISC precedence over soundtrack aliases of the same file; jukebox descriptions supply their titles.
-- **Tags:** planned pool UI uses these discovered events.
-  - Display name: lang key `whostoppedthemusic.tag.<namespace>.<path>` (vanilla ones written in `en_us.json`).
-  - Fallback: prettified path, for example "Overworld · Cherry Grove".
+- **Scenarios:** planned Custom UI is registry-biome/special based, not a grid of discovered sound pools. Loaded events supply exact-odds default song lists.
 - **Soundtrack tracks:** the file entries inside those pools.
   - Title from vanilla's lang: the file path with `/` turned into `.`. For example, `music/game/sweden` → `music.game.sweden` → "C418 - Sweden".
   - Fallback: prettified file name.
@@ -352,11 +380,11 @@ immediately, followed by artist, sharing the same independent overflow renderer.
 
 ## Settings file
 
-`config/whostoppedthemusic.json`. Unknown keys are ignored. A broken file is renamed to `.broken` and defaults are used. No migration from 1.1.x: the old `whostoppedthemusic.properties` is ignored. Stores configVersion, firstRunDone, mode (VANILLA/BASIC), jukebox and basic.shuffle/unticked. Custom below is the planned later schema.
+`config/whostoppedthemusic.json`. Unknown keys are ignored. A broken file is renamed to `.broken` and defaults are used. No migration from 1.1.x: the old `whostoppedthemusic.properties` is ignored. Current implementation stores v1 configVersion, firstRunDone, mode (VANILLA/BASIC), jukebox and basic.shuffle/unticked. The v2 target below is planned; it preserves v1 Basic settings and adds sparse scenario overrides.
 
 ```json
 {
-  "configVersion": 1,
+  "configVersion": 2,
   "firstRunDone": true,
   "mode": "VANILLA",
   "jukebox": "PAUSE_MUSIC",
@@ -365,17 +393,25 @@ immediately, followed by artist, sharing the same independent overflow renderer.
     "unticked": ["minecraft:records/11"]
   },
   "custom": {
-    "minecraft:music.overworld.swamp": [
-      { "track": "minecraft:music/game/swamp/aerie", "weight": 5 },
-      { "track": "custom:My Song", "weight": 29 }
-    ]
+    "defaults": { "frequency": "CONSTANT", "jukebox": "PAUSE_MUSIC" },
+    "knownBiomes": { "minecraft:forest": "overworld" },
+    "scenarios": {
+      "biome/minecraft/forest": {
+        "priority": 2,
+        "songs": [{ "id": "minecraft:music/game/sweden", "weight": 25 }]
+      },
+      "special/thunder": { "active": false, "songs": [] }
+    }
   }
 }
 ```
 
 - **First launch** (no file yet): set vanilla `musicFrequency` to `CONSTANT`, save vanilla options, then set `firstRunDone`. After that the mod never touches the frequency again.
 - Basic stores only **unticked** tracks, so new soundtrack songs from future updates start ticked.
-- Custom stores only **edited** tags, as a full list of the tag's songs and weights. Reset removes the entry.
+- Custom stores only overrides from runtime defaults. Missing `songs` means defaults;
+  `songs: []` means deliberate silence. Song reset leaves settings unchanged.
+  Known biome settings survive missing mods; apply-to-all also sets defaults for
+  future discovery. Clamp weights 1–100 on load.
 
 ## Bundled library
 
@@ -445,6 +481,15 @@ JUnit reports, missing UI screenshots or pass marker, and source-output loading
 instead of the packaged jar. No empty suite is called passed.
 
 ## How to build
+
+Focused phase-3 verification:
+`xvfb-run -a ./gradlew jar runClientGameTest -PartworkOnly --console=plain`.
+This selection extends the existing harness, using packaged artwork/director
+classes and pixel comparisons of live screenshots. It checks both modes at
+960×720 scale 2, 320×240 scale 1 and 1280×960 scale 4: advancing/frozen/muted
+reels, same-source resume, Next, silence/held Stop, only the resolved-file row
+turning despite identical titles, holes staying open and exact 2×2 red rods
+without a cassette inside empty settings/pause players.
 
 Focused shared-controls verification: `xvfb-run -a ./gradlew jar runClientGameTest -PcontrolsOnly --console=plain`.
 Phase-2 metadata/overflow verification adds

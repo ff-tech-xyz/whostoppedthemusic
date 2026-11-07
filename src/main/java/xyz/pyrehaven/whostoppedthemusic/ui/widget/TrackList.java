@@ -111,7 +111,7 @@ public final class TrackList extends ContainerObjectSelectionList<TrackList.Row>
             tape = new Button(0, 0, Theme.CONTROL_HEIGHT, Theme.CONTROL_HEIGHT, title, button -> { }, supplier -> supplier.get()) {
                 private final CassetteArtwork artwork = new CassetteArtwork();
                 @Override protected void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
-                    artwork.draw(graphics, this, track.metadata(), Component.empty(), false);
+                    artwork.drawTrack(graphics, this, track, MusicDirector.get(minecraft));
                 }
             };
             if (track != null) {

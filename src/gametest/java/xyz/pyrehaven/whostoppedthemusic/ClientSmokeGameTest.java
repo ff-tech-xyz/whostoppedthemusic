@@ -21,6 +21,7 @@ import net.minecraft.sounds.SoundSource;
 import org.slf4j.LoggerFactory;
 import xyz.pyrehaven.whostoppedthemusic.mixin.MusicManagerAccessor;
 import xyz.pyrehaven.whostoppedthemusic.ui.CassetteWidget;
+import xyz.pyrehaven.whostoppedthemusic.ui.CassetteArtwork;
 import xyz.pyrehaven.whostoppedthemusic.ui.MusicScreen;
 import xyz.pyrehaven.whostoppedthemusic.ui.MusicVolumeSlider;
 import xyz.pyrehaven.whostoppedthemusic.ui.Theme;
@@ -50,7 +51,7 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
     public void onInitializeClient() {
         if (Boolean.getBoolean("whostoppedthemusic.transportOnly") || Boolean.getBoolean("whostoppedthemusic.basicOnly")
                 || Boolean.getBoolean("whostoppedthemusic.basicUiOnly") || Boolean.getBoolean("whostoppedthemusic.discoveryOnly")
-                || Boolean.getBoolean("whostoppedthemusic.controlsOnly")) {
+                || Boolean.getBoolean("whostoppedthemusic.controlsOnly") || Boolean.getBoolean("whostoppedthemusic.artworkOnly")) {
             return;
         }
         // Entrypoint order is not guaranteed. Check after all startup callbacks,
@@ -64,7 +65,7 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
     @Override
     public void runTest(ClientGameTestContext context) {
         context.waitForScreen(TitleScreen.class);
-        if (Boolean.getBoolean("whostoppedthemusic.controlsOnly")) {
+        if (Boolean.getBoolean("whostoppedthemusic.controlsOnly") || Boolean.getBoolean("whostoppedthemusic.artworkOnly")) {
             checkUnifiedControls(context);
             return;
         }
@@ -150,6 +151,10 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
                 WhoStoppedTheMusic.settings().setJukebox(JukeboxSetting.PLAY_OVER);
                 WhoStoppedTheMusic.settings().setAllTicked(WhoStoppedTheMusic.LIBRARY.tracks().stream().map(t -> t.id()).toList(), true);
             });
+            if (Boolean.getBoolean("whostoppedthemusic.artworkOnly")) {
+                checkCassetteArtwork(context);
+                return;
+            }
             var record = context.computeOnClient(client -> {
                 var sound = SimpleSoundInstance.forJukeboxSong(SoundEvent.createVariableRangeEvent(
                         Identifier.withDefaultNamespace("music_disc.cat")), Vec3.ZERO);
@@ -291,6 +296,175 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
         } catch (ReflectiveOperationException exception) {
             throw new AssertionError(exception);
         }
+    }
+
+    private static void checkCassetteArtwork(ClientGameTestContext context) {
+        var original = context.computeOnClient(client -> WhoStoppedTheMusic.LIBRARY.tracks());
+        var tracks = original.stream().filter(track -> track.id().equals("minecraft:music/game/sweden")
+                || track.id().equals("minecraft:records/pigstep")).map(track -> new Track(track.id(), Track.Kind.SOUNDTRACK,
+                Component.literal("Same artist - Same title"), track.sound())).toList();
+        check(tracks.size() == 2 && !tracks.getFirst().id().equals(tracks.getLast().id()), "distinct file fixtures");
+        try {
+            context.runOnClient(client -> {
+                setTestTracks(tracks);
+                client.options.musicToast().set(MusicToastDisplayState.NEVER);
+            });
+            for (int[] window : new int[][]{{960, 720, 2}, {320, 240, 1}, {1280, 960, 4}}) {
+                context.getInput().resizeWindow(window[0], window[1]);
+                context.runOnClient(client -> client.options.guiScale().set(window[2]));
+                context.waitTicks(3);
+                context.runOnClient(client -> check(client.getWindow().getGuiScale() == window[2], "requested GUI scale applied"));
+                for (Mode mode : Mode.values()) {
+                    String name = "reels-" + window[0] + "-" + mode.name().toLowerCase(java.util.Locale.ROOT);
+                    context.runOnClient(client -> {
+                        WhoStoppedTheMusic.settings().setMode(mode);
+                        var director = MusicDirector.get(client);
+                        director.syncMode();
+                        client.options.getSoundSourceOptionInstance(SoundSource.MUSIC).set(0.7);
+                        if (mode == Mode.BASIC) director.play(tracks.getFirst());
+                        else director.next();
+                        client.gui.toastManager().clear();
+                        client.gui.setScreen(new MusicScreen(null, WhoStoppedTheMusic.settings()));
+                    });
+                    context.waitFor(client -> MusicDirector.get(client).advancing());
+                    context.waitTicks(2);
+                    assertWidgetsFit(context);
+                    if (mode == Mode.BASIC) {
+                        context.runOnClient(client -> {
+                            var director = MusicDirector.get(client);
+                            check(director.playing(tracks.getFirst()), "actual file row matches");
+                            check(!director.playing(tracks.getLast()), "same title is not playing identity");
+                        });
+                        checkLibraryReels(context, name, 1, true);
+                        checkLibraryReels(context, name, 2, false);
+                    }
+                    checkPlayerReels(context, name + "-moving", true, false);
+                    var source = context.computeOnClient(client -> MusicDirector.get(client).current());
+                    context.runOnClient(client -> MusicDirector.get(client).togglePlayback());
+                    context.waitFor(client -> !MusicDirector.get(client).advancing() && MusicDirector.get(client).paused());
+                    checkPlayerReels(context, name + "-paused", false, false);
+                    if (mode == Mode.BASIC) checkLibraryReels(context, name + "-paused", 1, false);
+                    context.runOnClient(client -> MusicDirector.get(client).togglePlayback());
+                    context.waitFor(client -> MusicDirector.get(client).advancing());
+                    context.runOnClient(client -> check(MusicDirector.get(client).current() == source, "resume retains source"));
+                    context.runOnClient(client -> client.options.getSoundSourceOptionInstance(SoundSource.MUSIC).set(0.0));
+                    context.waitTicks(2);
+                    checkPlayerReels(context, name + "-muted", true, false);
+                    context.runOnClient(client -> {
+                        client.options.getSoundSourceOptionInstance(SoundSource.MUSIC).set(0.7);
+                        client.gui.setScreen(new PauseScreen(true));
+                    });
+                    context.waitTicks(2);
+                    assertWidgetsFit(context);
+                    checkPlayerReels(context, name + "-pause-menu", true, true);
+                    context.runOnClient(client -> {
+                        if (mode == Mode.BASIC) MusicDirector.get(client).stop();
+                        else {
+                            client.getMusicManager().stopPlaying();
+                            ((MusicManagerAccessor) client.getMusicManager()).whostoppedthemusic$nextSongDelay(10000);
+                        }
+                    });
+                    context.waitFor(client -> !MusicDirector.get(client).active());
+                    checkEmptyPlayer(context, name + "-empty-pause", true);
+                    context.runOnClient(client -> client.gui.setScreen(new MusicScreen(null, WhoStoppedTheMusic.settings())));
+                    context.waitTicks(2);
+                    assertWidgetsFit(context);
+                    checkEmptyPlayer(context, name + "-empty-settings", false);
+                    context.runOnClient(client -> MusicDirector.get(client).next());
+                    context.waitFor(client -> MusicDirector.get(client).advancing());
+                    context.runOnClient(client -> check(MusicDirector.get(client).current() != source, "Next changes source and restarts motion"));
+                }
+            }
+        } finally {
+            context.runOnClient(client -> {
+                setTestTracks(original);
+                client.gui.setScreen(null);
+            });
+        }
+        LoggerFactory.getLogger("whostoppedthemusic-test").info(
+                "CASSETTE ARTWORK PASS: actual-channel motion, pause/freeze/same-source resume, mute, Next, silence/held Stop, empty red rods, matching-file-only library holes, normal/narrow and GUI scales 2/4");
+    }
+
+    private static AbstractWidget playerTape(ClientGameTestContext context, boolean compact) {
+        return context.computeOnClient(client -> compact ? cassette(client.gui.screen())
+                : Screens.getWidgets(client.gui.screen()).stream().filter(widget -> widget instanceof Button
+                        && !(widget instanceof TransportButton) && widget.getHeight() > Theme.CONTROL_HEIGHT).findFirst().orElseThrow());
+    }
+
+    private static CassetteArtwork.Geometry tapeGeometry(ClientGameTestContext context, AbstractWidget tape, boolean compact) {
+        return context.computeOnClient(client -> CassetteArtwork.geometry(tape.getX(), tape.getY(), tape.getWidth(),
+                tape.getHeight(), compact, client.font.lineHeight));
+    }
+
+    private static void checkPlayerReels(ClientGameTestContext context, String name, boolean moves, boolean compact) {
+        var tape = playerTape(context, compact);
+        var geometry = tapeGeometry(context, tape, compact);
+        checkReelPixels(context, name, geometry, moves, Theme.SPINDLE);
+    }
+
+    private static void checkLibraryReels(ClientGameTestContext context, String name, int rowIndex, boolean moves) {
+        var tape = context.computeOnClient(client -> {
+            var list = trackList(client.gui.screen());
+            var row = list.children().get(rowIndex);
+            list.setScrollAmount(list.scrollAmount() + row.getY() - list.getY());
+            return (AbstractWidget) row.children().get(1);
+        });
+        context.waitTicks(2);
+        var geometry = tapeGeometry(context, tape, false);
+        checkReelPixels(context, name + "-row" + rowIndex, geometry, moves, Theme.BACKGROUND);
+    }
+
+    private static void checkReelPixels(ClientGameTestContext context, String name, CassetteArtwork.Geometry geometry,
+                                        boolean moves, int centerColor) {
+        context.getInput().setCursorPos(0, 0);
+        context.waitTicks(2);
+        Path first = context.takeScreenshot(name + "-a");
+        long start = System.nanoTime();
+        context.waitFor(client -> System.nanoTime() - start >= 160_000_000L);
+        Path second = context.takeScreenshot(name + "-b");
+        int scale = context.computeOnClient(client -> (int) client.getWindow().getGuiScale());
+        try {
+            var a = javax.imageio.ImageIO.read(first.toFile());
+            var b = javax.imageio.ImageIO.read(second.toFile());
+            int changed = 0;
+            for (int reelX : new int[]{geometry.left(), geometry.right()}) {
+                for (int y = geometry.reelY() * scale; y < (geometry.reelY() + geometry.reelSize()) * scale; y++) {
+                    for (int x = reelX * scale; x < (reelX + geometry.reelSize()) * scale; x++) {
+                        if (a.getRGB(x, y) != b.getRGB(x, y)) changed++;
+                    }
+                }
+            }
+            check(moves ? changed > 0 : changed == 0, name + " rendered spokes " + (moves ? "move" : "freeze") + ": " + changed);
+            for (int centerX : new int[]{geometry.leftSpindleX(), geometry.rightSpindleX()}) {
+                for (int y = geometry.spindleY() * scale; y < (geometry.spindleY() + 2) * scale; y++) {
+                    for (int x = centerX * scale; x < (centerX + 2) * scale; x++) {
+                        check(a.getRGB(x, y) == centerColor && b.getRGB(x, y) == centerColor,
+                                name + " spindle rods/holes retain exact 2x2 geometry while turning");
+                    }
+                }
+            }
+        } catch (java.io.IOException exception) { throw new AssertionError(exception); }
+    }
+
+    private static void checkEmptyPlayer(ClientGameTestContext context, String name, boolean compact) {
+        var tape = playerTape(context, compact);
+        var geometry = tapeGeometry(context, tape, compact);
+        checkReelPixels(context, name, geometry, false, Theme.SPINDLE);
+        Path capture = context.takeScreenshot(name + "-outline");
+        int scale = context.computeOnClient(client -> (int) client.getWindow().getGuiScale());
+        try {
+            var image = javax.imageio.ImageIO.read(capture.toFile());
+            int rods = 0;
+            for (int y = (tape.getY() + 1) * scale; y < (tape.getBottom() - 1) * scale; y++) {
+                for (int x = (tape.getX() + 1) * scale; x < (tape.getRight() - 1) * scale; x++) {
+                    int color = image.getRGB(x, y);
+                    if (color == Theme.SPINDLE) rods++;
+                    check(color != Theme.ORANGE && color != Theme.BLUE && color != Theme.GLOW,
+                            name + " contains no cassette shell, label or reels");
+                }
+            }
+            check(rods == 8 * scale * scale, name + " contains only two exact 2x2 red rods");
+        } catch (java.io.IOException exception) { throw new AssertionError(exception); }
     }
 
     private static void checkModeControls(ClientGameTestContext context, Mode mode, SoundInstance record, SoundInstance effect) {

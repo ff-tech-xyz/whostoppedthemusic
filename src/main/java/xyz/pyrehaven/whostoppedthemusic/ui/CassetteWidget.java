@@ -33,6 +33,6 @@ public final class CassetteWidget extends Button {
     @Override
     protected void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
         var director = MusicDirector.get(client);
-        artwork.draw(graphics, this, director.metadata(), director.playbackStatus(), true);
+        artwork.drawPlayer(graphics, this, director, true);
     }
 }

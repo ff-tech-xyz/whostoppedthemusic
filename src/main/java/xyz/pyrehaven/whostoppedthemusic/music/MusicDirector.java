@@ -45,6 +45,7 @@ public final class MusicDirector {
     private boolean stopped;
     private boolean jukeboxHeld;
     private Track requested;
+    private volatile SoundInstance advancing;
 
     public boolean basic() { return WhoStoppedTheMusic.settings().mode() == Mode.BASIC; }
 
@@ -78,6 +79,7 @@ public final class MusicDirector {
 
     public boolean holdTick() {
         syncMode();
+        observeChannel();
         if (paused()) return true;
         boolean nearby = WhoStoppedTheMusic.settings().jukebox() == JukeboxSetting.PAUSE_MUSIC && JukeboxWatcher.nearby(client);
         if (nearby) {
@@ -160,6 +162,23 @@ public final class MusicDirector {
 
     public boolean paused() {
         return paused != null && paused == current() && active();
+    }
+
+    /** Sample native playback on the sound thread, including startup and jukebox fades. */
+    private void observeChannel() {
+        var source = current();
+        var handle = channel();
+        if (handle == null || handle.isStopped()) advancing = null;
+        else handle.execute(channel -> advancing = channel.playing() ? source : null);
+    }
+
+    public boolean advancing() {
+        return advancing != null && advancing == current() && active() && !paused();
+    }
+
+    public boolean playing(Track track) {
+        return active() && current().getSound() != null
+                && current().getSound().getLocation().toString().equals(track.id());
     }
 
     public boolean canNext() {

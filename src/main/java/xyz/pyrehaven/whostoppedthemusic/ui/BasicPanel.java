@@ -99,7 +99,7 @@ public final class BasicPanel {
         var tape = new Button(playerX, tapeY, playerWidth, tapeHeight, director.status(), button -> { }, supplier -> supplier.get()) {
             private final CassetteArtwork artwork = new CassetteArtwork();
             @Override protected void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
-                artwork.draw(graphics, this, director.metadata(), director.playbackStatus(), false);
+                artwork.drawPlayer(graphics, this, director, false);
             }
         };
         add.accept(tape);

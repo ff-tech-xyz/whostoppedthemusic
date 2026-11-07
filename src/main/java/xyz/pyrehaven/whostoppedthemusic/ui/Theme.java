@@ -12,6 +12,8 @@ public final class Theme {
     public static final int CARD = 0xFF0E141C;
     public static final int TEXT = 0xFFF2F4F7;
     public static final int ARTIST = 0xFFB7CADA;
+    public static final int SPINDLE = 0xFFE04444;
+    public static final long REEL_PERIOD_NANOS = 2_000_000_000L;
     public static final int LABEL_PADDING = 3;
     public static final int LABEL_LINE_GAP = 2;
     public static final int PAUSE_TAPE_HEIGHT = 34;
