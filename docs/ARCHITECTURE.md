@@ -305,7 +305,8 @@ whostoppedthemusic/
     │   │   │   ├── CassetteWidget.java      # top compact cassette, live title and settings link
     │   │   │   └── widget/
     │   │   │       ├── SettingButton.java  # shared left-cycle/right-confirm control with full-label tooltip
-    │   │   │       ├── TrackList.java       # sole smooth clipped browser: Basic, local removal, grouped drag-library and focused scenario cassettes
+    │   │   │       ├── SmoothList.java      # shared wheel target/frame interpolation for TrackList and ScenarioList
+    │   │   │       ├── TrackList.java       # clipped track rows: Basic, local removal, grouped drag-library and focused scenario cassettes
     │   │   │       └── WeightSlider.java    # integer 1–100 mouse/keyboard editor with this list's weight/chance narration and tooltip
     │   │   └── mixin/
     │   │       ├── MusicManagerAccessor.java        # currentMusic/frequency/delay access and vanilla fade invoker
@@ -345,12 +346,14 @@ whostoppedthemusic/
         │   ├── DiscoveryGameTest.java   # discoveryOnly: loaded discovery/default odds, 67 biomes, creative Deck, aliases/cycle/bounds/reload
         │   ├── CustomPlaybackGameTest.java # customOnly: packaged scenario playback/settings/transport/weather/jukebox/silence/LRU/mode regression
         │   ├── CustomUiGameTest.java       # customUiOnly: main/editor; previewOnly: native midpoint/duration/resume/cancel/local/mute/jukebox/history
-        │   └── test/mixin/TransportStreamGate.java # holds decoded vanilla streams before source attachment
+        │   └── test/mixin/
+        │       ├── NativeBoundary.java      # fail on OpenAL errors before/after native channel operations in the existing harness
+        │       └── TransportStreamGate.java # holds decoded vanilla streams before source attachment
         └── resources/
             ├── fabric.mod.json         # development-only client test entrypoint
             ├── assets/discovery/sounds.json # event-name, arbitrary definition, nested/cyclic alias fixtures over vanilla audio
             ├── assets/music_namespace/sounds.json # namespace-only rejection fixture
-            └── whostoppedthemusic-test.mixins.json # development-only stream gate
+            └── whostoppedthemusic-test.mixins.json # development-only stream gate and native assertions
 ```
 
 ### Add music file-management path
@@ -489,7 +492,8 @@ tape; silence shows only an empty player outline and red spindle rods.
 - The UI must work at GUI scales 1–4 and down to a 320×240 window. Narrow windows shrink the tape and right column while preserving left/right placement; titles scroll inside their reel window.
 
 CustomPanel retains its shared Theme search and ScenarioList across rebuilds.
-ScenarioList uses vanilla's container/scroll/focus machinery, lists specials in
+ScenarioList shares SmoothList's wheel target/frame interpolation with TrackList,
+retains vanilla's container/focus machinery, and lists specials in
 enum order, then loaded biome groups in Overworld/Nether/End/namespace order.
 Absent biomes remain in Settings but are hidden. Theme owns the gray panel/row
 colors and pill geometry; OverflowText also supports shadow-free black text.
@@ -560,7 +564,12 @@ Same-track Preview cancels; another track cancels/replaces. Removal, reset that
 removes the excerpt, editor removal (including picker/popup transitions), world
 changes, manager stop/mode/transport and missing-library/decode failure end it.
 Cancellation stops the managed source, including asynchronous late startup.
-Only the retained matching background identity resumes; manual pause and a live
+Late canceled startup reports a stopped source to vanilla's ChannelAccess tick
+after the decoded stream attaches, instead of directly destroying a Channel that
+still has a live handle. That tick releases the handle, library source and stream
+together. Category-volume callbacks queued before cleanup see a valid source;
+callbacks afterward are skipped by ChannelHandle.execute. Cancellation never
+issues native Play. Only the retained matching background identity resumes; manual pause and a live
 jukebox hold keep it paused. The director's existing jukebox-release branch
 unpauses that source when the hold ends, retaining its position if it still exists.
 Background silence remains silence; preview cannot create a history entry.
@@ -571,8 +580,11 @@ resume, unchanged deck cards/cursor/history and config bytes, all editor cancel
 routes, imported MP3/OGG, manual pause/silence, mute, existing jukebox hold and a
 jukebox beginning during preview. LocalAudioTest compares excerpt PCM against
 independently decoded half-file PCM and checks exact length/zero-ended fade.
-The plan records commands, artifact hash and the observed teardown OpenAL warning;
-human listening and final whole-update acceptance remain pending.
+The plan records the scoped correction evidence: NativeBoundary traced the old
+teardown diagnostic to refreshCategoryVolume calling setVolume on a directly
+destroyed source. Normal ChannelAccess retirement now owns cleanup, and preview
+plus delayed transport checks pass with native-boundary assertions enabled.
+Human listening and final delivery acceptance remain pending.
 
 MusicControls accepts a scenario-ID supplier: current resolution winners on the
 main screen (even when silent), or the edited ID on ScenarioScreen. It combines
@@ -783,7 +795,7 @@ This is source-state/gain verification, not human listening acceptance.
 
 Nine `SettingsTest` cases cover
 defaults, first-run idempotence, round trip/unknown keys/temp cleanup, corrupt
-file recovery, failed first-run initialization, Basic mode/shuffle/unticked round trip, byte-preserving v1 load with every Custom ID inheriting defaults, complete v2 scenario-field round trip, unresolved song retention, sparse v2 song inheritance/silence, absent/future biomes, apply-all defaults and load clamping. Three Deck cases cover weighted cycles/history/empty/single and TrackNamesTest covers metadata, translation fallback and search. CI rejects missing/empty/skipped
+file recovery, failed first-run initialization, Basic mode/shuffle/unticked round trip, byte-preserving v1 load with every Custom ID inheriting defaults, complete v2 scenario-field round trip, unresolved song retention, sparse v2 song inheritance/silence, absent/future biomes, apply-all defaults and load clamping. Three Deck cases cover weighted cycles/history/empty/single. TrackNamesTest covers keys, prettification, metadata and search; the packaged DiscoveryGameTest.checkLiveNames checks actual TrackLibrary soundtrack/disc/fallback components and live-language changes without rebuilding. CI rejects missing/empty/skipped
 JUnit reports, missing UI screenshots or pass marker, and source-output loading
 instead of the packaged jar. No empty suite is called passed.
 
@@ -890,7 +902,7 @@ xvfb-run -a ./gradlew runClientGameTest --console=plain   # headless client smok
 ```
 The jar lands in `/home/p-h-r-e-d/phred2.0/runtime/whostoppedthemusic/build/libs/whostoppedthemusic-1.2.0.jar`.
 
-**CI:** `.github/workflows/build.yml` builds with Java 25, runs unit and packaged-client checks, rejects empty reports and uploads artifacts. Hosted CI results are separate from local evidence.
+**CI:** `.github/workflows/build.yml` builds with Java 25, runs unit/default packaged-client checks and all 11 existing feature selections. It requires the current three-mode default marker, nonempty unit reports, screenshots, per-feature markers, clean native boundaries, packaged production-class provenance and the same artifact hash, retaining per-selection logs/captures. Hosted CI results are separate from local evidence.
 
 ## Rules for this codebase
 

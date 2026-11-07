@@ -19,9 +19,10 @@ import xyz.pyrehaven.whostoppedthemusic.music.custom.ScenarioId;
 import xyz.pyrehaven.whostoppedthemusic.music.custom.Special;
 import xyz.pyrehaven.whostoppedthemusic.ui.OverflowText;
 import xyz.pyrehaven.whostoppedthemusic.ui.Theme;
+import xyz.pyrehaven.whostoppedthemusic.ui.widget.SmoothList;
 
 /** Registry rows only: absent mods remain saved but never appear as invented UI rows. */
-public final class ScenarioList extends ContainerObjectSelectionList<ScenarioList.Row> {
+public final class ScenarioList extends SmoothList<ScenarioList.Row> {
     private final Settings settings;
     private final Consumer<ScenarioId> open;
     private final boolean picker;
@@ -83,6 +84,7 @@ public final class ScenarioList extends ContainerObjectSelectionList<ScenarioLis
 
     private ScenarioConfig defaults(ScenarioId id) { return MusicDirector.get(minecraft).customPlayback().defaults(id).config(); }
     private ScenarioConfig config(ScenarioId id) { return settings.scenario(id, defaults(id)); }
+    @Override protected int wheelRowHeight() { return Theme.SCENARIO_ROW; }
     @Override public int getRowWidth() { return getWidth() - Theme.TRACK_SCROLLBAR_SPACE; }
     @Override protected void extractListBackground(GuiGraphicsExtractor graphics) {
         graphics.fill(getX(), getY(), getRight(), getBottom(), Theme.SCENARIO_PANEL);

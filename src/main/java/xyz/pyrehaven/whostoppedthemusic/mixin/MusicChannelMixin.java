@@ -6,6 +6,7 @@ import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import xyz.pyrehaven.whostoppedthemusic.music.MusicDirector;
 
 /** Transport intent lives on the source, including while vanilla is loading its stream. */
@@ -14,6 +15,7 @@ public abstract class MusicChannelMixin implements MusicDirector.ChannelControl 
     @Unique private boolean whostoppedthemusic$managed;
     @Unique private boolean whostoppedthemusic$paused;
     @Unique private boolean whostoppedthemusic$stopped;
+    @Unique private boolean whostoppedthemusic$cancelledStartup;
 
     @Override
     public void whostoppedthemusic$manage() {
@@ -41,11 +43,16 @@ public abstract class MusicChannelMixin implements MusicDirector.ChannelControl 
     @Inject(method = "play", at = @At("HEAD"), cancellable = true)
     private void whostoppedthemusic$preventLateStart(CallbackInfo ci) {
         if (whostoppedthemusic$stopped) {
-            // OpenAL stop on an INITIAL source is a no-op. Once the late stream
-            // is attached, dispose it without ever issuing alSourcePlay.
-            ((Channel) (Object) this).destroy();
+            // INITIAL cannot be stopped natively. Let ChannelAccess's normal tick
+            // release the handle and source together after this stream attaches.
+            whostoppedthemusic$cancelledStartup = true;
             ci.cancel();
         }
+    }
+
+    @Inject(method = "stopped", at = @At("HEAD"), cancellable = true)
+    private void whostoppedthemusic$retireCancelledStartup(CallbackInfoReturnable<Boolean> cir) {
+        if (whostoppedthemusic$cancelledStartup) cir.setReturnValue(true);
     }
 
     @Inject(method = "play", at = @At("RETURN"))

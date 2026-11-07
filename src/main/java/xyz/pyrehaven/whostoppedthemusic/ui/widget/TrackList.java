@@ -18,13 +18,11 @@ import xyz.pyrehaven.whostoppedthemusic.ui.CassetteArtwork;
 import xyz.pyrehaven.whostoppedthemusic.ui.Theme;
 import xyz.pyrehaven.whostoppedthemusic.ui.TransportButton;
 
-public final class TrackList extends ContainerObjectSelectionList<TrackList.Row> {
+public final class TrackList extends SmoothList<TrackList.Row> {
     private final Settings settings;
     private final java.util.function.Consumer<Track> remove;
     private String query = "";
     private int rowHeight = Theme.TRACK_HEIGHT;
-    private double targetScroll;
-    private long lastFrame;
     private java.util.function.Consumer<Track> drag;
     private java.util.function.Predicate<String> contains;
     private java.util.function.Supplier<List<xyz.pyrehaven.whostoppedthemusic.music.Deck.Entry>> songs;
@@ -128,25 +126,7 @@ public final class TrackList extends ContainerObjectSelectionList<TrackList.Row>
         return !track.id().startsWith("minecraft:") ? Track.Kind.LOCAL : track.kind();
     }
 
-    @Override public void setScrollAmount(double amount) {
-        super.setScrollAmount(amount);
-        targetScroll = scrollAmount();
-    }
-
-    @Override public boolean mouseScrolled(double mouseX, double mouseY, double horizontal, double vertical) {
-        if (!active || !visible || !isMouseOver(mouseX, mouseY)) return false;
-        targetScroll = Math.clamp(targetScroll - vertical * rowHeight / 2.0, 0, maxScrollAmount());
-        return true;
-    }
-
-    @Override public void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
-        long now = net.minecraft.util.Util.getMillis();
-        double blend = 1 - Math.exp(-Math.min(now - lastFrame, Theme.SCROLL_MAX_FRAME_MS) / Theme.SCROLL_RESPONSE_MS);
-        lastFrame = now;
-        double distance = targetScroll - scrollAmount();
-        super.setScrollAmount(Math.abs(distance) < Theme.SCROLL_EPSILON ? targetScroll : scrollAmount() + distance * blend);
-        super.extractWidgetRenderState(graphics, mouseX, mouseY, delta);
-    }
+    @Override protected int wheelRowHeight() { return rowHeight; }
 
     @Override public int getRowWidth() { return getWidth() - Theme.TRACK_SCROLLBAR_SPACE; }
     @Override protected void extractListBackground(GuiGraphicsExtractor graphics) { }

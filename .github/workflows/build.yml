@@ -54,12 +54,51 @@ jobs:
           print(f'PASS {len(cases)} unit cases, no failures/errors/skips')
           log = (runtime / 'evidence/ci-client.log').read_text()
           assert log.count('Who Stopped The Music 1.2.0 loaded') == 1
-          assert log.count('WHOSTOPPEDTHEMUSIC CLIENT PASS: first-run Constant, Vanilla UI, M/rebind, options/persistence, top cassette, live song/silence, Next/Previous/Pause/Resume, music-only volume, inert mode, 320x240') == 1, 'Missing or empty client suite'
+          assert log.count('WHOSTOPPEDTHEMUSIC CLIENT PASS: first-run Constant, Vanilla UI, M/rebind, options/persistence, top cassette, live song/silence, Play/Next/Pause/Resume, music-only volume, Vanilla/Basic/Custom cycle, 320x240') == 1, 'Missing or empty client suite'
           loaded = (runtime / 'evidence/client-classes.log').read_text()
           assert f'xyz.pyrehaven.whostoppedthemusic.WhoStoppedTheMusic source: file:{runtime}/build/libs/whostoppedthemusic-1.2.0.jar' in loaded
           for name in ['vanilla', 'cassette-vanilla-line', 'cassette-song', 'cassette-silence', 'paused', 'transport', 'vanilla-small']:
               assert list((runtime / 'run/clientGameTest/screenshots').glob(f'*_whostoppedthemusic-{name}.png'))
           print('PASS packaged Vanilla UI, first launch, controls/persistence, key binding, cassette and small window')
+          import shutil
+          default = runtime / 'evidence/default'
+          default.mkdir(exist_ok=True)
+          shutil.copy2(runtime / 'evidence/ci-client.log', default / 'client.log')
+          shutil.copy2(runtime / 'evidence/client-classes.log', default / 'classes.log')
+          shutil.copytree(runtime / 'run/clientGameTest/screenshots', default / 'screenshots', dirs_exist_ok=True)
+          PY
+          sha256sum -c ../../runtime/whostoppedthemusic/evidence/artifact.sha256
+      - name: Exercise feature selections against the same packaged artifact
+        run: |
+          set -euo pipefail
+          for selection in transportOnly basicOnly basicUiOnly discoveryOnly customOnly customUiOnly previewOnly controlsOnly artworkOnly ownSongsOnly addSongsOnly; do
+            evidence="../../runtime/whostoppedthemusic/evidence/$selection"
+            mkdir -p "$evidence"
+            xvfb-run -a ./gradlew --no-daemon runClientGameTest -P"$selection" --console=plain 2>&1 | tee "$evidence/client.log"
+            cp ../../runtime/whostoppedthemusic/evidence/client-classes.log "$evidence/classes.log"
+            cp -r ../../runtime/whostoppedthemusic/run/clientGameTest/screenshots "$evidence/"
+          done
+          python3 - <<'PY'
+          from pathlib import Path
+          runtime = Path('../../runtime/whostoppedthemusic').resolve()
+          markers = {'transportOnly': 'TRANSPORT CHANNEL PASS:', 'basicOnly': 'BASIC JUKEBOX PASS:',
+                     'basicUiOnly': 'BASIC UI PASS:', 'discoveryOnly': 'MUSIC DISCOVERY PASS:',
+                     'customOnly': 'CUSTOM PLAYBACK PASS:', 'customUiOnly': 'CUSTOM UI PASS:',
+                     'previewOnly': 'MIDPOINT PREVIEW PASS:', 'controlsOnly': 'SHARED CONTROLS PASS:',
+                     'artworkOnly': 'CASSETTE ARTWORK PASS:', 'ownSongsOnly': 'OWN SONGS PASS:',
+                     'addSongsOnly': 'ADD SONGS PASS:'}
+          jar = f' source: file:{runtime}/build/libs/whostoppedthemusic-1.2.0.jar'
+          for selection, marker in markers.items():
+              evidence = runtime / 'evidence' / selection
+              log = (evidence / 'client.log').read_text()
+              assert log.count(marker) == 1, f'{selection}: missing/duplicate pass marker'
+              assert 'Invalid name parameter' not in log, f'{selection}: native source error'
+              assert 'native error ' not in log and 'Error executing task on Sound executor' not in log, f'{selection}: native boundary failure'
+              loaded = (evidence / 'classes.log').read_text().splitlines()
+              production = [line for line in loaded if 'xyz.pyrehaven.whostoppedthemusic.' in line
+                            and '$$Lambda' not in line and 'GameTest' not in line and '.test.' not in line]
+              assert production and all(jar in line for line in production), f'{selection}: unpackaged production classes'
+              print(f'PASS {selection}: marker and {len(production)} packaged classes')
           PY
           sha256sum -c ../../runtime/whostoppedthemusic/evidence/artifact.sha256
       - name: Retain the tested JAR and verification evidence
@@ -74,4 +113,5 @@ jobs:
             runtime/whostoppedthemusic/build/test-results/test/*.xml
             runtime/whostoppedthemusic/run/clientGameTest/screenshots/*.png
             runtime/whostoppedthemusic/evidence/*.log
+            runtime/whostoppedthemusic/evidence/*/
             runtime/whostoppedthemusic/evidence/artifact.sha256

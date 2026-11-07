@@ -30,6 +30,35 @@ import xyz.pyrehaven.whostoppedthemusic.music.Track;
 import xyz.pyrehaven.whostoppedthemusic.music.TrackLibrary;
 
 final class DiscoveryGameTest {
+    static void checkLiveNames(Minecraft client) {
+        var library = new TrackLibrary();
+        library.rebuild(client.getSoundManager(), RegistryAccess.EMPTY);
+        var song = library.tracks().stream().filter(t -> t.id().equals("minecraft:music/game/sweden")).findFirst().orElseThrow();
+        var disc = library.tracks().stream().filter(t -> t.id().equals("minecraft:records/pigstep")).findFirst().orElseThrow();
+        check(song.title().getString().equals("C418 - Sweden"), "production library translates soundtrack");
+        check(disc.title().getString().equals("Lena Raine - Pigstep"), "production library translates legacy disc");
+        var fallback = library.tracks().stream().filter(t -> t.title().getContents() instanceof net.minecraft.network.chat.contents.TranslatableContents c
+                && !net.minecraft.locale.Language.getInstance().has(c.getKey())).findFirst().orElseThrow();
+        check(fallback.title().getString().equals(xyz.pyrehaven.whostoppedthemusic.music.TrackNames.prettify(fallback.id())), "production library missing translation fallback");
+        var language = net.minecraft.locale.Language.getInstance();
+        try {
+            net.minecraft.locale.Language.inject(new net.minecraft.locale.Language() {
+                @Override public String getOrDefault(String key, String fallback) {
+                    return key.equals("music.game.sweden") ? "Test Artist - Changed Song" : language.getOrDefault(key, fallback);
+                }
+                @Override public boolean has(String key) { return language.has(key); }
+                @Override public boolean isDefaultRightToLeft() { return language.isDefaultRightToLeft(); }
+                @Override public net.minecraft.util.FormattedCharSequence getVisualOrder(net.minecraft.network.chat.FormattedText text) {
+                    return language.getVisualOrder(text);
+                }
+            });
+            check(song.title().getString().equals("Test Artist - Changed Song") && song.metadata().title().getString().equals("Changed Song")
+                    && song.metadata().artist().getString().equals("Test Artist"), "retained library track resolves new language without rebuild");
+        } finally { net.minecraft.locale.Language.inject(language); }
+        check(song.title().getString().equals("C418 - Sweden"), "retained component resolves restored language");
+        LoggerFactory.getLogger("whostoppedthemusic-test").info("LIVE NAMING PASS: production soundtrack/disc/fallback and retained component language switch");
+    }
+
     static void run(ClientGameTestContext context) {
         var beforeJoin = context.computeOnClient(client -> {
             checkNames(client.getSoundManager(), WhoStoppedTheMusic.LIBRARY);

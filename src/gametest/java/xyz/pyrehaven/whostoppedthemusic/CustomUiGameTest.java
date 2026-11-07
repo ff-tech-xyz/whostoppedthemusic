@@ -159,8 +159,10 @@ final class CustomUiGameTest {
             return source;
         });
         context.waitTicks(12);
+        context.waitFor(client -> !channels(client).containsKey(early));
         context.runOnClient(client -> {
             check(!MusicDirector.get(client).preview().active() && !ClientSmokeGameTest.channelState(client, early, true).join(), "cancel before decoding cannot late-start a native source");
+            check(!channels(client).containsKey(early), "early canceled preview retires the native handle through engine cleanup");
             var d = MusicDirector.get(client).customPlayback().defaults(menu).config();
             WhoStoppedTheMusic.settings().setScenario(menu, config(client, menu).withSongs(List.of(
                     new xyz.pyrehaven.whostoppedthemusic.music.Deck.Entry("minecraft:records/pigstep", 1),
@@ -255,7 +257,13 @@ final class CustomUiGameTest {
     }
 
     private static int sampleOffset(Minecraft client, net.minecraft.client.resources.sounds.SoundInstance sound) {
-        return onSource(client, sound, channel -> org.lwjgl.openal.AL10.alGetSourcei((int) field(channel, "source"), org.lwjgl.openal.AL11.AL_SAMPLE_OFFSET));
+        return onSource(client, sound, channel -> {
+            int source = (int) field(channel, "source");
+            check(org.lwjgl.openal.AL10.alGetError() == 0, "clean native boundary before sample offset source=" + source);
+            int offset = org.lwjgl.openal.AL10.alGetSourcei(source, org.lwjgl.openal.AL11.AL_SAMPLE_OFFSET);
+            check(org.lwjgl.openal.AL10.alGetError() == 0, "sample offset native query source=" + source);
+            return offset;
+        });
     }
 
     private static Object nativeStream(Minecraft client, net.minecraft.client.resources.sounds.SoundInstance sound) {
@@ -341,6 +349,7 @@ final class CustomUiGameTest {
             });
             fit(context);
             context.takeScreenshot("custom-main-normal");
+            smoothWheel(context, "scenario browser");
             search(context, "thunder");
             context.takeScreenshot("custom-search-thunder");
             context.runOnClient(client -> {
@@ -426,6 +435,22 @@ final class CustomUiGameTest {
         org.slf4j.LoggerFactory.getLogger("whostoppedthemusic-test").info("CUSTOM UI PASS: three-mode cycle, Basic vanilla frequency, both Add routes, registry/search/toggle, tied silence labels/actions, playing/edited rows, normal/narrow bounds/query retention, shared editor controls, popup no/Esc/outside exact-byte cancel and Yes disk/absent/future defaults");
     }
 
+    private static void smoothWheel(ClientGameTestContext context, String consumer) {
+        var list = context.computeOnClient(CustomUiGameTest::list);
+        double target = Math.min(Theme.SCENARIO_ROW * 3.0, context.computeOnClient(client -> list.maxScrollAmount()));
+        check(target > 0, consumer + " has scrollable content");
+        context.runOnClient(client -> {
+            list.setScrollAmount(0);
+            check(list.mouseScrolled(list.getX() + 4, list.getY() + 4, 0, -6), consumer + " handles wheel");
+            check(list.scrollAmount() == 0, consumer + " wheel sets target without immediate jump");
+        });
+        context.waitFor(client -> list.scrollAmount() > 0);
+        context.runOnClient(client -> check(list.scrollAmount() < target, consumer + " renders a live intermediate position"));
+        context.waitFor(client -> Math.abs(list.scrollAmount() - target) < Theme.SCROLL_EPSILON);
+        context.runOnClient(client -> list.setScrollAmount(0));
+        org.slf4j.LoggerFactory.getLogger("whostoppedthemusic-test").info("SMOOTH SCENARIO PASS: {} intermediate and settled target {}", consumer, target);
+    }
+
     private static ScenarioConfig config(Minecraft client, ScenarioId id) {
         return WhoStoppedTheMusic.settings().scenario(id, MusicDirector.get(client).customPlayback().defaults(id).config());
     }
@@ -491,6 +516,8 @@ final class CustomUiGameTest {
                     MusicDirector.get(client).customPlayback().defaults(plains).config());
         });
         press(context, "Copy songs", 0);
+        smoothWheel(context, "copy picker");
+        context.takeScreenshot("editor-copy-picker-normal");
         before = configBytes();
         context.getInput().pressKey(InputConstants.KEY_ESCAPE);
         check(Arrays.equals(before, configBytes()), "copy cancel leaves bytes unchanged");
@@ -543,9 +570,11 @@ final class CustomUiGameTest {
                     new xyz.pyrehaven.whostoppedthemusic.music.Deck.Entry("minecraft:records/pigstep", 30),
                     new xyz.pyrehaven.whostoppedthemusic.music.Deck.Entry("custom:Editor-check.mp3", 50))), d);
         });
-        for (boolean narrow : List.of(false, true)) {
-            context.getInput().resizeWindow(narrow ? 320 : 960, narrow ? 240 : 720);
-            context.runOnClient(client -> client.options.guiScale().set(narrow ? 1 : 2));
+        for (int scale : List.of(2, 1, 4)) {
+            boolean narrow = scale == 1;
+            String suffix = scale == 4 ? "-scale4" : narrow ? "-small" : "-normal";
+            context.getInput().resizeWindow(scale == 4 ? 1280 : narrow ? 320 : 960, scale == 4 ? 960 : narrow ? 240 : 720);
+            context.runOnClient(client -> client.options.guiScale().set(scale));
             for (var special : Special.values()) {
                 context.setScreen(() -> new ScenarioScreen(parent, WhoStoppedTheMusic.settings(), ScenarioId.special(special)));
                 context.waitTicks(3);
@@ -554,6 +583,7 @@ final class CustomUiGameTest {
                     context.waitTicks(3);
                 }
                 fit(context);
+                context.runOnClient(client -> check(client.getWindow().getGuiScale() == scale, "actual GUI scale " + scale));
                 context.runOnClient(client -> {
                     long toggles = client.gui.screen().children().stream().filter(Toggle.class::isInstance).count();
                     boolean fixed = special == Special.MENU || special == Special.CREDITS;
@@ -588,17 +618,33 @@ final class CustomUiGameTest {
                         check(config(client, id).priority() == 1, "priority floor");
                     }
                 });
-                if (special == Special.THUNDER || special == Special.UNDERGROUND || special == Special.MENU)
-                    context.takeScreenshot("editor-" + special.name().toLowerCase(java.util.Locale.ROOT) + (narrow ? "-small" : "-normal"));
+                if (scale == 4 || special == Special.THUNDER || special == Special.UNDERGROUND || special == Special.MENU)
+                    context.takeScreenshot("editor-" + special.name().toLowerCase(java.util.Locale.ROOT) + suffix);
+            }
+            if (scale == 4) {
+                context.setScreen(() -> new ScenarioScreen(parent, WhoStoppedTheMusic.settings(), forest));
+                context.waitTicks(3);
+                fit(context);
+                context.takeScreenshot("editor-forest-scale4");
+                press(context, "Copy songs", 0);
+                fit(context);
+                smoothWheel(context, "copy picker scale4");
+                context.takeScreenshot("editor-copy-picker-scale4");
+                search(context, "plains");
+                context.takeScreenshot("editor-copy-picker-search-scale4");
+                context.getInput().pressKey(InputConstants.KEY_ESCAPE);
+                popupCancels(context, "Frequency:");
             }
         }
+        context.getInput().resizeWindow(320, 240);
+        context.runOnClient(client -> client.options.guiScale().set(1));
         context.setScreen(() -> new ScenarioScreen(parent, WhoStoppedTheMusic.settings(), forest));
         context.waitTicks(3);
         fit(context);
         context.takeScreenshot("editor-forest-small");
         context.runOnClient(client -> client.gui.screen().onClose());
         context.waitForScreen(MusicScreen.class);
-        org.slf4j.LoggerFactory.getLogger("whostoppedthemusic-test").info("SCENARIO EDITOR PASS: drag/duplicate/outside/modal weights, focused 1–100, forest Pigstep and own MP3/OGG native playback, remove-last silence, songs-only reset/copy, missing retained, shared popup cancel, all biome/special variants normal/narrow");
+        org.slf4j.LoggerFactory.getLogger("whostoppedthemusic-test").info("SCENARIO EDITOR PASS: drag/duplicate/outside/modal weights, focused 1–100, forest Pigstep and own MP3/OGG native playback, remove-last silence, songs-only reset/copy, missing retained, shared popup cancel, all biome/special variants normal/narrow/actual scale4 and copy-picker motion");
     }
 
     private static List<xyz.pyrehaven.whostoppedthemusic.ui.widget.TrackList> editorLists(Minecraft client) {

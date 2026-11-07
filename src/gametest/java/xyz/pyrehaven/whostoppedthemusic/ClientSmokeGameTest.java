@@ -68,6 +68,7 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
     @Override
     public void runTest(ClientGameTestContext context) {
         context.waitForScreen(TitleScreen.class);
+        context.runOnClient(DiscoveryGameTest::checkLiveNames);
         if (Boolean.getBoolean("whostoppedthemusic.previewOnly")) {
             CustomUiGameTest.preview(context);
             return;
@@ -159,11 +160,12 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
             context.takeScreenshot("whostoppedthemusic-vanilla-small");
         }
         LoggerFactory.getLogger("whostoppedthemusic-test").info(
-                "WHOSTOPPEDTHEMUSIC CLIENT PASS: first-run Constant, Vanilla UI, M/rebind, options/persistence, top cassette, live song/silence, Play/Next/Pause/Resume, music-only volume, inert mode, 320x240");
+                "WHOSTOPPEDTHEMUSIC CLIENT PASS: first-run Constant, Vanilla UI, M/rebind, options/persistence, top cassette, live song/silence, Play/Next/Pause/Resume, music-only volume, Vanilla/Basic/Custom cycle, 320x240");
     }
 
     private static void checkAddSongs(ClientGameTestContext context) {
-        context.getInput().resizeWindow(960, 720);
+        context.getInput().resizeWindow(1280, 960);
+        context.runOnClient(client -> client.options.guiScale().set(4));
         var parent = context.computeOnClient(client -> client.gui.screen());
         Path game = context.computeOnClient(client -> client.gameDirectory.toPath());
         Path source = game.resolve("add-songs-inputs");
@@ -200,6 +202,8 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
         });
         context.waitForScreen(net.minecraft.client.gui.screens.ConfirmScreen.class);
         check(!java.nio.file.Files.exists(folder.resolve("Add-check.mp3")), "drop waits for confirmation");
+        assertWidgetsFit(context);
+        context.runOnClient(client -> check(client.getWindow().getGuiScale() == 4, "actual import GUI scale4"));
         context.takeScreenshot("add-songs-confirm");
         context.clickScreenButton("gui.no");
         context.waitForScreen(xyz.pyrehaven.whostoppedthemusic.ui.AddSongsScreen.class);
@@ -207,6 +211,8 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
         context.runOnClient(client -> client.gui.screen().onFilesDrop(java.util.List.of(source.resolve("Add-check.png"))));
         context.waitForScreen(net.minecraft.client.gui.screens.AlertScreen.class);
         context.runOnClient(client -> check(client.gui.screen().getNarrationMessage().getString().contains("Only regular MP3"), "invalid extension explains rejection"));
+        assertWidgetsFit(context);
+        context.takeScreenshot("add-songs-invalid-scale4");
         context.clickScreenButton("gui.back");
         context.waitForScreen(xyz.pyrehaven.whostoppedthemusic.ui.AddSongsScreen.class);
         context.runOnClient(client -> client.gui.screen().onFilesDrop(java.util.List.of(source.resolve("Add-check.mp3"), source.resolve("Add-check.ogg"))));
@@ -222,6 +228,8 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
         var imported = context.computeOnClient(client -> WhoStoppedTheMusic.LIBRARY.tracks().stream()
                 .filter(t -> t.id().startsWith("custom:Add-check")).toList());
         check(imported.size() == 2 && imported.stream().allMatch(Track::playable), "import refresh probes both files");
+        assertWidgetsFit(context);
+        context.takeScreenshot("add-songs-success-scale4");
         for (var track : imported) {
             var sound = context.computeOnClient(client -> {
                 MusicDirector.get(client).play(track);
@@ -252,6 +260,8 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
         clickWidget(context, context.computeOnClient(client -> (AbstractWidget) trackList(client.gui.screen()).children().getFirst().children().getLast()));
         context.waitForScreen(net.minecraft.client.gui.screens.ConfirmScreen.class);
         context.runOnClient(client -> check(client.gui.screen().getNarrationMessage().getString().contains("Add-check (2).mp3"), "Remove names exact file before deletion"));
+        assertWidgetsFit(context);
+        context.takeScreenshot("add-songs-remove-scale4");
         context.clickScreenButton("gui.cancel");
         context.waitForScreen(xyz.pyrehaven.whostoppedthemusic.ui.AddSongsScreen.class);
         check(java.nio.file.Files.exists(folder.resolve("Add-check (2).mp3")), "cancel keeps duplicate");
@@ -1255,13 +1265,15 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
     private static void checkSharedControls(ClientGameTestContext context, Path settingsFile) {
         double master = context.computeOnClient(client -> client.options.getSoundSourceOptionInstance(SoundSource.MASTER).get());
         var toast = context.computeOnClient(client -> client.options.musicToast().get());
-        clickWidget(context, widget(context, 1));
+        context.clickScreenButton("whostoppedthemusic.mode.vanilla");
         context.runOnClient(client -> {
             check(WhoStoppedTheMusic.settings().mode() == Mode.BASIC, "mode cycles to Basic");
         });
-        clickWidget(context, widget(context, 0));
+        context.clickScreenButton("whostoppedthemusic.mode.basic");
+        context.runOnClient(client -> check(WhoStoppedTheMusic.settings().mode() == Mode.CUSTOM, "mode cycles to Custom"));
+        context.clickScreenButton("whostoppedthemusic.mode.custom");
         context.runOnClient(client -> {
-            check(Screens.getWidgets(client.gui.screen()).get(1).getMessage().getString().equals("Vanilla"), "mode cycles back to Vanilla");
+            check(WhoStoppedTheMusic.settings().mode() == Mode.VANILLA, "mode cycles back to Vanilla");
             check(Screens.getWidgets(client.gui.screen()).size() == 8, "only tape, mode, frequency, jukebox, transports, music volume and Done");
         });
         var frequency = context.computeOnClient(client -> client.options.musicFrequency().get());
@@ -1561,7 +1573,11 @@ public final class ClientSmokeGameTest implements FabricClientGameTest, ClientMo
             try {
                 var source = com.mojang.blaze3d.audio.Channel.class.getDeclaredField("source");
                 source.setAccessible(true);
-                result.complete(org.lwjgl.openal.AL10.alGetSourcef(source.getInt(channel), org.lwjgl.openal.AL10.AL_GAIN));
+                int id = source.getInt(channel);
+                check(org.lwjgl.openal.AL10.alGetError() == 0, "clean native boundary before gain source=" + id);
+                float gain = org.lwjgl.openal.AL10.alGetSourcef(id, org.lwjgl.openal.AL10.AL_GAIN);
+                check(org.lwjgl.openal.AL10.alGetError() == 0, "gain native query source=" + id);
+                result.complete(gain);
             } catch (ReflectiveOperationException exception) {
                 result.completeExceptionally(exception);
             }
