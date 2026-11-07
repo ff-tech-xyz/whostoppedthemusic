@@ -29,7 +29,9 @@ public final class SettingButton extends Button {
         if (!value.equals(description)) {
             description = value;
             setMessage(value);
-            setTooltip(Tooltip.create(value.copy().append("\n").append(help)));
+            var tooltip = value.copy();
+            if (!help.getString().isEmpty()) tooltip.append("\n").append(help);
+            setTooltip(Tooltip.create(tooltip));
         }
     }
 

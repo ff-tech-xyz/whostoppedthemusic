@@ -28,6 +28,8 @@ public final class ScenarioList extends SmoothList<ScenarioList.Row> {
     private final boolean picker;
     private List<BiomeCatalog.Entry> biomes = List.of();
     private String query = "";
+    private final java.util.Set<String> expanded = new java.util.HashSet<>();
+    private final java.util.Set<String> searchCollapsed = new java.util.HashSet<>();
 
     public ScenarioList(Minecraft client, Settings settings, Consumer<ScenarioId> open) {
         this(client, settings, open, false);
@@ -51,27 +53,45 @@ public final class ScenarioList extends SmoothList<ScenarioList.Row> {
     }
 
     public void filter(String value) {
-        query = value.strip().toLowerCase(Locale.ROOT);
+        var nextQuery = value.strip().toLowerCase(Locale.ROOT);
+        if (!nextQuery.equals(query)) searchCollapsed.clear();
+        query = nextQuery;
         clearEntries();
-        var specials = java.util.Arrays.stream(Special.values()).map(ScenarioId::special).filter(this::matches).toList();
-        if (!specials.isEmpty()) {
-            addEntry(new Row(null, text("scenario.specials")), Theme.TRACK_HEADER_HEIGHT);
-            specials.forEach(id -> addEntry(new Row(id, ScenarioLabels.name(id)), Theme.SCENARIO_ROW));
-        }
         var groups = new java.util.TreeMap<String, List<BiomeCatalog.Entry>>(java.util.Comparator
                 .comparingInt(ScenarioList::groupOrder).thenComparing(java.util.Comparator.naturalOrder()));
         for (var entry : biomes) {
-            if (matches(entry.id()) || entry.group().toLowerCase(Locale.ROOT).contains(query)) {
+            if (matches(entry.id()) || groupName(entry.group()).getString().toLowerCase(Locale.ROOT).contains(query)) {
                 groups.computeIfAbsent(entry.group(), ignored -> new java.util.ArrayList<>()).add(entry);
             }
         }
         groups.forEach((group, entries) -> {
-            var groupName = Component.translatableWithFallback("whostoppedthemusic.scenario.group." + group, group);
-            addEntry(new Row(null, text("scenario.biomes", groupName)), Theme.TRACK_HEADER_HEIGHT);
-            entries.stream().sorted(java.util.Comparator.comparing(e -> ScenarioLabels.name(e.id()).getString()))
+            addEntry(new Row("biome/" + group, groupName(group)), Theme.TRACK_HEADER_HEIGHT);
+            if (isExpanded("biome/" + group)) entries.stream().sorted(java.util.Comparator.comparing(e -> ScenarioLabels.name(e.id()).getString()))
                     .forEach(e -> addEntry(new Row(e.id(), ScenarioLabels.name(e.id())), Theme.SCENARIO_ROW));
         });
+        var specials = java.util.Arrays.stream(Special.values()).map(ScenarioId::special)
+                .filter(id -> matches(id) || text("scenario.misc").getString().toLowerCase(Locale.ROOT).contains(query)).toList();
+        if (!specials.isEmpty()) {
+            addEntry(new Row("misc", text("scenario.misc")), Theme.TRACK_HEADER_HEIGHT);
+            if (isExpanded("misc")) specials.forEach(id -> addEntry(new Row(id, ScenarioLabels.name(id)), Theme.SCENARIO_ROW));
+        }
         setScrollAmount(0);
+    }
+
+    private Component groupName(String group) {
+        return text("scenario.biomes", Component.translatableWithFallback("whostoppedthemusic.scenario.group." + group, group));
+    }
+
+    private boolean isExpanded(String group) {
+        return query.isEmpty() ? expanded.contains(group) : !searchCollapsed.contains(group);
+    }
+
+    private void toggleGroup(String group) {
+        var state = query.isEmpty() ? expanded : searchCollapsed;
+        if (!state.remove(group)) state.add(group);
+        double scroll = scrollAmount();
+        filter(query);
+        setScrollAmount(scroll);
     }
 
     private boolean matches(ScenarioId id) {
@@ -96,7 +116,22 @@ public final class ScenarioList extends SmoothList<ScenarioList.Row> {
         private final Component title;
         private final Button edit;
         private final Toggle toggle;
-        private final OverflowText groupLabel = new OverflowText();
+        private Row(String group, Component title) {
+            this.id = null;
+            this.title = title;
+            toggle = null;
+            var label = Component.literal(isExpanded(group) ? "▼ " : "▶ ").append(title);
+            edit = new Button(0, 0, Theme.CONTROL_HEIGHT, Theme.TRACK_HEADER_HEIGHT, label,
+                    button -> toggleGroup(group), supplier -> supplier.get()) {
+                private final OverflowText line = new OverflowText();
+                @Override protected void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
+                    graphics.fill(getX(), getY(), getRight(), getBottom(), Theme.CARD);
+                    if (isHoveredOrFocused()) graphics.outline(getX(), getY(), getWidth(), getHeight(), Theme.ORANGE);
+                    line.draw(graphics, minecraft.font, getMessage(), getX() + Theme.GAP, getRight() - Theme.GAP,
+                            getY() + Theme.BORDER, Theme.TEXT, false, false, isHovered());
+                }
+            };
+        }
 
         private Row(ScenarioId id, Component title) {
             this.id = id;
@@ -133,12 +168,7 @@ public final class ScenarioList extends SmoothList<ScenarioList.Row> {
         }
 
         @Override public void extractContent(GuiGraphicsExtractor graphics, int mouseX, int mouseY, boolean hovered, float delta) {
-            if (id == null) {
-                groupLabel.draw(graphics, minecraft.font, title, getContentX(), getContentRight(),
-                        getContentY() + Theme.BORDER, Theme.TEXT, false, false, hovered);
-                return;
-            }
-            edit.setRectangle(getContentWidth(), getContentHeight() - Theme.GAP, getContentX(), getContentY());
+            edit.setRectangle(getContentWidth(), getContentHeight() - (id == null ? 0 : Theme.GAP), getContentX(), getContentY());
             // The toggle is a separate focus/click target, never a row-click side effect.
             if (toggle != null) toggle.setPosition(edit.getRight() - Theme.TOGGLE_WIDTH - Theme.GAP,
                     edit.getY() + (edit.getHeight() - Theme.CONTROL_HEIGHT) / 2);
@@ -147,10 +177,10 @@ public final class ScenarioList extends SmoothList<ScenarioList.Row> {
         }
 
         @Override public List<? extends GuiEventListener> children() {
-            return id == null ? List.of() : toggle == null ? List.of(edit) : List.of(toggle, edit);
+            return toggle == null ? List.of(edit) : List.of(toggle, edit);
         }
         @Override public List<? extends NarratableEntry> narratables() {
-            return id == null ? List.of() : toggle == null ? List.of(edit) : List.of(toggle, edit);
+            return toggle == null ? List.of(edit) : List.of(toggle, edit);
         }
     }
 

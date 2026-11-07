@@ -282,7 +282,9 @@ final class CustomUiGameTest {
             WhoStoppedTheMusic.settings().setMode(Mode.VANILLA);
         });
         context.setScreen(() -> new MusicScreen(null, WhoStoppedTheMusic.settings()));
+        settingTooltips(context, false);
         context.clickScreenButton("whostoppedthemusic.mode.vanilla");
+        settingTooltips(context, false);
         check(context.computeOnClient(client -> WhoStoppedTheMusic.settings().mode()) == Mode.BASIC, "Vanilla cycles to Basic");
         var original = context.computeOnClient(client -> client.options.musicFrequency().get());
         press(context, "Frequency", 0);
@@ -292,6 +294,7 @@ final class CustomUiGameTest {
         check(context.computeOnClient(client -> WhoStoppedTheMusic.settings().mode()) == Mode.CUSTOM, "Basic cycles to Custom");
         winner(context, ScenarioId.special(Special.MENU));
         context.waitTicks(3);
+        settingTooltips(context, true);
         press(context, "Frequency (Menu)", 0);
         popupCancels(context, "Frequency (Menu)");
         addLink(context);
@@ -342,11 +345,7 @@ final class CustomUiGameTest {
             context.waitFor(client -> ClientSmokeGameTest.channelState(client, MusicDirector.get(client).current(), true).join());
             press(context, "Previous", 0);
             context.waitFor(client -> MusicDirector.get(client).active());
-            context.runOnClient(client -> {
-                var rows = list(client).children();
-                check(rows.size() >= 80, "nine specials and all 67 biomes plus headers");
-                check(rows.subList(0, 3).stream().flatMap(r -> r.children().stream()).noneMatch(Toggle.class::isInstance), "menu/credits have no toggle");
-            });
+            sections(context);
             fit(context);
             context.takeScreenshot("custom-main-normal");
             smoothWheel(context, "scenario browser");
@@ -432,7 +431,69 @@ final class CustomUiGameTest {
             context.getInput().pressKey(InputConstants.KEY_ESCAPE);
             context.waitForScreen(MusicScreen.class);
         }
-        org.slf4j.LoggerFactory.getLogger("whostoppedthemusic-test").info("CUSTOM UI PASS: three-mode cycle, Basic vanilla frequency, both Add routes, registry/search/toggle, tied silence labels/actions, playing/edited rows, normal/narrow bounds/query retention, shared editor controls, popup no/Esc/outside exact-byte cancel and Yes disk/absent/future defaults");
+        org.slf4j.LoggerFactory.getLogger("whostoppedthemusic-test").info("CUSTOM UI PASS: collapsed ordered clickable biome/Misc sections, search expansion/restoration, minimal mode-aware tooltips, three-mode cycle, Basic vanilla frequency, both Add routes, registry/search/toggle, tied silence labels/actions, playing/edited rows, normal/narrow bounds/query retention, shared editor controls, popup no/Esc/outside exact-byte cancel and Yes disk/absent/future defaults");
+    }
+
+    private static void settingTooltips(ClientGameTestContext context, boolean custom) {
+        context.runOnClient(client -> {
+            var buttons = client.gui.screen().children().stream()
+                    .filter(xyz.pyrehaven.whostoppedthemusic.ui.widget.SettingButton.class::isInstance)
+                    .map(AbstractWidget.class::cast).toList();
+            check(buttons.size() == 2, "frequency and jukebox settings present");
+            for (var button : buttons) {
+                net.minecraft.client.gui.components.Tooltip tooltip;
+                try {
+                    var holder = AbstractWidget.class.getDeclaredField("tooltip");
+                    holder.setAccessible(true);
+                    tooltip = ((net.minecraft.client.gui.components.WidgetTooltipHolder) holder.get(button)).get();
+                } catch (ReflectiveOperationException error) { throw new AssertionError(error); }
+                var message = (net.minecraft.network.chat.Component) field(tooltip, "message");
+                check(message.getString().equals(button.getMessage().getString()
+                        + (custom ? "\nRight-click to apply to every scenario." : "")), "minimal tooltip for " + button.getMessage().getString());
+            }
+        });
+    }
+
+    private static void sections(ClientGameTestContext context) {
+        var titles = context.computeOnClient(client -> {
+            var expected = new java.util.ArrayList<>(List.of("Overworld biomes", "Nether biomes", "End biomes"));
+            MusicDirector.get(client).customPlayback().catalog().entries().stream().map(BiomeCatalog.Entry::group)
+                    .filter(group -> !List.of("overworld", "nether", "end").contains(group)).distinct().sorted()
+                    .forEach(group -> expected.add(group + " biomes"));
+            expected.add("Misc");
+            return expected;
+        });
+        context.runOnClient(client -> check(rowButtons(client).stream().map(b -> b.getMessage().getString()).toList()
+                .equals(titles.stream().map(title -> "▶ " + title).toList()),
+                "all sections collapsed in dimension/namespace order with Misc last: " + rowButtons(client).stream().map(b -> b.getMessage().getString()).toList()));
+        context.takeScreenshot("custom-sections-collapsed");
+        for (String title : titles) {
+            context.runOnClient(client -> click(client, rowButtons(client).stream()
+                    .filter(b -> b.getMessage().getString().equals("▶ " + title)).findFirst().orElseThrow(), 0));
+            context.waitTicks(2);
+            context.runOnClient(client -> {
+                check(list(client).children().size() > titles.size(), title + " expands");
+                click(client, rowButtons(client).stream().filter(b -> b.getMessage().getString().equals("▼ " + title)).findFirst().orElseThrow(), 0);
+                check(list(client).children().size() == titles.size(), title + " collapses");
+            });
+            context.waitTicks(2);
+        }
+        search(context, "thunder");
+        context.runOnClient(client -> {
+            check(list(client).children().size() == 2, "search reveals matches inside collapsed Misc");
+            click(client, rowButtons(client).getFirst(), 0);
+            check(list(client).children().size() == 1, "search header can collapse");
+        });
+        context.waitTicks(2);
+        context.runOnClient(client -> click(client, rowButtons(client).getFirst(), 0));
+        context.waitTicks(2);
+        context.runOnClient(client -> check(list(client).children().size() == 2, "search header can reopen"));
+        search(context, "");
+        context.runOnClient(client -> {
+            check(list(client).children().size() == titles.size(), "clearing search restores collapsed state");
+            click(client, rowButtons(client).getFirst(), 0);
+        });
+        context.waitTicks(2);
     }
 
     private static void smoothWheel(ClientGameTestContext context, String consumer) {
@@ -480,6 +541,7 @@ final class CustomUiGameTest {
         var parent = context.computeOnClient(client -> client.gui.screen());
         context.setScreen(() -> new ScenarioScreen(parent, WhoStoppedTheMusic.settings(), forest));
         context.waitTicks(4);
+        settingTooltips(context, true);
         fit(context);
         hoverCase(context);
         drag(context, "Pigstep", true);
@@ -519,6 +581,7 @@ final class CustomUiGameTest {
                     MusicDirector.get(client).customPlayback().defaults(plains).config());
         });
         press(context, "Copy songs", 0);
+        search(context, "biomes");
         smoothWheel(context, "copy picker");
         context.takeScreenshot("editor-copy-picker-normal");
         before = configBytes();
@@ -631,6 +694,7 @@ final class CustomUiGameTest {
                 context.takeScreenshot("editor-forest-scale4");
                 press(context, "Copy songs", 0);
                 fit(context);
+                search(context, "biomes");
                 smoothWheel(context, "copy picker scale4");
                 context.takeScreenshot("editor-copy-picker-scale4");
                 search(context, "plains");

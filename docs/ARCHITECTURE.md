@@ -303,7 +303,7 @@ whostoppedthemusic/
     │   │   │   ├── BasicPanel.java          # collapsible song browser and placement of the shared player
     │   │   │   ├── custom/                 # shared components; Theme owns PyreHaven surfaces
     │   │   │   │   ├── ScenarioLabels.java # translated names shared by browser/player/editor
-    │   │   │   │   ├── ScenarioList.java   # grouped/filterable loaded scenarios; explicit no-toggle copy-picker mode
+    │   │   │   │   ├── ScenarioList.java   # collapsed clickable biome groups then Misc; search reveals matches; no-toggle copy picker
     │   │   │   │   ├── CustomPanel.java    # scenario search/list, active toggles and shared right player
     │   │   │   │   ├── ScenarioScreen.java # one biome/special settings/song editor, drag/drop, reset and shared-list copy picker
     │   │   │   │   ├── ApplyToAllPopup.java # right-click confirmation, all known/future scenarios
@@ -313,7 +313,7 @@ whostoppedthemusic/
     │   │   │   ├── OverflowText.java        # per-line hover clock and clipped fractional tape/toast rendering
     │   │   │   ├── CassetteWidget.java      # bottom-left title/pause cassette, playback-only floating notes, settings link
     │   │   │   └── widget/
-    │   │   │       ├── SettingButton.java  # short captions, full value/function tooltips, shared left-cycle/right-confirm control
+    │   │   │       ├── SettingButton.java  # short captions, current-value tooltip with Custom-only apply-all hint; left-cycle/right-confirm
     │   │   │       ├── SmoothList.java      # shared wheel target/frame interpolation for TrackList and ScenarioList
     │   │   │       ├── TrackList.java       # clipped Basic/local/case/scenario rows; focused accepted-drop slide animation
     │   │   │       └── WeightSlider.java    # integer 1–100 mouse/keyboard editor with this list's weight/chance narration and tooltip
@@ -463,7 +463,7 @@ jukebox entries belong to the old level and cannot leak into the next one.
 
 ### Custom
 Implemented behavior:
-- Main left: searchable specials, then registry biomes grouped by vanilla dimension tags or namespace. Specials except menu/credits have active toggles. Rows show priority/song count, playing and edited distinctions. Right: the shared player/transport/cassette/volume and Add music action; frequency/jukebox labels name all current winners.
+- Main left: collapsed, clickable Overworld/Nether/End biome sections, other namespaces alphabetically, then Misc. Search reveals matching rows without changing the unfiltered expansion state; matching headers can still collapse. Misc scenarios except menu/credits have active toggles. Rows show priority/song count, playing and edited distinctions. Right: the shared player/transport/cassette/volume and Add music action; frequency/jukebox labels name all current winners.
 - `SituationReader` captures camera-biome/sky/heightmap/precipitation and player underwater/creative state once per existing tick. Pure `ContextResolver` checks credits before menu, then highest-priority biome/active specials. Ties use sorted IDs, sum duplicate-song weights, strongest frequency, Pause music if any winner requests it, and interrupt if any newly winning scenario requests it. An empty active winner is silence, never fallback.
 - Implemented defaults use loaded runtime weights: creative adds six weight-1 files to game's 32 files weighted 1/2 (total 43). Nested aliases retain leaf weights and duplicate files add; only oversized reduced weights require approximation. Basic's flattening is unchanged. Pale garden/empty pools stay silent. Weather and underground start disabled; frequency starts Constant and jukebox starts Pause music.
 - Custom uses MusicManager → director → existing Deck/TrackSoundInstance, synthetic pool identifiers per resolution, and 32-entry LRU deck history. Vanilla's pool-change/fade/delay logic stays authoritative. Scenario frequency does not overwrite vanilla's global option; edited lists bypass vanilla's zero-volume trap.
@@ -502,8 +502,9 @@ tape; silence shows only an empty player outline and red spindle rods.
 
 CustomPanel retains its shared Theme search and ScenarioList across rebuilds.
 ScenarioList shares SmoothList's wheel target/frame interpolation with TrackList,
-retains vanilla's container/focus machinery, and lists specials in
-enum order, then loaded biome groups in Overworld/Nether/End/namespace order.
+retains vanilla's container/focus machinery, and lists loaded biome groups in
+Overworld/Nether/End/namespace order, then Misc scenarios in enum order. Headers
+are focusable buttons and all sections start collapsed in both browser and picker.
 Absent biomes remain in Settings but are hidden. Theme owns the navy panels,
 dark-blue rows, light labels, orange accents and pill geometry. OverflowText
 retains shadow-free labels; toggles use orange on tracks and dark off tracks.
@@ -537,7 +538,8 @@ The same Toggle handles standalone active/interrupt/outside cells, and the same
 MusicControls/SettingButton handles frequency/jukebox plus the existing apply-all
 popup. Visible setting captions use one word where possible (Frequency, Jukebox,
 Interrupt, Outside, Reset, Copy); priority and its value use at most two. Full
-titles, current values and functions remain in tooltips/narration. Concise labels
+titles and current values remain in tooltips/narration. Frequency/Jukebox add only
+“Right-click to apply to every scenario.” in Custom, with no hint in Vanilla/Basic. Concise labels
 use the shared hover-only OverflowText without text shadows and the same inset
 deck-button frame used on every page. Biomes omit Active;
 weather adds Must be outside; underground exposes an integer Y field with invalid

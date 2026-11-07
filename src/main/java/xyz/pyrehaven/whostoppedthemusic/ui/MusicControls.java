@@ -56,7 +56,8 @@ public final class MusicControls {
 
     public void scenarioSettings(int x, int y, int width, Consumer<AbstractWidget> add, boolean concise) {
         conciseSettings = concise;
-        frequency = new SettingButton(x, y, width, text("frequency_short"), text("frequency_hint"), frequencyLabel(), button -> {
+        var help = custom() ? text("apply_all_hint") : Component.empty();
+        frequency = new SettingButton(x, y, width, text("frequency_short"), help, frequencyLabel(), button -> {
             if (custom()) {
                 var values = ScenarioConfig.Frequency.values();
                 var value = values[(currentFrequency().ordinal() + 1) % values.length];
@@ -72,7 +73,7 @@ public final class MusicControls {
             var value = currentFrequency();
             client.gui.setScreen(new ApplyToAllPopup(client.gui.screen(), frequency, () -> settings.applyFrequencyToAll(value)));
         });
-        jukebox = new SettingButton(x, y + Theme.ROW, width, text("jukebox_short"), text("jukebox_hint"), jukeboxLabel(), button -> {
+        jukebox = new SettingButton(x, y + Theme.ROW, width, text("jukebox_short"), help, jukeboxLabel(), button -> {
             if (custom()) {
                 var value = currentJukebox().next();
                 editScenarios(c -> c.withJukebox(value));
