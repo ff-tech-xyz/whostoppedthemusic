@@ -15,8 +15,10 @@ public final class Theme {
     public static final int SCENARIO_ROW = 34;
     public static final int LIBRARY_ROW = 24;
     public static final int CASE_SPINE = 7;
-    public static final int DRAG_WIDTH = 116;
-    public static final int DRAG_HEIGHT = 64;
+    public static final int CASSETTE_WIDTH = 190;
+    public static final int CASSETTE_HEIGHT = 100;
+    public static final int DRAG_WIDTH = CASSETTE_WIDTH;
+    public static final int DRAG_HEIGHT = CASSETTE_HEIGHT;
     public static final int INSERT_MILLIS = 260;
 
     public static final int EDITOR_BACK_WIDTH = 48;
@@ -31,8 +33,13 @@ public final class Theme {
     public static final long REEL_PERIOD_NANOS = 2_000_000_000L;
     public static final int LABEL_PADDING = 3;
     public static final int LABEL_LINE_GAP = 2;
-    public static final int PAUSE_TAPE_HEIGHT = 34;
+    public static final int MENU_BUTTON_WIDTH = 200;
+    public static final int MENU_FOOTER = 28;
+    public static final int NOTE_RISE = 24;
+    public static final int NOTE_COUNT = 3;
+    public static final long NOTE_PERIOD_NANOS = 1_800_000_000L;
     public static final int SMALL_REEL = 6;
+    public static final int REEL_WIDTH_DIVISOR = 24;
     public static final int LABEL_MIN_TAPE_HEIGHT = 34;
     public static final int MARGIN = 8;
     public static final int PADDING = 12;
@@ -54,7 +61,6 @@ public final class Theme {
     public static final int BASIC_VOLUME_SPACE = 30;
     public static final int BASIC_BROWSER_MAX_HEIGHT = 230;
 
-    public static final int BASIC_TAPE_MAX_HEIGHT = 130;
     public static final double SCROLL_RESPONSE_MS = 65.0;
     public static final int SCROLL_MAX_FRAME_MS = 100;
     public static final double SCROLL_EPSILON = 0.1;
@@ -74,13 +80,10 @@ public final class Theme {
     public static final int TRANSPORT_BAR = 2;
     public static final int BASIC_STOP_WIDTH = 44;
     public static final int PAUSE_NEXT_WIDTH = 28;
-    public static final int PAUSE_NEXT_Y = 13;
     public static final int PAUSE_NEXT_GAP = 4;
     public static final int VANILLA_NARROW_THRESHOLD = 360;
     public static final int VANILLA_CONTROLS_WIDTH = 170;
     public static final int VANILLA_TOP = 44;
-    public static final int VANILLA_TAPE_MIN_HEIGHT = 80;
-    public static final int VANILLA_TAPE_MAX_HEIGHT = 160;
 
     private Theme() {
     }

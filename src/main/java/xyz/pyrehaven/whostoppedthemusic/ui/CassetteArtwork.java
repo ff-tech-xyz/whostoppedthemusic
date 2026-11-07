@@ -18,20 +18,20 @@ public final class CassetteArtwork {
     private final OverflowText status = new OverflowText();
     private Component description;
 
-    public void drawPlayer(GuiGraphicsExtractor graphics, AbstractWidget widget, MusicDirector director, boolean compact) {
-        draw(graphics, widget, director.metadata(), director.playbackStatus(), compact,
+    public void drawPlayer(GuiGraphicsExtractor graphics, AbstractWidget widget, MusicDirector director) {
+        draw(graphics, widget, director.metadata(), director.playbackStatus(),
                 true, director.active(), director.active(), reelAngle(director));
     }
 
     public void drawTrack(GuiGraphicsExtractor graphics, AbstractWidget widget, Track track, MusicDirector director) {
         draw(graphics, widget, track.metadata(), track.playable() ? Component.empty()
-                        : Component.translatable("whostoppedthemusic.cant_play_short"), false,
+                        : Component.translatable("whostoppedthemusic.cant_play_short"),
                 false, true, director.playing(track), reelAngle(director));
     }
 
     public void drawMissing(GuiGraphicsExtractor graphics, AbstractWidget widget, Component title) {
         draw(graphics, widget, new Track.Metadata(title, Component.empty()),
-                Component.translatable("whostoppedthemusic.missing"), false, false, true, false, 0);
+                Component.translatable("whostoppedthemusic.missing"), false, true, false, 0);
         graphics.fill(widget.getX(), widget.getY(), widget.getRight(), widget.getBottom(), Theme.MISSING_OVERLAY);
     }
 
@@ -59,7 +59,7 @@ public final class CassetteArtwork {
 
     /** Loose cassettes have open holes; red rods belong exclusively to a player. */
     public void drawLoose(GuiGraphicsExtractor graphics, AbstractWidget widget, Track track) {
-        draw(graphics, widget, track.metadata(), Component.empty(), false, false, true, false, 0);
+        draw(graphics, widget, track.metadata(), Component.empty(), false, true, false, 0);
     }
 
     /** Shared across widgets and screen rebuilds; transport remains owned by the director. */
@@ -82,20 +82,28 @@ public final class CassetteArtwork {
         public int rightSpindleX() { return right + reelSize / 2 - 1; }
     }
 
-    public static Geometry geometry(int x, int y, int w, int h, boolean compact, int lineHeight) {
-        if (compact) {
-            x += 8;
-            y += Theme.ACCENT;
-            w -= 16;
-            h -= Theme.ACCENT * 2;
-        }
+    public record Size(int width, int height) { }
+
+    /** All open tapes use one native size, scaled down only when their slot cannot fit it. */
+    public static Size size(int availableWidth, int availableHeight) {
+        int height = Math.max(1, Math.min(Theme.CASSETTE_HEIGHT,
+                Math.min(availableHeight, availableWidth * Theme.CASSETTE_HEIGHT / Theme.CASSETTE_WIDTH)));
+        int width = Math.min(Math.max(1, availableWidth),
+                (height * Theme.CASSETTE_WIDTH + Theme.CASSETTE_HEIGHT - 1) / Theme.CASSETTE_HEIGHT);
+        return new Size(width, height);
+    }
+
+    public static Geometry geometry(int x, int y, int w, int h) {
+        var size = size(w, h);
+        x += (w - size.width()) / 2;
+        y += (h - size.height()) / 2;
+        w = size.width();
+        h = size.height();
         int labelX = x + Math.max(4, w / 20);
         int labelY = y + Theme.LABEL_PADDING;
         int labelW = w - (labelX - x) * 2;
-        int textHeight = lineHeight * 2 + Theme.LABEL_LINE_GAP;
-        int labelH = Math.min(Math.max(textHeight + Theme.LABEL_PADDING * 2, h * 2 / 3), h - Theme.LABEL_PADDING * 2);
-        int reelSize = w < Theme.TRACK_SIDE_CONTROLS_MIN ? Theme.SMALL_REEL
-                : compact ? 10 : Math.clamp(Math.min(w / 7, labelH - 4), 6, 36);
+        int labelH = h * 2 / 3;
+        int reelSize = Math.max(Theme.SMALL_REEL, w / Theme.REEL_WIDTH_DIVISOR);
         int reelY = labelY + (labelH - reelSize) / 2 + 1;
         int inset = Math.max(3, labelW / 16);
         return new Geometry(x, y, w, h, labelX, labelY, labelW, labelH,
@@ -103,7 +111,7 @@ public final class CassetteArtwork {
     }
 
     private void draw(GuiGraphicsExtractor graphics, AbstractWidget widget, Track.Metadata metadata, Component state,
-                      boolean compact, boolean player, boolean loaded, boolean current, double angle) {
+                      boolean player, boolean loaded, boolean current, double angle) {
         var font = net.minecraft.client.Minecraft.getInstance().font;
         Component full = metadata.description();
         if (!state.getString().isEmpty()) full = full.copy().append("\n").append(state);
@@ -116,17 +124,14 @@ public final class CassetteArtwork {
         int y = widget.getY();
         int w = widget.getWidth();
         int h = widget.getHeight();
-        var geometry = geometry(x, y, w, h, compact, font.lineHeight);
+        var geometry = geometry(x, y, w, h);
         if (!loaded) {
-            graphics.outline(x, y, w, h, widget.isHoveredOrFocused() ? Theme.GLOW : Theme.BLUE);
+            graphics.outline(geometry.x(), geometry.y(), geometry.width(), geometry.height(),
+                    widget.isHoveredOrFocused() ? Theme.GLOW : Theme.BLUE);
             spindles(graphics, geometry, Theme.SPINDLE);
             return;
         }
-        if (compact) {
-            graphics.fill(x + 2, y + 2, x + w + 2, y + h + 2, 0x55000000);
-            graphics.fill(x, y, x + w, y + h, Theme.CARD);
-            graphics.outline(x, y, w, h, widget.isHoveredOrFocused() ? Theme.GLOW : Theme.BLUE);
-        }
+
         x = geometry.x();
         y = geometry.y();
         w = geometry.width();
@@ -137,8 +142,9 @@ public final class CassetteArtwork {
         int labelX = geometry.labelX();
         int labelY = geometry.labelY();
         int labelW = geometry.labelWidth();
-        int textHeight = font.lineHeight * 2 + Theme.LABEL_LINE_GAP;
         int labelH = geometry.labelHeight();
+        boolean showArtist = labelH >= font.lineHeight * 2 + Theme.LABEL_LINE_GAP + Theme.LABEL_PADDING * 2;
+        int textHeight = showArtist ? font.lineHeight * 2 + Theme.LABEL_LINE_GAP : font.lineHeight;
         graphics.fill(labelX, labelY, labelX + labelW, labelY + labelH, Theme.CARD);
         graphics.fill(labelX, labelY, labelX + labelW, labelY + 2, Theme.ORANGE);
         int reelSize = geometry.reelSize();
@@ -148,17 +154,17 @@ public final class CassetteArtwork {
         reel(graphics, right, geometry.reelY(), reelSize, current ? angle : 0);
         spindles(graphics, geometry, player ? Theme.SPINDLE : Theme.BACKGROUND);
         int textY = labelY + Math.max(Theme.LABEL_PADDING, (labelH - textHeight) / 2);
+        graphics.enableScissor(labelX, labelY + Theme.ACCENT, labelX + labelW, labelY + labelH);
         title.draw(graphics, font, metadata.title(), left + reelSize + Theme.LABEL_PADDING,
                 right - Theme.LABEL_PADDING, textY, Theme.TEXT, true, false, widget.isHovered());
-        artist.draw(graphics, font, metadata.artist(), left + reelSize + Theme.LABEL_PADDING,
+        if (showArtist) artist.draw(graphics, font, metadata.artist(), left + reelSize + Theme.LABEL_PADDING,
                 right - Theme.LABEL_PADDING, textY + font.lineHeight + Theme.LABEL_LINE_GAP, Theme.ARTIST, true, false, widget.isHovered());
-        if (!state.getString().isEmpty()) {
-            if (compact) status.draw(graphics, font, state, Theme.MARGIN, widget.getX() - Theme.GAP,
-                    widget.getY() + (widget.getHeight() - font.lineHeight) / 2, Theme.ORANGE, true, false, widget.isHovered());
-            else status.draw(graphics, font, state, x + Theme.GAP, x + w - Theme.GAP,
+        graphics.disableScissor();
+        if (!state.getString().isEmpty() && h - labelH >= font.lineHeight + Theme.LABEL_PADDING) {
+            status.draw(graphics, font, state, x + Theme.GAP, x + w - Theme.GAP,
                     y + h - font.lineHeight - Theme.BORDER, Theme.ORANGE, true, false, widget.isHovered());
         }
-        if (!compact && state.getString().isEmpty()) {
+        if (state.getString().isEmpty()) {
             int baseY = y + h - Math.max(8, h / 10);
             graphics.fill(x + w / 3, baseY, x + w * 2 / 3, baseY + 2, Theme.ORANGE);
             graphics.fill(x + 7, y + h - 7, x + 9, y + h - 5, Theme.TEXT);

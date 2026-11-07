@@ -156,11 +156,12 @@ public final class MusicControls {
             add.accept(caption);
             tapeY += Theme.LINE + Theme.GAP;
         }
-        int tapeHeight = Math.min(Math.min(Theme.BASIC_TAPE_MAX_HEIGHT, width * 3 / 5), bottom - tapeY);
-        var tape = new Button(x, tapeY, width, tapeHeight, director.status(), button -> {}, supplier -> supplier.get()) {
+        var tapeSize = CassetteArtwork.size(width, bottom - tapeY);
+        var tape = new Button(x + (width - tapeSize.width()) / 2, tapeY, tapeSize.width(), tapeSize.height(),
+                director.status(), button -> {}, supplier -> supplier.get()) {
             private final CassetteArtwork artwork = new CassetteArtwork();
             @Override protected void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
-                artwork.drawPlayer(graphics, this, director, false);
+                artwork.drawPlayer(graphics, this, director);
             }
         };
         add.accept(tape);

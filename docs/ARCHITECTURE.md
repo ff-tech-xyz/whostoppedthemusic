@@ -44,20 +44,28 @@ the same Basic/Custom channel path. Add music manages those files through a shar
 Custom's scenario resolver, loaded runtime defaults, playback integration and
 sparse settings v2, Custom main browser and shared biome/special song editor are
 implemented, including midpoint preview and same-source resume. The M screen cycles Vanilla/Basic/Custom; the
-compact pause cassette retains live title/artist metadata and Next. Shared
+title/pause cassette retains live title/artist metadata and Next. Shared
 playback-driven reel artwork and empty-player spindle rods are implemented.
 
-The compact cassette retains its player housing, centered width and y=6 placement.
-Its 34-pixel height reserves two font-height lines without touching Game Menu.
+Title and full pause menus share a bottom-left cassette and Next button.
+Their available left gutter excludes Minecraft's central 200-pixel button column;
+the footer stays clear. CassetteArtwork.size owns one 190×100 native tape size
+and 19:10 aspect ratio, scaling down to fit smaller slots without stretching.
+Settings players, open library tapes and held cassettes share that owner;
+closed Custom library cases deliberately retain their compact row shape.
+Title-screen keyboard events match the configured music binding (M by default),
+and Done/Escape retain the exact title or pause parent. Floating pixel notes
+render only while MusicDirector.advancing reports actual channel playback;
+pause, silence and pending startup emit none. Animation is render-time only.
 Its metadata always comes from the actual resolved music instance;
 the duplicate vanilla pause song line is suppressed without changing the toast
 option. SongToast replaces the in-game notification in all three modes. Clicking the tape opens MusicScreen. Both tape views
 put a bright title over a quieter artist between two reels. Unknown artists stay
-blank. Pause status sits separately to the left of its housing; settings status
-sits beneath the metadata. Full metadata/status is available in tooltips and
+blank. Status sits beneath the metadata when space permits. Tiny slots clip
+metadata to the label; full metadata/status remains available in tooltips and
 widget narration; browser tapes participate in keyboard focus/narration too.
 
-`CassetteArtwork.drawPlayer` owns compact/settings players; `drawTrack` owns
+`CassetteArtwork.drawPlayer` owns menu/settings players; `drawTrack` owns
 browser tapes, `drawCase` owns the compact Custom library cases, and `drawLoose`
 owns the held drag cassette. One geometry calculation positions the old 2×2 reel centers at
 every scale: red rods belong to the player, dark open holes belong to list
@@ -237,7 +245,7 @@ whostoppedthemusic/
     │   ├── java/xyz/pyrehaven/whostoppedthemusic/
     │   │   ├── WhoStoppedTheMusic.java
     │   │   │   # Client entrypoint. Wiring only: loads Settings, registers the M key, the
-    │   │   │   # pause-screen cassette (ScreenEvents.AFTER_INIT). Owns shared Settings/library,
+    │   │   │   # title/pause cassette and title key events (ScreenEvents.AFTER_INIT). Owns shared Settings/library,
     │   │   │   # applies first-launch Music Frequency at CLIENT_STARTED. No music logic.
     │   │   ├── Mode.java                    # VANILLA, BASIC and CUSTOM
     │   │   ├── JukeboxSetting.java          # enum PLAY_OVER, PAUSE_MUSIC
@@ -286,11 +294,11 @@ whostoppedthemusic/
     │   │   │       # Game-directory music/: case-insensitive .mp3/.ogg scan, file-name identity/title; excludes links/directories.
     │   │   │       # Owns exclusive-create numbered copies and folder-confined removal; rejects links. Never runs on a timer.
     │   │   ├── ui/
-    │   │   │   ├── Theme.java               # PyreHaven colours, deck-button frames, concise captions, search and text styles
+    │   │   │   ├── Theme.java               # PyreHaven colours, shared native tape dimensions, menu/note spacing and control styles
     │   │   │   ├── MusicControls.java       # shared settings/transport/right player; scenario targets and apply-all capture, Basic Stop/Shuffle
     │   │   │   ├── TransportButton.java     # drawn transport symbols, accessible actions and shared button states
     │   │   │   ├── MusicScreen.java         # three-mode routing; retains BasicPanel/CustomPanel query/scroll through rebuilds
-    │   │   │   ├── CassetteArtwork.java     # shared player/list/loose shell, compact cases, spindle geometry and playback-driven reel clock
+    │   │   │   ├── CassetteArtwork.java     # shared native size/aspect-fit player/list/loose shell, compact cases, geometry and reel clock
     │   │   │   ├── MusicVolumeSlider.java   # vertical view of vanilla's Music option; keyboard and drag
     │   │   │   ├── BasicPanel.java          # collapsible song browser and placement of the shared player
     │   │   │   ├── custom/                 # shared components; Theme owns PyreHaven surfaces
@@ -303,7 +311,7 @@ whostoppedthemusic/
     │   │   │   ├── AddSongsScreen.java      # shared Add music action, confirmed drops/removal, TrackList management, open folder
     │   │   │   ├── SongToast.java           # title-first two-line Now Playing toast (vanilla Toast interface)
     │   │   │   ├── OverflowText.java        # per-line hover clock and clipped fractional tape/toast rendering
-    │   │   │   ├── CassetteWidget.java      # top compact cassette, live title and settings link
+    │   │   │   ├── CassetteWidget.java      # bottom-left title/pause cassette, playback-only floating notes, settings link
     │   │   │   └── widget/
     │   │   │       ├── SettingButton.java  # short captions, full value/function tooltips, shared left-cycle/right-confirm control
     │   │   │       ├── SmoothList.java      # shared wheel target/frame interpolation for TrackList and ScenarioList
@@ -343,7 +351,7 @@ whostoppedthemusic/
     ├── test/resources/audio/        # shared generated CC0 sine-wave MP3/OGG fixtures and provenance README
     └── gametest/
         ├── java/xyz/pyrehaven/whostoppedthemusic/
-        │   ├── ClientSmokeGameTest.java # packaged UI/transport; controlsOnly/artworkOnly/ownSongsOnly/addSongsOnly focused selections
+        │   ├── ClientSmokeGameTest.java # packaged UI/transport; menuOnly/controlsOnly/artworkOnly/ownSongsOnly/addSongsOnly focused selections
         │   ├── DiscoveryGameTest.java   # discoveryOnly: loaded discovery/default odds, 67 biomes, creative Deck, aliases/cycle/bounds/reload
         │   ├── CustomPlaybackGameTest.java # customOnly: packaged scenario playback/settings/transport/weather/jukebox/silence/LRU/mode regression
         │   ├── CustomUiGameTest.java       # customUiOnly: main/editor, hover pixels, rod-free held tape and drop-slide pixels; previewOnly: native midpoint/duration/resume/cancel/local/mute/jukebox/history
@@ -624,6 +632,19 @@ scale-4 checks still pass. Normal and 320×240 captures were inspected; final hu
 visual acceptance remains open. The log is
 `runtime/whostoppedthemusic/evidence/hover-cassette-client.log`.
 
+The menu-cassette update passed on 2026-11-07 with
+`xvfb-run -a ./gradlew jar runClientGameTest -PmenuOnly --console=plain`.
+The packaged client checks title M/rebinding, exact-parent Done/Escape and tape
+navigation, menu non-overlap, aspect-fit idempotence and all three settings
+players at 960×720 scale 2, 320×240 scale 1 and 1280×960 scale 4. Screenshot
+pixels prove both menu tapes emit moving notes only while the native channel
+advances; paused/stopped states emit none, paused reels freeze and empty players
+retain their rods. Title, normal/narrow pause, Basic library/player and narrow
+Vanilla captures were inspected. At the smallest GUI the menu tape is deliberately
+reduced to the left gutter; hover/narration carries full metadata. Final human
+visual acceptance remains open. The log is
+`runtime/whostoppedthemusic/evidence/menu-player-client.log`.
+
 ## Hooks
 
 Implemented hooks are checked against 26.3 bytecode and the packaged client.
@@ -640,7 +661,7 @@ Implemented hooks are checked against 26.3 bytecode and the packaged client.
      - **Vanilla:** normal starts and sound resolution are unchanged.
      - **Basic/Custom:** ask `MusicDirector` for the next deck/history/row track (Custom delegates to its resolution-key deck). Build a `TrackSoundInstance` with the applicable synthetic pool id. If there's no track or playback is held, cancel before sound creation.
    - Both toast calls in `startPlaying` and `showNowPlayingToastIfNeeded()` delegate to the director. All three modes reuse one `SongToast` through the toast manager, following `options.musicToast()` and the notification duration multiplier. New sound identities replace its title and reset its duration; repeated callbacks for the same sound leave the timer alone. `NowPlayingToastMixin` suppresses the legacy duplicate, including option callbacks and slide-out. The replacement hides when its sound stops, is replaced or Music Toast disallows notifications.
-2. **`PauseScreenMixin`:** implemented: return false from `rendersNowPlayingToast()` for the full pause menu so the compact cassette owns the title. The cassette and Next are added through Fabric `ScreenEvents.AFTER_INIT`, not this mixin. `MusicChannelMixin` retains stop/pause intent on MusicManager-owned sources across asynchronous startup and global menu resume; accessors expose the existing channel without replacing the sound engine.
+2. **`PauseScreenMixin`:** implemented: return false from `rendersNowPlayingToast()` for the full pause menu so the bottom-left cassette owns the title. Title/pause cassette and Next are added through Fabric `ScreenEvents.AFTER_INIT`, not this mixin. `MusicChannelMixin` retains stop/pause intent on MusicManager-owned sources across asynchronous startup and global menu resume; accessors expose the existing channel without replacing the sound engine.
 3. **`ClientJukeboxMixin` / `ClientLevelAccessor`:** read `ClientLevel.levelEventHandler.playingJukeboxSongs`, which 26.3's `LevelEventHandler.playJukeboxSong` / `stopJukeboxSong` already own. The watcher verifies allocated live channels; no duplicate position map, timer or world lifecycle state exists.
 4. **`WeighedSoundEventsAccessor` / `SoundEventReferenceAccessor`:** read weighted files and event-reference entries recursively, preserving volume/pitch multipliers and stream flags. `SoundLibraryMixin` rebuilds after SoundManager applies the loaded registry; `MusicWorldMixin` rebuilds with the arriving world's registries (or empty registries on exit). `TimelineMusicAccessor` exposes loaded attribute tracks so every music keyframe is discoverable without time sampling. Titles are translated components, resolved against the current language rather than a reload-order snapshot.
 5. **`MusicWorldMixin` / `LevelSoundMixin`:** the exact `updateLevelInEngines(ClientLevel, boolean)` sound-stop call keeps the active Basic source only. World changes cancel preview and update the Custom catalog. The sound engine retires other sources using existing channel stop intent, clears queued/ticking old-world sounds, and lets its normal cleanup release handles. Vanilla and resource-reload/device-reset stop paths are unchanged.

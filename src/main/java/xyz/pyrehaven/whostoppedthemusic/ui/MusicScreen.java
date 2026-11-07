@@ -48,13 +48,14 @@ public final class MusicScreen extends Screen {
         int controlsX = x + tapeWidth + Theme.GAP * 2;
         int y = Math.max(Theme.VANILLA_TOP, (height - Theme.VOLUME_HEIGHT) / 2);
         var director = MusicDirector.get(minecraft);
-        int tapeHeight = Math.min(Theme.VANILLA_TAPE_MAX_HEIGHT, Math.max(Theme.VANILLA_TAPE_MIN_HEIGHT, tapeWidth * 3 / 5));
-        var tape = new Button(x, y + (Theme.VOLUME_HEIGHT - tapeHeight) / 2, tapeWidth, tapeHeight,
+        var tapeSize = CassetteArtwork.size(tapeWidth, Theme.VOLUME_HEIGHT);
+        var tape = new Button(x + (tapeWidth - tapeSize.width()) / 2,
+                y + (Theme.VOLUME_HEIGHT - tapeSize.height()) / 2, tapeSize.width(), tapeSize.height(),
                 director.status(), button -> { }, supplier -> supplier.get()) {
             private final CassetteArtwork artwork = new CassetteArtwork();
             @Override
             protected void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
-                artwork.drawPlayer(graphics, this, director, false);
+                artwork.drawPlayer(graphics, this, director);
             }
         };
         addRenderableWidget(tape);
