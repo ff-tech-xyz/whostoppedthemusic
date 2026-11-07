@@ -9,5 +9,8 @@
   "unnamed_timeline": {"sounds": [{"name": "minecraft:entity.villager.ambient", "type": "event"}]},
   "unnamed_disc": {"sounds": [{"name": "minecraft:block.note_block.harp", "type": "event"}]},
   "aaa_music_alias": {"sounds": [{"name": "discovery:unnamed_disc", "type": "event"}]},
-  "music_disc.old": {"sounds": [{"name": "minecraft:block.note_block.bell", "type": "event"}]}
+  "music_disc.old": {"sounds": [{"name": "minecraft:block.note_block.bell", "type": "event"}]},
+  "odds_reference": {"sounds": [{"name": "minecraft:music.game", "type": "event", "weight": 97}]},
+  "odds_nested": {"sounds": [{"name": "discovery:odds_reference", "type": "event", "weight": 13}, {"name": "minecraft:music/game/sweden", "weight": 3}]},
+  "odds_duplicate": {"sounds": [{"name": "discovery:odds_nested", "type": "event"}, {"name": "discovery:odds_reference", "type": "event"}, "minecraft:music/game/sweden"]}
 }

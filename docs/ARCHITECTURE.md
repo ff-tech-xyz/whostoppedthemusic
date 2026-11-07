@@ -32,7 +32,8 @@ Version 1.2.0 is a **complete rebuild**. The compact cassette artwork/placement 
 Custom scenarios are registry biomes or specials, not sound-pool tags. Our hooks
 sit inside steps 1, 4 and 5. We never add a second tick loop. The supplied
 `runtime/whostoppedthemusic/inputs/custom-1.2.0/CUSTOM_SPEC.md` defines the
-authorized Custom behavior; the sole remaining-work tracker is `plans/1.2.0.md`.
+authorized Custom behavior, subject to BUILD_CONTRACT.md's verified runtime-odds
+correction; the sole remaining-work tracker is `plans/1.2.0.md`.
 
 ## Structure
 
@@ -40,8 +41,8 @@ Current implemented slice (2026-11-07): Settings and first-launch Constant, Vani
 transport, Basic soundtrack/disc selection and playback, shared controls and one SongToast in both modes,
 and nearby jukebox fade/hold in both modes. Imported MP3/OGG files play through
 the same Basic path. Add music manages those files through a shared screen;
-Custom's pure scenario resolver is implemented; runtime defaults, playback and UI
-remain authorized work.
+Custom's pure scenario resolver and loaded runtime defaults are implemented;
+playback and UI remain authorized work.
 The M screen cycles Vanilla/Basic; the
 compact pause cassette retains live title/artist metadata and Next. Shared
 playback-driven reel artwork and empty-player spindle rods are implemented.
@@ -123,6 +124,56 @@ song lists enforce unique IDs and weights 1–100. `Deck.Entry` accepts positive
 raw sums, so two weight-100 entries merge to 200 and still draw at their exact
 relative odds. Load-time clamping belongs to settings v2, not tie resolution.
 
+### Loaded Custom defaults and selection odds
+
+`CustomDefaults(library).biome(id, biome, dimension)` applies the loaded dimension
+attributes and then the biome's own modifiers. Callers supply the applicable
+dimension explicitly (including modded dimensions); the catalog/playback integration
+owns that selection. Zero music volume, an absent default slot or an empty loaded
+pool produces an empty song list. `Default(config, Optional<Music>)` retains the
+source Music's delays and replace-current metadata even when the list is silent.
+Special defaults use MENU/CREDITS/END_BOSS/UNDER_WATER/CREATIVE; underground and
+weather are empty and inactive. Weather requires outside, underground uses Y64,
+frequency starts Constant and jukebox starts Pause music. The four named vanilla
+cave biomes start at priority 5; other biomes start at 2.
+
+`TrackLibrary.poolEntries(pool)` reads its current loaded SoundManager each call,
+without a separate defaults cache. A runtime event wrapper's weight is the total
+of its referenced pool, not the JSON reference's declared weight. For referenced
+total R, outer total T and leaf weight w, the draw probability is
+`(R / T) * (w / R) = w / T`. The same cancellation applies at each nested alias.
+Accumulate each reachable leaf's file weight once per branch and add duplicate
+file IDs, including aliases reached along multiple branches. A path-local visiting
+set skips cyclic edges while retaining valid siblings; vanilla's recursive weight
+calculation itself has no meaningful finite odds for a cycle. Basic's `flatten`
+and its sound modifiers remain unchanged.
+
+Keep raw accumulated weights when they fit 1–100. When they exceed 100, reduce by
+their common divisor first; if still too large, scale the maximum to 100, round
+and floor at 1. Only that last case approximates odds. The scenario bound never
+caps weights merged later by ContextResolver/Deck.
+
+Evidence: cached 26.3 `SoundManager$Preparations$1.getWeight()` bytecode returns
+the referenced `WeighedSoundEvents.getWeight()`. The asset index `26.3-34` maps
+`minecraft/sounds.json` to `7975165ad4a3c0cb3c05078b914eac0f2c3b5f5f`.
+Its game pool has 32 files totaling 37 weight; creative adds six unit-weight
+files, for 38 files totaling 43. The supplied section 6 declared-reference/LCM
+formula and six-weight-32 example were disproven and superseded, not implemented
+as an alternative utility.
+
+On 2026-11-07, the packaged `discoveryOnly` harness compared all 67 loaded vanilla
+biomes' defaults and source metadata with their loaded pools before and after a
+real resource reload, including pale-garden zero-volume and warped-forest empty
+silence. An independent recursive draw-probability calculation uses runtime
+`Weighted.getWeight()` at each branch; it checks creative and nested/duplicate
+aliases whose declared reference weights deliberately differ (97/13). A full
+43-card creative Deck cycle matches every file count. Additional checks cover a
+cyclic branch, missing/empty pools, exact common-divisor reduction, approximate
+600:7 scaling and live pool mutation followed by resource-reload restoration.
+Existing Basic discovery/modifier/lifecycle checks still pass. Eleven focused
+resolver/Deck JUnit cases pass. Command, artifact hash and log are in the plan's
+function 12 evidence; Custom playback/settings/UI are still downstream work.
+
 ```text
 whostoppedthemusic/
 ├── .github/workflows/build.yml      # CI: build, unit tests, client game test (copied from RealSize, adapted)
@@ -162,7 +213,7 @@ whostoppedthemusic/
     │   │   │   │   # follows event references with cycle protection; rebuilt after SoundManager.apply
     │   │   │   │   # and world registry changes. Matches music/theme in event paths and loaded
     │   │   │   │   # biome/dimension/timeline music plus jukebox definitions; discs win file dedupe.
-    │   │   │   │   # Owns asynchronous folder scans/probes and client-thread publication; Custom poolEntries remains planned.
+    │   │   │   │   # Owns asynchronous folder scans/probes and client-thread publication; poolEntries expands loaded runtime odds for Custom.
     │   │   │   ├── Deck.java
     │   │   │   │   # Pure logic, no Minecraft classes: weighted shuffle "deck" with history
     │   │   │   │   # for previous/next. Positive weights include raw tied sums; scenario edit bounds live in ScenarioConfig.
@@ -184,7 +235,8 @@ whostoppedthemusic/
     │   │   │       ├── ContextResolver.java # stateless priority/tie/settings resolution with explicit previous winners
     │   │   │       ├── Resolution.java      # sorted winners/key, raw merged entries, interrupt/settings and silence
     │   │   │       ├── SituationReader.java # planned; reader alone touches live game state
-    │   │   │       ├── CustomDefaults.java, BiomeCatalog.java # planned exact odds and registry discovery
+    │   │   │       ├── CustomDefaults.java  # loaded dimension/biome/special defaults, source Music metadata and silence
+    │   │   │       ├── BiomeCatalog.java    # planned registry discovery
     │   │   │       └── Preview.java         # planned existing-channel pause, midpoint excerpt, fade/resume
     │   │   ├── custom/
     │   │   │   └── MusicFolder.java
@@ -245,7 +297,7 @@ whostoppedthemusic/
     └── gametest/
         ├── java/xyz/pyrehaven/whostoppedthemusic/
         │   ├── ClientSmokeGameTest.java # packaged UI/transport; controlsOnly/artworkOnly/ownSongsOnly/addSongsOnly focused selections
-        │   ├── DiscoveryGameTest.java   # discoveryOnly: real loaded events, definition registries, dedupe, reload/world lifecycle
+        │   ├── DiscoveryGameTest.java   # discoveryOnly: loaded discovery/default odds, 67 biomes, creative Deck, aliases/cycle/bounds/reload
         │   └── test/mixin/TransportStreamGate.java # holds decoded vanilla streams before source attachment
         └── resources/
             ├── fabric.mod.json         # development-only client test entrypoint
@@ -296,7 +348,7 @@ external file-manager window remain human integration checks.
 | Piece | Job | Talks to |
 | --- | --- | --- |
 | `Settings` | Holds and saves every mod setting | Everything reads it; only UI actions change it |
-| `TrackLibrary` | Knows tracks and loaded pools; planned exact-odds expansion supplies Custom defaults | `SoundManager`, `MusicFolder`, `TrackNames` |
+| `TrackLibrary` | Knows tracks and loaded pools; runtime weighted expansion supplies Custom defaults | `SoundManager`, `MusicFolder`, `TrackNames` |
 | `Deck` | Picks the next song from a weighted list; remembers history | Used only by `MusicDirector` |
 | `MusicDirector` | Decides what plays for the mode/resolution; runs transport and exposes actual source/file/advancement | `Settings`, `TrackLibrary`, `Deck`, `JukeboxWatcher` |
 | `MusicManagerMixin` | Hands vanilla's choice to `MusicDirector` at the right moments | `MusicDirector`, `SongToast` |
@@ -352,7 +404,7 @@ jukebox entries belong to the old level and cannot leak into the next one.
 Authorized target, not implemented yet:
 - Main left: searchable specials, then registry biomes grouped by vanilla dimension tags or namespace. Specials except menu/credits have active toggles. Rows show priority/song count, playing and edited distinctions. Right: the shared player/transport/cassette/volume and Add music action; frequency/jukebox labels name all current winners.
 - `SituationReader` captures camera-biome/sky/heightmap/precipitation and player underwater/creative state once per existing tick. Pure `ContextResolver` checks credits before menu, then highest-priority biome/active specials. Ties use sorted IDs, sum duplicate-song weights, strongest frequency, Pause music if any winner requests it, and interrupt if any newly winning scenario requests it. An empty active winner is silence, never fallback.
-- Defaults use loaded pools and exact nested probabilities; creative expands to 6 weights of 32 plus 32 weights of 1. Preserve Basic's existing flattening. Pale garden/empty pools stay silent. Weather and underground start disabled; per-scenario frequency starts Constant and jukebox starts Pause music.
+- Implemented defaults use loaded runtime weights: creative adds six weight-1 files to game's 32 files weighted 1/2 (total 43). Nested aliases retain leaf weights and duplicate files add; only oversized reduced weights require approximation. Basic's flattening is unchanged. Pale garden/empty pools stay silent. Weather and underground start disabled; frequency starts Constant and jukebox starts Pause music.
 - Custom uses MusicManager → director → existing Deck/TrackSoundInstance, synthetic pool identifiers per resolution, and 32-entry LRU deck history. Vanilla's pool-change/fade/delay logic stays authoritative. Scenario frequency does not overwrite vanilla's global option; edited lists bypass vanilla's zero-volume trap.
 - One biome/special editor shares existing search, cassette scrolling, transport/tooltips and Theme. Library drag adds unique songs; focused tape edits weight 1–100 and chance, previews or removes. Reset restores songs only; copy replaces songs/weights only. Right-click frequency/jukebox confirms apply-to-all, including known unloaded and future biomes; Esc/outside/no does nothing.
 - Preview pauses the existing background channel, uses about three seconds from the song midpoint, then fades and resumes the same source. Repeated preview, removal or leaving closes it immediately, without deck-history mutation. Imported songs share this path; missing IDs remain stored and are skipped at playback.

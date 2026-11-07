@@ -28,6 +28,7 @@ import xyz.pyrehaven.whostoppedthemusic.mixin.WeighedSoundEventsAccessor;
 public final class TrackLibrary {
     private List<Track> tracks = List.of();
     private int scanRevision;
+    private SoundManager sounds;
 
     public List<Track> tracks() { return tracks; }
 
@@ -68,6 +69,7 @@ public final class TrackLibrary {
     }
 
     public void rebuild(SoundManager sounds, RegistryAccess registries) {
+        this.sounds = sounds;
         var events = new TreeSet<Identifier>();
         var discs = new TreeMap<Identifier, Component>();
         for (var event : sounds.getAvailableSounds()) {
@@ -124,6 +126,39 @@ public final class TrackLibrary {
             // BACKGROUND_MUSIC's supported modifier is override; inspect its typed value, not a sampled time.
             if (frame.value() instanceof BackgroundMusic background) addMusic(events, background);
         }
+    }
+
+    /** Event wrappers weigh their referenced total, so each alias contributes its leaf weights once. */
+    public List<Deck.Entry> poolEntries(Identifier event) {
+        var weights = new TreeMap<String, Long>();
+        if (sounds != null) poolWeights(event, new HashSet<>(), weights);
+        long max = weights.values().stream().mapToLong(Long::longValue).max().orElse(0);
+        long divisor = 1;
+        if (max > 100) {
+            divisor = 0;
+            for (long weight : weights.values()) {
+                long a = divisor, b = weight;
+                while (b != 0) { long remainder = a % b; a = b; b = remainder; }
+                divisor = a;
+            }
+        }
+        final long common = divisor;
+        final double scale = Math.max(1.0, (double) max / common / 100);
+        return weights.entrySet().stream().map(entry -> new Deck.Entry(entry.getKey(),
+                (int) Math.max(1, Math.round(entry.getValue() / (double) common / scale)))).toList();
+    }
+
+    private void poolWeights(Identifier event, Set<Identifier> visiting, Map<String, Long> weights) {
+        var pool = sounds.getSoundEvent(event);
+        if (pool == null || !visiting.add(event)) return;
+        for (var entry : ((WeighedSoundEventsAccessor) pool).whostoppedthemusic$entries()) {
+            if (entry instanceof Sound file && file.getWeight() > 0) {
+                weights.merge(file.getLocation().toString(), (long) file.getWeight(), Math::addExact);
+            } else if (entry instanceof SoundEventReferenceAccessor reference) {
+                poolWeights(reference.whostoppedthemusic$reference().getLocation(), visiting, weights);
+            }
+        }
+        visiting.remove(event);
     }
 
     private List<Sound> flatten(SoundManager sounds, Identifier event, Set<Identifier> visiting) {

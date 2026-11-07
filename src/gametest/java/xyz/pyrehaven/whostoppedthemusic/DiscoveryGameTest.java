@@ -40,6 +40,8 @@ final class DiscoveryGameTest {
             context.runOnClient(client -> {
                 check(WhoStoppedTheMusic.LIBRARY.tracks() != beforeJoin, "world entry rebuilds the library");
                 checkDefinitions(client);
+                checkDefaults(client);
+                checkPoolChanges(client);
                 installDefinitions(client);
             });
             var reload = context.computeOnClient(Minecraft::reloadResourcePacks);
@@ -47,6 +49,7 @@ final class DiscoveryGameTest {
             reload.join();
             context.runOnClient(client -> {
                 var sounds = client.getSoundManager();
+                checkDefaults(client);
                 checkNames(sounds, WhoStoppedTheMusic.LIBRARY);
                 check(!has(WhoStoppedTheMusic.LIBRARY, sounds, "entity.sheep.ambient"),
                         "resource reload uses current world registries, dropping stale test definitions");
@@ -59,6 +62,126 @@ final class DiscoveryGameTest {
                     "world exit removes old registry-only music");
         });
         LoggerFactory.getLogger("whostoppedthemusic-test").info("MUSIC DISCOVERY PASS: path matching, namespace rejection, biome variants, dimension, timeline, jukebox, dedupe, nested modifiers, resource reload and world entry/exit");
+    }
+
+    private static void checkDefaults(Minecraft client) {
+        var library = WhoStoppedTheMusic.LIBRARY;
+        var sounds = client.getSoundManager();
+        var defaults = new xyz.pyrehaven.whostoppedthemusic.music.custom.CustomDefaults(library);
+        var game = library.poolEntries(Identifier.parse("minecraft:music.game"));
+        var creative = defaults.special(xyz.pyrehaven.whostoppedthemusic.music.custom.Special.CREATIVE).config().songs();
+        check(game.size() == 32 && game.stream().mapToInt(e -> e.weight()).sum() == 37, "loaded 26.3 game is 32 files / 37 weight");
+        check(creative.size() == 38 && creative.stream().mapToInt(e -> e.weight()).sum() == 43, "creative adds six unit files, not six weight-32 files");
+        check(creative.containsAll(game), "creative preserves game file weights 1/2");
+        check(library.poolEntries(Identifier.parse("discovery:odds_reference")).equals(game), "loaded alias ignores declared weight 97, including after reload");
+        checkOdds(sounds, Identifier.parse("minecraft:music.creative"), creative);
+        var deck = new xyz.pyrehaven.whostoppedthemusic.music.Deck(new java.util.Random(12));
+        deck.configure(creative, true);
+        var drawn = new java.util.TreeMap<String, Integer>();
+        for (int i = 0; i < 43; i++) drawn.merge(deck.next(), 1, Integer::sum);
+        for (var entry : creative) check(drawn.get(entry.id()) == entry.weight(), "Deck keeps creative odds: " + entry.id());
+
+        var registries = client.level.registryAccess();
+        var dimensions = registries.lookupOrThrow(Registries.DIMENSION_TYPE);
+        int checked = 0;
+        for (var biome : registries.lookupOrThrow(Registries.BIOME).listElements().toList()) {
+            var id = biome.key().identifier();
+            if (!id.getNamespace().equals("minecraft")) continue;
+            var dimensionKey = biome.is(net.minecraft.tags.BiomeTags.IS_NETHER)
+                    ? net.minecraft.world.level.dimension.BuiltinDimensionTypes.NETHER
+                    : biome.is(net.minecraft.tags.BiomeTags.IS_END)
+                    ? net.minecraft.world.level.dimension.BuiltinDimensionTypes.END
+                    : net.minecraft.world.level.dimension.BuiltinDimensionTypes.OVERWORLD;
+            var dimension = dimensions.getOrThrow(dimensionKey).value();
+            var result = defaults.biome(id, biome.value(), dimension);
+            var attribute = EnvironmentAttributes.BACKGROUND_MUSIC;
+            var expected = biome.value().getAttributes().applyModifier(attribute,
+                    dimension.attributes().applyModifier(attribute, attribute.defaultValue())).defaultMusic();
+            check(result.music().equals(expected), "biome retains source delay/replace metadata: " + id);
+            check(result.config().interrupt() == expected.map(net.minecraft.sounds.Music::replaceCurrentMusic).orElse(false), "biome interrupt: " + id);
+            if (id.getPath().equals("pale_garden") || id.getPath().equals("warped_forest")) {
+                check(result.config().songs().isEmpty(), "vanilla silence: " + id);
+            } else if (expected.isPresent()) {
+                checkOdds(sounds, expected.get().sound().value().location(), result.config().songs());
+            } else check(result.config().songs().isEmpty(), "absent music is silence: " + id);
+            check(result.config().frequency() == xyz.pyrehaven.whostoppedthemusic.music.custom.ScenarioConfig.Frequency.CONSTANT
+                    && result.config().jukebox() == JukeboxSetting.PAUSE_MUSIC, "scenario setting defaults: " + id);
+            checked++;
+        }
+        check(checked > 60, "all loaded vanilla biomes checked");
+        for (var special : xyz.pyrehaven.whostoppedthemusic.music.custom.Special.values()) {
+            var result = defaults.special(special);
+            if (result.music().isPresent()) checkOdds(sounds, result.music().get().sound().value().location(), result.config().songs());
+            else check(!result.config().active() && result.config().songs().isEmpty(), "empty optional specials start off");
+        }
+        for (String event : List.of("odds_nested", "odds_duplicate", "odds_reference")) {
+            var id = Identifier.parse("discovery:" + event);
+            checkOdds(sounds, id, library.poolEntries(id));
+        }
+        LoggerFactory.getLogger("whostoppedthemusic-test").info("CUSTOM DEFAULTS PASS: {} loaded vanilla biomes, pale garden/warped silence, special metadata, creative 38 files/43 Deck draws, nested/duplicate aliases", checked);
+    }
+
+    private static void checkOdds(SoundManager sounds, Identifier event, List<xyz.pyrehaven.whostoppedthemusic.music.Deck.Entry> entries) {
+        var expected = new java.util.TreeMap<String, Double>();
+        runtimeOdds(sounds, event, 1, expected);
+        int total = entries.stream().mapToInt(e -> e.weight()).sum();
+        check(entries.size() == expected.size(), "same file set: " + event);
+        for (var entry : entries) check(Math.abs(entry.weight() / (double) total - expected.getOrDefault(entry.id(), -1.0)) < 1e-10,
+                "runtime probability: " + event + " / " + entry.id());
+    }
+
+    private static void runtimeOdds(SoundManager sounds, Identifier event, double chance, java.util.Map<String, Double> result) {
+        var pool = sounds.getSoundEvent(event);
+        for (var entry : ((xyz.pyrehaven.whostoppedthemusic.mixin.WeighedSoundEventsAccessor) pool).whostoppedthemusic$entries()) {
+            double probability = chance * entry.getWeight() / pool.getWeight();
+            if (entry instanceof net.minecraft.client.resources.sounds.Sound file) result.merge(file.getLocation().toString(), probability, Double::sum);
+            else if (entry instanceof xyz.pyrehaven.whostoppedthemusic.mixin.SoundEventReferenceAccessor reference)
+                runtimeOdds(sounds, reference.whostoppedthemusic$reference().getLocation(), probability, result);
+        }
+    }
+
+    private record Cycle(net.minecraft.client.resources.sounds.Sound whostoppedthemusic$reference)
+            implements xyz.pyrehaven.whostoppedthemusic.mixin.SoundEventReferenceAccessor,
+            net.minecraft.client.sounds.Weighted<net.minecraft.client.resources.sounds.Sound> {
+        public int getWeight() { throw new AssertionError("cycle must not recurse through runtime getWeight"); }
+        public net.minecraft.client.resources.sounds.Sound getSound(RandomSource random) { throw new AssertionError(); }
+        public void preloadIfRequired(net.minecraft.client.sounds.SoundEngine engine) { throw new AssertionError(); }
+    }
+
+    private static void checkPoolChanges(Minecraft client) {
+        var library = WhoStoppedTheMusic.LIBRARY;
+        var id = Identifier.parse("discovery:odds_reference");
+        var pool = client.getSoundManager().getSoundEvent(id);
+        var entries = ((xyz.pyrehaven.whostoppedthemusic.mixin.WeighedSoundEventsAccessor) pool).whostoppedthemusic$entries();
+        var before = List.copyOf(entries);
+        var base = library.poolEntries(id);
+        var file = pool.getSound(RandomSource.create(0));
+        try {
+            var cycle = new net.minecraft.client.resources.sounds.Sound(id, file.getVolume(), file.getPitch(), 1,
+                    net.minecraft.client.resources.sounds.Sound.Type.SOUND_EVENT, false, false, 16);
+            pool.addSound(new Cycle(cycle));
+            check(library.poolEntries(id).equals(base), "cyclic branch stops without losing valid siblings");
+            entries.clear();
+            pool.addSound(new net.minecraft.client.resources.sounds.Sound(file.getLocation(), file.getVolume(), file.getPitch(), 600,
+                    net.minecraft.client.resources.sounds.Sound.Type.FILE, false, false, 16));
+            check(library.poolEntries(id).getFirst().weight() == 1, "exact gcd reduction when max exceeds 100");
+            var other = Identifier.parse(file.getLocation().toString().equals("minecraft:music/game/sweden")
+                    ? "minecraft:music/game/clark" : "minecraft:music/game/sweden");
+            pool.addSound(new net.minecraft.client.resources.sounds.Sound(other, file.getVolume(), file.getPitch(), 7,
+                    net.minecraft.client.resources.sounds.Sound.Type.FILE, false, false, 16));
+            var scaled = library.poolEntries(id);
+            check(scaled.size() == 2 && scaled.stream().mapToInt(e -> e.weight()).max().orElseThrow() == 100
+                    && scaled.stream().mapToInt(e -> e.weight()).min().orElseThrow() == 1, "oversized coprime pool scales/rounds within scenario bound");
+            entries.clear();
+            check(library.poolEntries(id).isEmpty(), "loaded pack replacement with empty pool is immediate");
+            check(library.poolEntries(Identifier.parse("discovery:missing")).isEmpty(), "missing pool is silent");
+        } finally {
+            entries.clear();
+            entries.addAll(before);
+        }
+        check(library.poolEntries(id).equals(base), "restored pool has no stale default cache");
+        pool.addSound(file);
+        check(!library.poolEntries(id).equals(base), "live loaded pool change updates defaults immediately; next resource reload must restore it");
     }
 
     private static void checkNames(SoundManager sounds, TrackLibrary library) {
