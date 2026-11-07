@@ -87,7 +87,7 @@ public final class ScenarioList extends SmoothList<ScenarioList.Row> {
     @Override protected int wheelRowHeight() { return Theme.SCENARIO_ROW; }
     @Override public int getRowWidth() { return getWidth() - Theme.TRACK_SCROLLBAR_SPACE; }
     @Override protected void extractListBackground(GuiGraphicsExtractor graphics) {
-        graphics.fill(getX(), getY(), getRight(), getBottom(), Theme.SCENARIO_PANEL);
+        graphics.fill(getX(), getY(), getRight(), getBottom(), Theme.CARD);
     }
     @Override protected void extractListSeparators(GuiGraphicsExtractor graphics) {}
 
@@ -121,13 +121,13 @@ public final class ScenarioList extends SmoothList<ScenarioList.Row> {
                     if (playing) summary.append(text("scenario.playing"));
                     setMessage(heading.copy().append(". ").append(summary));
                     setTooltip(Tooltip.create(getMessage()));
-                    graphics.fill(getX(), getY(), getRight(), getBottom(), Theme.SCENARIO_BOX);
-                    if (playing || isHoveredOrFocused()) graphics.outline(getX(), getY(), getWidth(), getHeight(), Theme.SCENARIO_TEXT);
+                    graphics.fill(getX(), getY(), getRight(), getBottom(), Theme.BLUE);
+                    if (playing || isHoveredOrFocused()) graphics.outline(getX(), getY(), getWidth(), getHeight(), Theme.ORANGE);
                     int right = getRight() - Theme.GAP - (toggle == null ? 0 : Theme.TOGGLE_WIDTH + Theme.GAP);
                     name.draw(graphics, minecraft.font, heading.withStyle(style -> style.withBold(playing)),
-                            getX() + Theme.GAP, right, getY() + Theme.BORDER, Theme.SCENARIO_TEXT, false, false);
+                            getX() + Theme.GAP, right, getY() + Theme.BORDER, Theme.TEXT, false, false);
                     detail.draw(graphics, minecraft.font, summary, getX() + Theme.GAP, right,
-                            getBottom() - minecraft.font.lineHeight - Theme.BORDER, Theme.SCENARIO_TEXT, false, false);
+                            getBottom() - minecraft.font.lineHeight - Theme.BORDER, Theme.TEXT, false, false);
                 }
             };
         }
@@ -135,7 +135,7 @@ public final class ScenarioList extends SmoothList<ScenarioList.Row> {
         @Override public void extractContent(GuiGraphicsExtractor graphics, int mouseX, int mouseY, boolean hovered, float delta) {
             if (id == null) {
                 groupLabel.draw(graphics, minecraft.font, title, getContentX(), getContentRight(),
-                        getContentY() + Theme.BORDER, Theme.SCENARIO_TEXT, false, false);
+                        getContentY() + Theme.BORDER, Theme.TEXT, false, false);
                 return;
             }
             edit.setRectangle(getContentWidth(), getContentHeight() - Theme.GAP, getContentX(), getContentY());

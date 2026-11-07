@@ -49,9 +49,9 @@ public final class WeightSlider extends AbstractWidget {
         setTooltip(net.minecraft.client.gui.components.Tooltip.create(getMessage()));
         int center = getY() + getHeight() / 2;
         int knob = getX() + Theme.GAP + (weight.getAsInt() - 1) * (getWidth() - Theme.GAP * 2) / 99;
-        graphics.fill(getX() + Theme.GAP, center - Theme.BORDER, getRight() - Theme.GAP, center + Theme.BORDER, Theme.SCENARIO_BOX);
+        graphics.fill(getX() + Theme.GAP, center - Theme.BORDER, getRight() - Theme.GAP, center + Theme.BORDER, Theme.BLUE);
         graphics.fill(knob - Theme.ACCENT, getY() + Theme.BORDER, knob + Theme.ACCENT, getBottom() - Theme.BORDER,
-                active ? isHoveredOrFocused() ? Theme.ORANGE : Theme.SCENARIO_TEXT : Theme.SCENARIO_BOX);
+                active ? isHoveredOrFocused() ? Theme.TEXT : Theme.ORANGE : Theme.BLUE);
     }
 
     @Override protected void updateWidgetNarration(NarrationElementOutput output) { defaultButtonNarrationText(output); }

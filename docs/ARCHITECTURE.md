@@ -73,8 +73,8 @@ observed advancing identity is checked against the current live source, so
 pending streams and stopped/replaced channels do not drive animation. Explicit
 Pause freezes immediately; mute leaves advancing channels turning. The artwork
 owns one shared visual clock, not one playback timer/map per widget.
-Custom/import screens reuse these exact shared UI owners; Theme also owns the
-gray scenario surfaces, rather than a separate styling framework.
+Custom/import screens reuse these exact shared UI owners and Theme's PyreHaven
+palette, rather than a separate styling framework.
 
 `MusicDirector` belongs to each vanilla MusicManager. It observes resolved sounds
 with allocated channels, including automatic starts from vanilla's own tick. Play
@@ -292,7 +292,7 @@ whostoppedthemusic/
     │   │   │   ├── CassetteArtwork.java     # shared player/list shell, spindle geometry and playback-driven reel clock
     │   │   │   ├── MusicVolumeSlider.java   # vertical view of vanilla's Music option; keyboard and drag
     │   │   │   ├── BasicPanel.java          # collapsible song browser and placement of the shared player
-    │   │   │   ├── custom/                 # shared components; Theme owns gray surfaces
+    │   │   │   ├── custom/                 # shared components; Theme owns PyreHaven surfaces
     │   │   │   │   ├── ScenarioLabels.java # translated names shared by browser/player/editor
     │   │   │   │   ├── ScenarioList.java   # grouped/filterable loaded scenarios; explicit no-toggle copy-picker mode
     │   │   │   │   ├── CustomPanel.java    # scenario search/list, active toggles and shared right player
@@ -495,8 +495,9 @@ CustomPanel retains its shared Theme search and ScenarioList across rebuilds.
 ScenarioList shares SmoothList's wheel target/frame interpolation with TrackList,
 retains vanilla's container/focus machinery, and lists specials in
 enum order, then loaded biome groups in Overworld/Nether/End/namespace order.
-Absent biomes remain in Settings but are hidden. Theme owns the gray panel/row
-colors and pill geometry; OverflowText also supports shadow-free black text.
+Absent biomes remain in Settings but are hidden. Theme owns the navy panels,
+dark-blue rows, light labels, orange accents and pill geometry. OverflowText
+retains shadow-free labels; toggles use orange on tracks and dark off tracks.
 Each live row derives count/priority, edited state and winner outline from the
 existing settings/playback owners. A separate Toggle consumes its click without
 opening the row. Row clicks open the same ScenarioScreen for every biome/special.
@@ -522,8 +523,8 @@ the retained widgets without resetting the library query/scroll.
 
 The same Toggle handles standalone active/interrupt/outside cells, and the same
 MusicControls/SettingButton handles concise editor frequency/jukebox plus the
-existing apply-all popup. Theme's gray button variant uses the shared OverflowText
-without text shadows; it is not a second widget framework. Biomes omit Active;
+existing apply-all popup. Concise labels use the shared OverflowText without text
+shadows and the same button frame; there is no gray styling path. Biomes omit Active;
 weather adds Must be outside; underground exposes an integer Y field with invalid
 text highlighted and unpersisted. Boss/aquatic/creative leave its cell empty;
 menu/credits omit active/priority/interrupt. Priority clamps to 1–10.

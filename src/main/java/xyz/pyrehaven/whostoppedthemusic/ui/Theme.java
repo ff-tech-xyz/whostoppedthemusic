@@ -11,10 +11,7 @@ public final class Theme {
     public static final int BACKGROUND = 0xFF070B10;
     public static final int CARD = 0xFF0E141C;
     public static final int TEXT = 0xFFF2F4F7;
-    public static final int SCENARIO_PANEL = 0xFFC8D1D9;
-    public static final int SCENARIO_BOX = 0xFF737373;
-    public static final int SCENARIO_FILL = 0xFFB4B4B4;
-    public static final int SCENARIO_TEXT = 0xFF000000;
+
     public static final int SCENARIO_ROW = 34;
     public static final int LIBRARY_ROW = 24;
 
@@ -100,12 +97,12 @@ public final class Theme {
         return button(x, y, width, label, action, true);
     }
 
-    private static Button button(int x, int y, int width, Component label, Button.OnPress action, boolean gray) {
+    private static Button button(int x, int y, int width, Component label, Button.OnPress action, boolean overflow) {
         return new Button(x, y, width, CONTROL_HEIGHT, label, action, supplier -> supplier.get()) {
             private final OverflowText line = new OverflowText();
             @Override
             protected void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
-                if (gray) scenarioContents(graphics, this, getMessage(), line, getX() + GAP, getRight() - GAP);
+                if (overflow) scenarioContents(graphics, this, getMessage(), line, getX() + GAP, getRight() - GAP);
                 else settingContents(graphics, this);
             }
         };
@@ -119,11 +116,11 @@ public final class Theme {
     }
 
     public static void scenarioContents(GuiGraphicsExtractor graphics, Button button, Component label, OverflowText line, int left, int right) {
-        buttonFrame(graphics, button, true);
+        buttonFrame(graphics, button);
         var font = net.minecraft.client.Minecraft.getInstance().font;
         int inset = Math.max(0, (right - left - font.width(label)) / 2);
         line.draw(graphics, font, label, left + inset, right,
-                button.getY() + (button.getHeight() - font.lineHeight) / 2, SCENARIO_TEXT, false, false);
+                button.getY() + (button.getHeight() - font.lineHeight) / 2, button.active ? TEXT : ARTIST, false, false);
     }
 
     public static net.minecraft.client.gui.components.EditBox search(net.minecraft.client.gui.Font font) {
@@ -142,22 +139,18 @@ public final class Theme {
         for (int row = 0; row < TOGGLE_HEIGHT; row++) {
             int inset = row == 0 || row == TOGGLE_HEIGHT - 1 ? radius / 2 : row == 1 || row == TOGGLE_HEIGHT - 2 ? BORDER : 0;
             graphics.fill(x + inset, y + row, x + TOGGLE_WIDTH - inset, y + row + BORDER,
-                    on ? SCENARIO_TEXT : SCENARIO_FILL);
+                    on ? ORANGE : BACKGROUND);
         }
         int knobX = x + (on ? TOGGLE_WIDTH - TOGGLE_HEIGHT : 0) + BORDER;
         graphics.fill(knobX, y + BORDER, knobX + TOGGLE_HEIGHT - BORDER * 2, y + TOGGLE_HEIGHT - BORDER,
-                on ? SCENARIO_FILL : SCENARIO_BOX);
+                TEXT);
         if (focused) graphics.outline(x, y, TOGGLE_WIDTH, TOGGLE_HEIGHT, TEXT);
     }
 
     public static void buttonFrame(GuiGraphicsExtractor graphics, Button button) {
-        buttonFrame(graphics, button, false);
-    }
-
-    public static void buttonFrame(GuiGraphicsExtractor graphics, Button button, boolean gray) {
-        graphics.fill(button.getX(), button.getY(), button.getRight(), button.getBottom(), gray ? SCENARIO_BOX : CARD);
+        graphics.fill(button.getX(), button.getY(), button.getRight(), button.getBottom(), CARD);
         graphics.outline(button.getX(), button.getY(), button.getWidth(), button.getHeight(),
-                button.active && button.isHoveredOrFocused() ? gray ? SCENARIO_TEXT : GLOW : gray ? SCENARIO_BOX : BLUE);
+                button.active && button.isHoveredOrFocused() ? GLOW : BLUE);
         graphics.fill(button.getX(), button.getY(), button.getX() + ACCENT, button.getBottom(),
                 button.active ? ORANGE : BLUE);
     }

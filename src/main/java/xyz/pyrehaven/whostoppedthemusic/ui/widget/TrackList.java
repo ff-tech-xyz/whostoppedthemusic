@@ -164,13 +164,13 @@ public final class TrackList extends SmoothList<TrackList.Row> {
                 private final xyz.pyrehaven.whostoppedthemusic.ui.OverflowText label = new xyz.pyrehaven.whostoppedthemusic.ui.OverflowText();
                 @Override protected void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
                     if (drag != null) {
-                        graphics.fill(getX(), getY(), getRight(), getBottom(), Theme.SCENARIO_BOX);
+                        graphics.fill(getX(), getY(), getRight(), getBottom(), Theme.BLUE);
                         var text = title.copy();
                         if (contains.test(songId)) text.append(Component.translatable("whostoppedthemusic.in_list"));
                         setMessage(text);
                         setTooltip(net.minecraft.client.gui.components.Tooltip.create(text));
                         label.draw(graphics, minecraft.font, text, getX() + Theme.GAP, getRight() - Theme.GAP,
-                                getY() + Theme.GAP, Theme.SCENARIO_TEXT, false, false);
+                                getY() + Theme.GAP, Theme.TEXT, false, false);
                     } else if (track == null) artwork.drawMissing(graphics, this, title);
                     else artwork.drawTrack(graphics, this, track, MusicDirector.get(minecraft));
                     if (songs != null && songId.equals(focusedId)) graphics.outline(getX(), getY(), getWidth(), getHeight(), Theme.ORANGE);
@@ -188,7 +188,7 @@ public final class TrackList extends SmoothList<TrackList.Row> {
         public void extractContent(GuiGraphicsExtractor graphics, int mouseX, int mouseY, boolean hovered, float delta) {
             if (songId == null) {
                 graphics.text(minecraft.font, title, getContentX(), getContentY() + Theme.GAP / 2,
-                        drag != null ? Theme.SCENARIO_TEXT : Theme.ORANGE, drag == null);
+                        drag != null ? Theme.TEXT : Theme.ORANGE, drag == null);
                 return;
             }
             if (songs != null || drag != null) {

@@ -41,9 +41,9 @@ public final class ApplyToAllPopup extends Screen {
 
     @Override public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
         parent.extractRenderState(graphics, -1, -1, delta);
-        graphics.fill(x, y, x + popupWidth, y + Theme.POPUP_HEIGHT, Theme.SCENARIO_PANEL);
-        graphics.outline(x, y, popupWidth, Theme.POPUP_HEIGHT, Theme.SCENARIO_TEXT);
-        graphics.text(font, title, x + Theme.GAP, y + Theme.GAP, Theme.SCENARIO_TEXT, false);
+        graphics.fill(x, y, x + popupWidth, y + Theme.POPUP_HEIGHT, Theme.BLUE);
+        graphics.outline(x, y, popupWidth, Theme.POPUP_HEIGHT, Theme.ORANGE);
+        graphics.text(font, title, x + Theme.GAP, y + Theme.GAP, Theme.TEXT, false);
     }
 
     @Override public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {

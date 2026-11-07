@@ -206,13 +206,13 @@ public final class ScenarioScreen extends Screen {
 
     @Override public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
         graphics.fill(0, 0, width, height, Theme.BACKGROUND);
-        graphics.fill(left, Theme.MARGIN, left + contentWidth, height - Theme.MARGIN, Theme.SCENARIO_PANEL);
+        graphics.fill(left, Theme.MARGIN, left + contentWidth, height - Theme.MARGIN, Theme.CARD);
         var label = title.copy().append("  (").append(description()).append(")");
         if (settings.songsEdited(scenario, defaults())) label.append(text("scenario.edited"));
         heading.draw(graphics, font, label, left + Theme.PADDING + Theme.EDITOR_BACK_WIDTH + Theme.GAP,
-                left + contentWidth - Theme.PADDING, Theme.MARGIN + Theme.GAP, Theme.SCENARIO_TEXT, false, false);
-        graphics.text(font, text("song_library"), left + Theme.PADDING, bodyY, Theme.SCENARIO_TEXT, false);
-        count.draw(graphics, font, text("songs_in", title, config().songs().size()), rightX, rightX + columnWidth, bodyY, Theme.SCENARIO_TEXT, false, false);
+                left + contentWidth - Theme.PADDING, Theme.MARGIN + Theme.GAP, Theme.TEXT, false, false);
+        graphics.text(font, text("song_library"), left + Theme.PADDING, bodyY, Theme.TEXT, false);
+        count.draw(graphics, font, text("songs_in", title, config().songs().size()), rightX, rightX + columnWidth, bodyY, Theme.TEXT, false, false);
     }
 
     @Override public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
@@ -236,9 +236,9 @@ public final class ScenarioScreen extends Screen {
         var selected = focused();
         if (selected != null) {
             probability.draw(graphics, font, weight.getMessage(),
-                    rightX, rightX + columnWidth, weight.getBottom() + Theme.BORDER, Theme.SCENARIO_TEXT, false, false);
+                    rightX, rightX + columnWidth, weight.getBottom() + Theme.BORDER, Theme.TEXT, false, false);
         }
-        if (dragging != null) graphics.text(font, dragging.title(), mouseX + Theme.GAP, mouseY + Theme.GAP, Theme.SCENARIO_TEXT, false);
+        if (dragging != null) graphics.text(font, dragging.title(), mouseX + Theme.GAP, mouseY + Theme.GAP, Theme.TEXT, false);
     }
 
     private Component description() {
@@ -280,8 +280,8 @@ public final class ScenarioScreen extends Screen {
                     Theme.DONE_WIDTH, Component.translatable("gui.cancel"), button -> onClose()));
         }
         @Override public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
-            graphics.fill(0, 0, width, height, Theme.SCENARIO_PANEL);
-            graphics.text(font, title, Theme.MARGIN, Theme.MARGIN, Theme.SCENARIO_TEXT, false);
+            graphics.fill(0, 0, width, height, Theme.CARD);
+            graphics.text(font, title, Theme.MARGIN, Theme.MARGIN, Theme.TEXT, false);
         }
         @Override public void onClose() { minecraft.gui.setScreen(ScenarioScreen.this); }
     }

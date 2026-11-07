@@ -84,8 +84,8 @@ public final class MusicControls {
             client.gui.setScreen(new ApplyToAllPopup(client.gui.screen(), jukebox, () -> settings.applyJukeboxToAll(value)));
         });
         if (concise) {
-            frequency.gray();
-            jukebox.gray();
+            frequency.overflow();
+            jukebox.overflow();
         }
         add.accept(frequency);
         add.accept(jukebox);
