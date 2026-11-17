@@ -203,7 +203,7 @@ public final class TrackList extends SmoothList<TrackList.Row> {
         public void extractContent(GuiGraphicsExtractor graphics, int mouseX, int mouseY, boolean hovered, float delta) {
             if (songId == null) {
                 graphics.text(minecraft.font, title, getContentX(), getContentY() + Theme.GAP / 2,
-                        Theme.ARTIST, false);
+                        Theme.GLOW, false);
                 return;
             }
             if (songs != null || drag != null) {

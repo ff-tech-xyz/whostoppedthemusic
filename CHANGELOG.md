@@ -4,15 +4,16 @@
 
 Calmer, clearer screens.
 
-- One accent color. Orange now only means on, picked or playing. Everything else is neutral grey.
-- Buttons are plain: one fill and one border. The orange stripe on the left of every button and the dark bottom shadow are gone.
-- Cassettes keep their shell, label and reels, but lose the extra inner border, stripes, bars and corner dots.
+- PyreHaven blue and orange, each with one job. Blue is the frame: borders, cassette shells, reels and sliders, glowing on hover. Orange means on, picked or playing, plus the bar at the top of each screen and the cassette label stripe.
+- Buttons are plain: a dark fill and a blue border that glows on hover. The orange stripe on the left of every button and the dark bottom shadow are gone.
+- Cassettes keep their blue shell, glowing reels, red spindles and orange label stripe, but lose the bottom bar and corner dots.
+- Song rows in lists are small blue cases whose spine turns orange when the song is picked.
 - Basic mode lists songs as compact rows, with select and play on the same line as the song, so you can see many more songs at once. Clicking a row also selects it.
 - Frequency and Jukebox buttons show their current value, like "Frequency: Constant".
 - Shuffle uses the same on/off switch as Interrupt and Active.
 - Reset sits after Copy, is quieter, and asks you to click again before it clears a scenario's songs. While it waits, its text turns bold and a thin bar shows how long you have.
 - The weight readout says "plays about 58% of the time" instead of "18 in 31 (58.1%)", and never rounds a song down to 0% or up to 100% when it shares the list.
-- Switches that are off now show a grey track, so off is as easy to read as on.
+- Switches that are off now show an outlined track, so off is as easy to read as on.
 - Buttons you can't use look sunken, not just greyed text.
 - The song that's playing gets an orange outline in every list, not only on big cassettes.
 

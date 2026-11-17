@@ -64,11 +64,13 @@ public final class CassetteArtwork {
         widget.setMessage(full);
         widget.setTooltip(Tooltip.create(full));
         boolean hot = widget.isHoveredOrFocused();
-        graphics.fill(x, y, x + w, y + h, hot ? Theme.RAISED : Theme.CARD);
+        // Blue case with a dark label; the spine turns orange only when this song is picked.
+        graphics.fill(x, y, x + w, y + h, Theme.BLUE);
+        graphics.fill(x + Theme.CASE_SPINE, y + Theme.ACCENT, x + w - Theme.ACCENT, y + h - Theme.ACCENT,
+                hot ? Theme.RAISED : Theme.CARD);
+        if (included) graphics.fill(x + Theme.ACCENT, y + Theme.ACCENT, x + Theme.CASE_SPINE - Theme.BORDER,
+                y + h - Theme.ACCENT, Theme.ORANGE);
         graphics.outline(x, y, w, h, current ? Theme.ORANGE : hot ? Theme.HOVER : Theme.EDGE);
-        // The spine is the one accent on a row: orange only when this song is picked.
-        if (included) graphics.fill(x + Theme.BORDER, y + Theme.BORDER, x + Theme.ACCENT + Theme.BORDER,
-                y + h - Theme.BORDER, Theme.ORANGE);
         int playbackWidth = Theme.SMALL_REEL * 2 + Theme.GAP * 5;
         if (current) {
             for (int offset : new int[]{Theme.SMALL_REEL + Theme.GAP, Theme.SMALL_REEL * 2 + Theme.GAP * 2}) {
@@ -165,8 +167,9 @@ public final class CassetteArtwork {
         y = geometry.y();
         w = geometry.width();
         h = geometry.height();
-        graphics.fill(x, y, x + w, y + h, Theme.RAISED);
+        graphics.fill(x, y, x + w, y + h, Theme.BLUE);
         graphics.outline(x, y, w, h, current ? Theme.ORANGE : widget.isHoveredOrFocused() ? Theme.HOVER : Theme.EDGE);
+        graphics.outline(x + 2, y + 2, w - 4, h - 4, Theme.BACKGROUND);
         int labelX = geometry.labelX();
         int labelY = geometry.labelY();
         int labelW = geometry.labelWidth();
@@ -174,6 +177,7 @@ public final class CassetteArtwork {
         boolean showArtist = labelH >= font.lineHeight * 2 + Theme.LABEL_LINE_GAP + Theme.LABEL_PADDING * 2;
         int textHeight = showArtist ? font.lineHeight * 2 + Theme.LABEL_LINE_GAP : font.lineHeight;
         graphics.fill(labelX, labelY, labelX + labelW, labelY + labelH, Theme.CARD);
+        graphics.fill(labelX, labelY, labelX + labelW, labelY + 2, Theme.ORANGE);
         int reelSize = geometry.reelSize();
         int left = geometry.left();
         int right = geometry.right();
@@ -209,7 +213,7 @@ public final class CassetteArtwork {
             int x = left + width * (i + 1) / (Theme.NOTE_COUNT + 1)
                     + (int) (Math.sin(phase * Math.PI * 2) * Theme.ACCENT);
             int y = bottom - (int) (phase * rise);
-            int color = Theme.ORANGE;
+            int color = i % 2 == 0 ? Theme.GLOW : Theme.ORANGE;
             graphics.fill(x, y, x + Theme.ACCENT, y + Theme.ACCENT, color);
             graphics.fill(x + Theme.ACCENT, y - Theme.GAP, x + Theme.ACCENT + Theme.BORDER, y + Theme.ACCENT, color);
             graphics.fill(x + Theme.ACCENT, y - Theme.GAP, x + Theme.GAP, y - Theme.GAP + Theme.ACCENT, color);
@@ -218,12 +222,12 @@ public final class CassetteArtwork {
 
     private static void reel(GuiGraphicsExtractor graphics, int x, int y, int size, double angle) {
         graphics.fill(x, y, x + size, y + size, Theme.BACKGROUND);
-        graphics.outline(x, y, size, size, Theme.ARTIST);
+        graphics.outline(x, y, size, size, Theme.GLOW);
         graphics.pose().pushMatrix();
         graphics.pose().translate(x + size / 2, y + size / 2).rotate((float) angle);
         int radius = Math.max(2, size / 2 - 1);
         for (int spoke = 0; spoke < 3; spoke++) {
-            graphics.fill(0, -radius, 1, -1, Theme.ARTIST);
+            graphics.fill(0, -radius, 1, -1, Theme.GLOW);
             graphics.pose().rotate((float) (Math.PI * 2 / 3));
         }
         graphics.pose().popMatrix();

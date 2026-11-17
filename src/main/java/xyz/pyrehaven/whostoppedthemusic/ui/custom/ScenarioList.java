@@ -164,7 +164,7 @@ public final class ScenarioList extends SmoothList<ScenarioList.Row> {
                     if (playing) summary.append(text("scenario.playing"));
                     setMessage(heading.copy().append(". ").append(summary));
                     setTooltip(Tooltip.create(getMessage()));
-                    graphics.fill(getX(), getY(), getRight(), getBottom(), Theme.RAISED);
+                    graphics.fill(getX(), getY(), getRight(), getBottom(), Theme.BLUE);
                     if (playing || isHoveredOrFocused()) graphics.outline(getX(), getY(), getWidth(), getHeight(),
                             playing ? Theme.ORANGE : Theme.HOVER);
                     int right = getRight() - Theme.GAP - (toggle == null ? 0 : Theme.TOGGLE_WIDTH + Theme.GAP);

@@ -11,17 +11,21 @@ import net.minecraft.network.chat.MutableComponent;
 
 public final class Theme {
     /*
-     * One accent, everything else neutral. Orange only ever means "on / selected / playing",
-     * so it stands out when it shows up instead of being on every edge.
+     * PyreHaven's two colors, each with one job. Blue is the frame: borders, cassette shells,
+     * reels, slider tracks; it glows on hover. Orange means "on / selected / playing", plus the
+     * one brand bar at the top of a screen and the cassette label stripe. It is never a
+     * decoration on every button.
      */
     public static final int ORANGE = 0xFFE46011;
-    public static final int EDGE = 0xFF2C3542;
-    public static final int HOVER = 0xFF8A96A8;
-    public static final int MUTED = 0xFF5C6676;
-    public static final int BACKGROUND = 0xFF0B0E13;
-    public static final int CARD = 0xFF141922;
-    public static final int RAISED = 0xFF1C232E;
-    public static final int TEXT = 0xFFECEEF1;
+    public static final int BLUE = 0xFF27607C;
+    public static final int GLOW = 0xFF4FA8D8;
+    public static final int EDGE = BLUE;
+    public static final int HOVER = GLOW;
+    public static final int MUTED = 0xFF4A6478;
+    public static final int BACKGROUND = 0xFF070B10;
+    public static final int CARD = 0xFF0E141C;
+    public static final int RAISED = 0xFF15222E;
+    public static final int TEXT = 0xFFF2F4F7;
 
     public static final int SCENARIO_ROW = 34;
     public static final int LIBRARY_ROW = 24;
@@ -40,8 +44,8 @@ public final class Theme {
     public static final int TOGGLE_HEIGHT = 12;
     public static final int POPUP_WIDTH = 196;
     public static final int POPUP_HEIGHT = 62;
-    public static final int ARTIST = 0xFF9AA4B2;
-    public static final int SPINDLE = MUTED;
+    public static final int ARTIST = 0xFFB7CADA;
+    public static final int SPINDLE = 0xFFE04444;
     public static final long REEL_PERIOD_NANOS = 2_000_000_000L;
     public static final int LABEL_PADDING = 3;
     public static final int LABEL_LINE_GAP = 2;
@@ -107,6 +111,7 @@ public final class Theme {
 
     public static void panelHeading(GuiGraphicsExtractor graphics, Font font, Component title, int left, int width, int height) {
         panel(graphics, left, width, height);
+        graphics.fill(left, MARGIN, left + width, MARGIN + ACCENT, ORANGE);
         graphics.text(font, title, left + PADDING, MARGIN + GAP, TEXT);
     }
 
@@ -150,7 +155,12 @@ public final class Theme {
         for (int row = 0; row < TOGGLE_HEIGHT; row++) {
             int inset = row == 0 || row == TOGGLE_HEIGHT - 1 ? radius / 2 : row == 1 || row == TOGGLE_HEIGHT - 2 ? BORDER : 0;
             graphics.fill(x + inset, y + row, x + TOGGLE_WIDTH - inset, y + row + BORDER,
-                    on ? ORANGE : MUTED);
+                    on ? ORANGE : GLOW);
+        }
+        // Off is an empty outlined pill, so it reads on dark buttons and blue rows alike.
+        if (!on) for (int row = 1; row < TOGGLE_HEIGHT - 1; row++) {
+            int inset = row == 1 || row == TOGGLE_HEIGHT - 2 ? radius / 2 + BORDER : row == 2 || row == TOGGLE_HEIGHT - 3 ? ACCENT : BORDER;
+            graphics.fill(x + inset, y + row, x + TOGGLE_WIDTH - inset, y + row + BORDER, BACKGROUND);
         }
         int knobX = x + (on ? TOGGLE_WIDTH - TOGGLE_HEIGHT : 0) + BORDER;
         graphics.fill(knobX, y + BORDER, knobX + TOGGLE_HEIGHT - BORDER * 2, y + TOGGLE_HEIGHT - BORDER,
@@ -159,7 +169,8 @@ public final class Theme {
     }
 
     /**
-     * Plain frame: one fill and one outline. Hover lightens both; no stripes or shadows.
+     * Plain frame: one fill and a blue outline. Hover glows (outline plus a top highlight);
+     * no orange stripes or shadows.
      * Disabled buttons sink into the background so they don't look clickable.
      */
     public static void buttonFrame(GuiGraphicsExtractor graphics, Button button) {
@@ -171,5 +182,7 @@ public final class Theme {
         boolean hot = button.isHoveredOrFocused();
         graphics.fill(button.getX(), button.getY(), button.getRight(), button.getBottom(), hot ? RAISED : CARD);
         graphics.outline(button.getX(), button.getY(), button.getWidth(), button.getHeight(), hot ? HOVER : EDGE);
+        if (hot) graphics.fill(button.getX() + BORDER, button.getY() + BORDER, button.getRight() - BORDER,
+                button.getY() + ACCENT, GLOW);
     }
 }
