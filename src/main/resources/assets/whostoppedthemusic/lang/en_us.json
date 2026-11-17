@@ -8,7 +8,6 @@
   "whostoppedthemusic.frequency_short": "Frequency",
   "whostoppedthemusic.apply_all_hint": "Right-click to apply to every scenario.",
   "whostoppedthemusic.jukebox_short": "Jukebox",
-
   "whostoppedthemusic.active_short": "Active",
   "whostoppedthemusic.interrupt_short": "Interrupt",
   "whostoppedthemusic.outside_short": "Outside",
@@ -31,7 +30,7 @@
   "whostoppedthemusic.in_list": " ✓ in list",
   "whostoppedthemusic.missing": "Missing",
   "whostoppedthemusic.weight": "Weight %s",
-  "whostoppedthemusic.weight_chance": "Weight %1$s · %1$s in %2$s (%3$s%%)",
+  "whostoppedthemusic.weight_chance": "Weight %1$s · plays about %3$s%% of the time",
   "whostoppedthemusic.preview": "▶ Preview",
   "whostoppedthemusic.preview_hint": "Play up to 3 seconds from the middle, then resume your music. Press again to cancel.",
   "whostoppedthemusic.scenario.biome_kind": "biome · %s",
@@ -99,7 +98,8 @@
   "whostoppedthemusic.jukebox": "Jukebox: %s",
   "whostoppedthemusic.jukebox.play_over": "Play over",
   "whostoppedthemusic.jukebox.pause_music": "Pause music",
-
   "whostoppedthemusic.cassette.open": "Music settings",
-  "whostoppedthemusic.cassette.silence": "Nothing playing"
+  "whostoppedthemusic.cassette.silence": "Nothing playing",
+  "whostoppedthemusic.shuffle_short": "Shuffle",
+  "whostoppedthemusic.reset_confirm": "Click again to reset"
 }

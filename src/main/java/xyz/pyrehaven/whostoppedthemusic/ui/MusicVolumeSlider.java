@@ -60,9 +60,9 @@ public final class MusicVolumeSlider extends AbstractWidget {
         int bottom = getBottom() - 20;
         int knob = bottom - (int) Math.round(value() * (getHeight() - 40));
         graphics.centeredText(client.font, getMessage(), center, getY(), Theme.TEXT);
-        graphics.fill(center - 2, getY() + 20, center + 2, bottom, Theme.BLUE);
+        graphics.fill(center - 2, getY() + 20, center + 2, bottom, Theme.EDGE);
         graphics.fill(center - 2, knob, center + 2, bottom, Theme.ORANGE);
-        graphics.fill(center - 7, knob - 3, center + 7, knob + 3, isHoveredOrFocused() ? Theme.GLOW : Theme.TEXT);
+        graphics.fill(center - 7, knob - 3, center + 7, knob + 3, isHoveredOrFocused() ? Theme.HOVER : Theme.TEXT);
         graphics.centeredText(client.font, Component.literal(Math.round(value() * 100) + "%"),
                 center, getBottom() - 9, Theme.TEXT);
     }

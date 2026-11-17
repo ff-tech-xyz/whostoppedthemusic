@@ -47,13 +47,13 @@ public final class WeightSlider extends AbstractWidget {
 
     @Override protected void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
         setMessage(Component.translatable("whostoppedthemusic.weight_chance", weight.getAsInt(), total.getAsInt(),
-                String.format(Locale.ROOT, "%.1f", total.getAsInt() == 0 ? 0 : weight.getAsInt() * 100.0 / total.getAsInt())));
+                String.format(Locale.ROOT, "%.0f", total.getAsInt() == 0 ? 0 : weight.getAsInt() * 100.0 / total.getAsInt())));
         setTooltip(Tooltip.create(getMessage()));
         int center = getY() + getHeight() / 2;
         int knob = getX() + Theme.GAP + (weight.getAsInt() - 1) * (getWidth() - Theme.GAP * 2) / 99;
-        graphics.fill(getX() + Theme.GAP, center - Theme.BORDER, getRight() - Theme.GAP, center + Theme.BORDER, Theme.BLUE);
+        graphics.fill(getX() + Theme.GAP, center - Theme.BORDER, getRight() - Theme.GAP, center + Theme.BORDER, Theme.EDGE);
         graphics.fill(knob - Theme.ACCENT, getY() + Theme.BORDER, knob + Theme.ACCENT, getBottom() - Theme.BORDER,
-                active ? isHoveredOrFocused() ? Theme.TEXT : Theme.ORANGE : Theme.BLUE);
+                active ? isHoveredOrFocused() ? Theme.TEXT : Theme.ORANGE : Theme.MUTED);
     }
 
     @Override protected void updateWidgetNarration(NarrationElementOutput output) { defaultButtonNarrationText(output); }

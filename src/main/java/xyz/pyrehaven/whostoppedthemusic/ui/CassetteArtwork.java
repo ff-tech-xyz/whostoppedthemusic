@@ -63,11 +63,12 @@ public final class CassetteArtwork {
         if (included) full = full.copy().append(Component.translatable("whostoppedthemusic.in_list"));
         widget.setMessage(full);
         widget.setTooltip(Tooltip.create(full));
-        graphics.fill(x, y, x + w, y + h, Theme.BLUE);
-        graphics.outline(x, y, w, h, widget.isHoveredOrFocused() ? Theme.GLOW : Theme.BLUE);
-        graphics.fill(x + Theme.CASE_SPINE, y + Theme.ACCENT, x + w - Theme.ACCENT, y + h - Theme.ACCENT, Theme.CARD);
-        graphics.fill(x + Theme.ACCENT, y + Theme.ACCENT, x + Theme.CASE_SPINE - Theme.BORDER,
-                y + h - Theme.ACCENT, included ? Theme.GLOW : Theme.ORANGE);
+        boolean hot = widget.isHoveredOrFocused();
+        graphics.fill(x, y, x + w, y + h, hot ? Theme.RAISED : Theme.CARD);
+        graphics.outline(x, y, w, h, hot ? Theme.HOVER : Theme.EDGE);
+        // The spine is the one accent on a row: orange only when this song is picked.
+        if (included) graphics.fill(x + Theme.BORDER, y + Theme.BORDER, x + Theme.ACCENT + Theme.BORDER,
+                y + h - Theme.BORDER, Theme.ORANGE);
         int playbackWidth = Theme.SMALL_REEL * 2 + Theme.GAP * 5;
         if (current) {
             for (int offset : new int[]{Theme.SMALL_REEL + Theme.GAP, Theme.SMALL_REEL * 2 + Theme.GAP * 2}) {
@@ -79,10 +80,10 @@ public final class CassetteArtwork {
             }
             if (director.displayAdvancing()) notes(graphics, x + w - playbackWidth, y + h - Theme.ACCENT,
                     Theme.GAP * 2, Math.max(1, h / 3));
-        } else graphics.fill(x + w - Theme.GAP, y + h / 3, x + w - Theme.ACCENT, y + h * 2 / 3, Theme.BLUE);
+        }
         title.draw(graphics, font, track.title(), x + Theme.CASE_SPINE + Theme.LABEL_PADDING,
                 x + w - (current ? playbackWidth : Theme.GAP) - Theme.LABEL_PADDING, y + (h - font.lineHeight) / 2,
-                included ? Theme.ARTIST : Theme.TEXT, false, false, widget.isHovered());
+                Theme.TEXT, false, false, widget.isHovered());
     }
 
     /** Held drag cassettes stay detached from playback. */
@@ -155,7 +156,7 @@ public final class CassetteArtwork {
         var geometry = geometry(x, y, w, h);
         if (!loaded) {
             graphics.outline(geometry.x(), geometry.y(), geometry.width(), geometry.height(),
-                    widget.isHoveredOrFocused() ? Theme.GLOW : Theme.BLUE);
+                    widget.isHoveredOrFocused() ? Theme.HOVER : Theme.EDGE);
             spindles(graphics, geometry, Theme.SPINDLE);
             return;
         }
@@ -164,9 +165,8 @@ public final class CassetteArtwork {
         y = geometry.y();
         w = geometry.width();
         h = geometry.height();
-        graphics.fill(x, y, x + w, y + h, Theme.BLUE);
-        graphics.outline(x, y, w, h, widget.isHoveredOrFocused() ? Theme.GLOW : current ? Theme.ORANGE : Theme.BLUE);
-        graphics.outline(x + 2, y + 2, w - 4, h - 4, Theme.BACKGROUND);
+        graphics.fill(x, y, x + w, y + h, Theme.RAISED);
+        graphics.outline(x, y, w, h, current ? Theme.ORANGE : widget.isHoveredOrFocused() ? Theme.HOVER : Theme.EDGE);
         int labelX = geometry.labelX();
         int labelY = geometry.labelY();
         int labelW = geometry.labelWidth();
@@ -174,7 +174,6 @@ public final class CassetteArtwork {
         boolean showArtist = labelH >= font.lineHeight * 2 + Theme.LABEL_LINE_GAP + Theme.LABEL_PADDING * 2;
         int textHeight = showArtist ? font.lineHeight * 2 + Theme.LABEL_LINE_GAP : font.lineHeight;
         graphics.fill(labelX, labelY, labelX + labelW, labelY + labelH, Theme.CARD);
-        graphics.fill(labelX, labelY, labelX + labelW, labelY + 2, Theme.ORANGE);
         int reelSize = geometry.reelSize();
         int left = geometry.left();
         int right = geometry.right();
@@ -190,13 +189,7 @@ public final class CassetteArtwork {
         graphics.disableScissor();
         if (!state.getString().isEmpty() && h - labelH >= font.lineHeight + Theme.LABEL_PADDING) {
             status.draw(graphics, font, state, x + Theme.GAP, x + w - Theme.GAP,
-                    y + h - font.lineHeight - Theme.BORDER, Theme.ORANGE, true, false, widget.isHovered());
-        }
-        if (state.getString().isEmpty()) {
-            int baseY = y + h - Math.max(8, h / 10);
-            graphics.fill(x + w / 3, baseY, x + w * 2 / 3, baseY + 2, Theme.ORANGE);
-            graphics.fill(x + 7, y + h - 7, x + 9, y + h - 5, Theme.TEXT);
-            graphics.fill(x + w - 9, y + h - 7, x + w - 7, y + h - 5, Theme.TEXT);
+                    y + h - font.lineHeight - Theme.BORDER, Theme.ARTIST, true, false, widget.isHovered());
         }
     }
 
@@ -216,7 +209,7 @@ public final class CassetteArtwork {
             int x = left + width * (i + 1) / (Theme.NOTE_COUNT + 1)
                     + (int) (Math.sin(phase * Math.PI * 2) * Theme.ACCENT);
             int y = bottom - (int) (phase * rise);
-            int color = i % 2 == 0 ? Theme.GLOW : Theme.ORANGE;
+            int color = Theme.ORANGE;
             graphics.fill(x, y, x + Theme.ACCENT, y + Theme.ACCENT, color);
             graphics.fill(x + Theme.ACCENT, y - Theme.GAP, x + Theme.ACCENT + Theme.BORDER, y + Theme.ACCENT, color);
             graphics.fill(x + Theme.ACCENT, y - Theme.GAP, x + Theme.GAP, y - Theme.GAP + Theme.ACCENT, color);
@@ -225,12 +218,12 @@ public final class CassetteArtwork {
 
     private static void reel(GuiGraphicsExtractor graphics, int x, int y, int size, double angle) {
         graphics.fill(x, y, x + size, y + size, Theme.BACKGROUND);
-        graphics.outline(x, y, size, size, Theme.GLOW);
+        graphics.outline(x, y, size, size, Theme.ARTIST);
         graphics.pose().pushMatrix();
         graphics.pose().translate(x + size / 2, y + size / 2).rotate((float) angle);
         int radius = Math.max(2, size / 2 - 1);
         for (int spoke = 0; spoke < 3; spoke++) {
-            graphics.fill(0, -radius, 1, -1, Theme.GLOW);
+            graphics.fill(0, -radius, 1, -1, Theme.ARTIST);
             graphics.pose().rotate((float) (Math.PI * 2 / 3));
         }
         graphics.pose().popMatrix();

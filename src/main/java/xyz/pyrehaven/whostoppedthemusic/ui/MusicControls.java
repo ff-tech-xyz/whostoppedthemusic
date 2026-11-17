@@ -23,6 +23,7 @@ import xyz.pyrehaven.whostoppedthemusic.music.custom.ScenarioConfig;
 import xyz.pyrehaven.whostoppedthemusic.music.custom.ScenarioId;
 import xyz.pyrehaven.whostoppedthemusic.ui.custom.ApplyToAllPopup;
 import xyz.pyrehaven.whostoppedthemusic.ui.custom.ScenarioLabels;
+import xyz.pyrehaven.whostoppedthemusic.ui.custom.Toggle;
 import xyz.pyrehaven.whostoppedthemusic.ui.widget.SettingButton;
 
 /** Shared controls observe the director; panels own their placement. */
@@ -64,7 +65,7 @@ public final class MusicControls {
     public void scenarioSettings(int x, int y, int width, Consumer<AbstractWidget> add, boolean concise) {
         conciseSettings = concise;
         var help = custom() ? text("apply_all_hint") : Component.empty();
-        frequency = new SettingButton(x, y, width, text("frequency_short"), help, frequencyLabel(), button -> {
+        frequency = new SettingButton(x, y, width, text("frequency_short"), help, frequencyLabel(), frequencyValue(), button -> {
             if (custom()) {
                 var values = ScenarioConfig.Frequency.values();
                 var value = values[(currentFrequency().ordinal() + 1) % values.length];
@@ -80,7 +81,7 @@ public final class MusicControls {
             var value = currentFrequency();
             client.gui.setScreen(new ApplyToAllPopup(client.gui.screen(), frequency, () -> settings.applyFrequencyToAll(value)));
         });
-        jukebox = new SettingButton(x, y + Theme.ROW, width, text("jukebox_short"), help, jukeboxLabel(), button -> {
+        jukebox = new SettingButton(x, y + Theme.ROW, width, text("jukebox_short"), help, jukeboxLabel(), jukeboxValue(), button -> {
             if (custom()) {
                 var value = currentJukebox().next();
                 editScenarios(c -> c.withJukebox(value));
@@ -120,8 +121,8 @@ public final class MusicControls {
 
     public void updateSettings() {
         if (frequency == null) return;
-        frequency.label(frequencyLabel());
-        jukebox.label(jukeboxLabel());
+        frequency.label(frequencyLabel(), frequencyValue());
+        jukebox.label(jukeboxLabel(), jukeboxValue());
         frequency.active = jukebox.active = !custom() || !scenarios.get().isEmpty();
     }
 
@@ -142,12 +143,14 @@ public final class MusicControls {
             });
             stop.setTooltip(Tooltip.create(text("stop")));
             add.accept(stop);
-            add.accept(Theme.button(x + Theme.BASIC_STOP_WIDTH + Theme.GAP, tapeY,
-                    width - Theme.BASIC_STOP_WIDTH - Theme.GAP, shuffleLabel(), button -> {
+            // Same on/off switch as Interrupt and Active, so every yes/no setting looks alike.
+            var shuffle = new Toggle(text("shuffle_short"), settings::shuffle, () -> {
                 settings.setShuffle(!settings.shuffle());
                 director.playlistChanged();
-                button.setMessage(shuffleLabel());
-            }));
+            });
+            shuffle.setRectangle(width - Theme.BASIC_STOP_WIDTH - Theme.GAP, Theme.CONTROL_HEIGHT,
+                    x + Theme.BASIC_STOP_WIDTH + Theme.GAP, tapeY);
+            add.accept(shuffle);
             tapeY += Theme.ROW - Theme.GAP + Theme.ACCENT;
         } else {
             var caption = new Button(x, tapeY, width, Theme.LINE, Component.empty(), button -> {}, supplier -> supplier.get()) {
@@ -177,10 +180,6 @@ public final class MusicControls {
         update();
     }
 
-    private Component shuffleLabel() {
-        return Component.translatable("whostoppedthemusic.shuffle", Component.translatable(settings.shuffle() ? "options.on" : "options.off"));
-    }
-
     public void transport(int x, int y, int width, Consumer<AbstractWidget> add) {
         var director = MusicDirector.get(client);
         primary = new TransportButton(x, y, width, TransportButton.Action.PLAY, () -> {
@@ -205,6 +204,15 @@ public final class MusicControls {
         primary.action(!director.active() ? TransportButton.Action.PLAY
                 : director.paused() ? TransportButton.Action.RESUME : TransportButton.Action.PAUSE);
         next.active = director.canNext();
+    }
+
+    private Component frequencyValue() {
+        return custom() ? MusicManager.MusicFrequency.valueOf(currentFrequency().name()).caption()
+                : client.options.musicFrequency().get().caption();
+    }
+
+    private Component jukeboxValue() {
+        return text("jukebox." + (custom() ? currentJukebox() : settings.jukebox()).name().toLowerCase(Locale.ROOT));
     }
 
     private Component frequencyLabel() {

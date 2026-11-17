@@ -17,20 +17,24 @@ public final class SettingButton extends Button {
     private final Component caption;
     private final Component help;
     private final OverflowText line = new OverflowText();
+    private Component shown;
 
-    public SettingButton(int x, int y, int width, Component caption, Component help, Component label, OnPress cycle, Runnable applyAll) {
+    public SettingButton(int x, int y, int width, Component caption, Component help, Component label, Component value,
+                         OnPress cycle, Runnable applyAll) {
         super(x, y, width, Theme.CONTROL_HEIGHT, label, cycle, supplier -> supplier.get());
         this.applyAll = applyAll;
         this.caption = caption;
         this.help = help;
-        label(label);
+        label(label, value);
     }
 
-    public void label(Component value) {
-        if (!value.equals(description)) {
-            description = value;
-            setMessage(value);
-            var tooltip = value.copy();
+    /** The face shows "Caption: value" so the current setting is visible without hovering. */
+    public void label(Component description, Component value) {
+        shown = Component.translatable("whostoppedthemusic.setting_state", caption, value);
+        if (!description.equals(this.description)) {
+            this.description = description;
+            setMessage(description);
+            var tooltip = description.copy();
             if (!help.getString().isEmpty()) tooltip.append("\n").append(help);
             setTooltip(Tooltip.create(tooltip));
         }
@@ -46,6 +50,6 @@ public final class SettingButton extends Button {
     }
 
     @Override protected void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
-        Theme.scenarioContents(graphics, this, caption, line, getX() + Theme.GAP, getRight() - Theme.GAP);
+        Theme.scenarioContents(graphics, this, shown, line, getX() + Theme.GAP, getRight() - Theme.GAP);
     }
 }

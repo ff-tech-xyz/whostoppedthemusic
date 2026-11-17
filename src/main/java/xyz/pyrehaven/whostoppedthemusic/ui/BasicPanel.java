@@ -54,7 +54,7 @@ public final class BasicPanel {
         if (!collapsed) {
             search.setRectangle(browserWidth, Theme.CONTROL_HEIGHT, x, y);
             int listY = y + Theme.ROW;
-            int listHeight = Math.min(Theme.browserHeight(browserWidth), bottom - Theme.ROW - listY);
+            int listHeight = bottom - Theme.ROW - listY;
             list.layout(x, listY, browserWidth, listHeight);
             all.setRectangle((browserWidth - Theme.GAP) / 2, Theme.CONTROL_HEIGHT, x, listY + listHeight + Theme.GAP);
             none.setRectangle(browserWidth - all.getWidth() - Theme.GAP, Theme.CONTROL_HEIGHT,

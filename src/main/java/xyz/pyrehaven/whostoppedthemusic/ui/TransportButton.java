@@ -30,7 +30,7 @@ public final class TransportButton extends Button {
         int y = getY() + getHeight() / 2;
         int radius = Theme.TRANSPORT_RADIUS;
         int bar = Theme.TRANSPORT_BAR;
-        int color = active ? Theme.TEXT : Theme.BLUE;
+        int color = active ? Theme.TEXT : Theme.MUTED;
         if (action == Action.PAUSE) {
             graphics.fill(x - radius, y - radius, x - radius + bar, y + radius, color);
             graphics.fill(x + radius - bar, y - radius, x + radius, y + radius, color);

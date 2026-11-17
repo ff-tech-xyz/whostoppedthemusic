@@ -126,7 +126,7 @@ public final class TrackList extends SmoothList<TrackList.Row> {
 
     public void layout(int x, int y, int width, int height) {
         double position = scrollAmount() / rowHeight;
-        int newRowHeight = drag != null ? Theme.LIBRARY_ROW : Math.max(height * 2 / 3, Theme.LABEL_MIN_TAPE_HEIGHT + Theme.GAP
+        int newRowHeight = drag != null ? Theme.LIBRARY_ROW : picker() ? Theme.BASIC_ROW : Math.max(height * 2 / 3, Theme.LABEL_MIN_TAPE_HEIGHT + Theme.GAP
                 + (songs == null && width < Theme.TRACK_SIDE_CONTROLS_MIN ? Theme.ROW : 0));
         updateSizeAndPosition(width, height, x, y);
         if (rowHeight != newRowHeight) {
@@ -136,8 +136,16 @@ public final class TrackList extends SmoothList<TrackList.Row> {
         setScrollAmount(position * rowHeight);
     }
 
+    /** The Basic-mode song picker: compact rows, not full cassettes. */
+    private boolean picker() { return songs == null && drag == null && remove == null; }
+
     private static Track.Kind libraryKind(Track track) {
         return !track.id().startsWith("minecraft:") ? Track.Kind.LOCAL : track.kind();
+    }
+
+    private void toggleTick(Track track) {
+        settings.setTicked(track.id(), !settings.ticked(track.id()));
+        MusicDirector.get(minecraft).playlistChanged();
     }
 
     @Override protected int wheelRowHeight() { return rowHeight; }
@@ -162,10 +170,7 @@ public final class TrackList extends SmoothList<TrackList.Row> {
             this.track = track;
             this.title = title;
             this.songId = songId;
-            tick = Theme.button(0, 0, Theme.CONTROL_HEIGHT, Component.empty(), button -> {
-                settings.setTicked(track.id(), !settings.ticked(track.id()));
-                MusicDirector.get(minecraft).playlistChanged();
-            });
+            tick = Theme.button(0, 0, Theme.CONTROL_HEIGHT, Component.empty(), button -> toggleTick(track));
             play = remove == null ? new TransportButton(0, 0, Theme.TRACK_PLAY_WIDTH, TransportButton.Action.PLAY,
                     () -> MusicDirector.get(minecraft).play(track))
                     : Theme.button(0, 0, Theme.TRACK_REMOVE_WIDTH, Component.translatable("whostoppedthemusic.remove"),
@@ -173,11 +178,14 @@ public final class TrackList extends SmoothList<TrackList.Row> {
             tape = new Button(0, 0, Theme.CONTROL_HEIGHT, Theme.CONTROL_HEIGHT, title, button -> {
                 if (songs != null) selectSong(songId);
                 else if (drag != null && !contains.test(songId)) drag.accept(track);
+                else if (picker() && track != null) toggleTick(track);
             }, supplier -> supplier.get()) {
                 private final CassetteArtwork artwork = new CassetteArtwork();
                 @Override protected void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
                     if (drag != null) {
                         artwork.drawCase(graphics, this, track, contains.test(songId));
+                    } else if (picker() && track != null) {
+                        artwork.drawCase(graphics, this, track, settings.ticked(track.id()));
                     } else if (track == null) artwork.drawMissing(graphics, this, title);
                     else artwork.drawTrack(graphics, this, track, MusicDirector.get(minecraft));
                     if (songs != null && songId.equals(focusedId)) graphics.outline(getX(), getY(), getWidth(), getHeight(), Theme.ORANGE);
@@ -195,7 +203,7 @@ public final class TrackList extends SmoothList<TrackList.Row> {
         public void extractContent(GuiGraphicsExtractor graphics, int mouseX, int mouseY, boolean hovered, float delta) {
             if (songId == null) {
                 graphics.text(minecraft.font, title, getContentX(), getContentY() + Theme.GAP / 2,
-                        drag != null ? Theme.TEXT : Theme.ORANGE, drag == null);
+                        Theme.ARTIST, false);
                 return;
             }
             if (songs != null || drag != null) {
@@ -208,6 +216,26 @@ public final class TrackList extends SmoothList<TrackList.Row> {
                 }
                 tape.extractRenderState(graphics, mouseX, mouseY, delta);
                 graphics.pose().popMatrix();
+                return;
+            }
+            if (picker()) {
+                // One line per song: [select] [song name ......] [play], all on the same row.
+                int controlY = getContentY() + (getContentHeight() - Theme.CONTROL_HEIGHT) / 2;
+                int tapeX = getContentX() + Theme.CONTROL_HEIGHT + Theme.TRACK_TEXT_GAP;
+                tape.setRectangle(getContentRight() - play.getWidth() - Theme.TRACK_TEXT_GAP - tapeX,
+                        Theme.CONTROL_HEIGHT, tapeX, controlY);
+                tick.setPosition(getContentX(), controlY);
+                play.setPosition(getContentRight() - play.getWidth(), controlY);
+                tick.setMessage(Component.literal(settings.ticked(track.id()) ? "✓" : ""));
+                play.active = track.playable();
+                if (!track.playable()) {
+                    var unavailable = Component.translatable("whostoppedthemusic.cant_play", track.title());
+                    play.setMessage(unavailable);
+                    play.setTooltip(Tooltip.create(unavailable));
+                }
+                tick.extractRenderState(graphics, mouseX, mouseY, delta);
+                tape.extractRenderState(graphics, mouseX, mouseY, delta);
+                play.extractRenderState(graphics, mouseX, mouseY, delta);
                 return;
             }
             boolean narrow = getContentWidth() < Theme.TRACK_SIDE_CONTROLS_MIN;

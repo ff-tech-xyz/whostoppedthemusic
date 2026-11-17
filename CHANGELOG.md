@@ -1,6 +1,19 @@
 # Changelog
 
-## 1.2.0 — Unreleased
+## 1.2.1 — Unreleased
+
+Calmer, clearer screens.
+
+- One accent color. Orange now only means on, picked or playing. Everything else is neutral grey.
+- Buttons are plain: one fill and one border. The orange stripe on the left of every button and the dark bottom shadow are gone.
+- Cassettes keep their shell, label and reels, but lose the extra inner border, stripes, bars and corner dots.
+- Basic mode lists songs as compact rows, with select and play on the same line as the song, so you can see many more songs at once. Clicking a row also selects it.
+- Frequency and Jukebox buttons show their current value, like "Frequency: Constant".
+- Shuffle uses the same on/off switch as Interrupt and Active.
+- Reset sits after Copy, is quieter, and asks you to click again before it clears a scenario's songs.
+- The weight readout says "plays about 58% of the time" instead of "18 in 31 (58.1%)".
+
+## 1.2.0
 
 - Rebuilt for Minecraft 26.3 as a client-only Fabric mod.
 - Press M for Vanilla music controls, Basic's one-list-everywhere selection, or Custom's biome and special-scenario soundtracks.
@@ -11,4 +24,4 @@
 - Minecraft's left-side Now Playing notification in every mode, with imported song names. Bottom-left title/pause cassettes keep their Next button. Music Frequency starts on Constant; jukeboxes can hold background music while they play nearby.
 - Custom biome sections start collapsed and remain available before joining a world; joining uses the world's exact biome registry.
 
-See the [configuration guide](docs/CONFIGURATION.md) for defaults and settings compatibility. This file records the 1.2.0 rebuild only.
+See the [configuration guide](docs/CONFIGURATION.md) for defaults and settings compatibility.

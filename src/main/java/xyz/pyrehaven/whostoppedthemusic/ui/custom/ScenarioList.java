@@ -134,7 +134,7 @@ public final class ScenarioList extends SmoothList<ScenarioList.Row> {
                 private final OverflowText line = new OverflowText();
                 @Override protected void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
                     graphics.fill(getX(), getY(), getRight(), getBottom(), Theme.CARD);
-                    if (isHoveredOrFocused()) graphics.outline(getX(), getY(), getWidth(), getHeight(), Theme.ORANGE);
+                    if (isHoveredOrFocused()) graphics.outline(getX(), getY(), getWidth(), getHeight(), Theme.HOVER);
                     line.draw(graphics, minecraft.font, getMessage(), getX() + Theme.GAP, getRight() - Theme.GAP,
                             getY() + Theme.BORDER, Theme.TEXT, false, false, isHovered());
                 }
@@ -164,8 +164,9 @@ public final class ScenarioList extends SmoothList<ScenarioList.Row> {
                     if (playing) summary.append(text("scenario.playing"));
                     setMessage(heading.copy().append(". ").append(summary));
                     setTooltip(Tooltip.create(getMessage()));
-                    graphics.fill(getX(), getY(), getRight(), getBottom(), Theme.BLUE);
-                    if (playing || isHoveredOrFocused()) graphics.outline(getX(), getY(), getWidth(), getHeight(), Theme.ORANGE);
+                    graphics.fill(getX(), getY(), getRight(), getBottom(), Theme.RAISED);
+                    if (playing || isHoveredOrFocused()) graphics.outline(getX(), getY(), getWidth(), getHeight(),
+                            playing ? Theme.ORANGE : Theme.HOVER);
                     int right = getRight() - Theme.GAP - (toggle == null ? 0 : Theme.TOGGLE_WIDTH + Theme.GAP);
                     name.draw(graphics, minecraft.font, heading.withStyle(style -> style.withBold(playing)),
                             getX() + Theme.GAP, right, getY() + Theme.BORDER, Theme.TEXT, false, false, isHovered());

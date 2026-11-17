@@ -10,15 +10,22 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 
 public final class Theme {
+    /*
+     * One accent, everything else neutral. Orange only ever means "on / selected / playing",
+     * so it stands out when it shows up instead of being on every edge.
+     */
     public static final int ORANGE = 0xFFE46011;
-    public static final int BLUE = 0xFF27607C;
-    public static final int GLOW = 0xFF4FA8D8;
-    public static final int BACKGROUND = 0xFF070B10;
-    public static final int CARD = 0xFF0E141C;
-    public static final int TEXT = 0xFFF2F4F7;
+    public static final int EDGE = 0xFF2C3542;
+    public static final int HOVER = 0xFF8A96A8;
+    public static final int MUTED = 0xFF5C6676;
+    public static final int BACKGROUND = 0xFF0B0E13;
+    public static final int CARD = 0xFF141922;
+    public static final int RAISED = 0xFF1C232E;
+    public static final int TEXT = 0xFFECEEF1;
 
     public static final int SCENARIO_ROW = 34;
     public static final int LIBRARY_ROW = 24;
+    public static final int BASIC_ROW = 26;
     public static final int CASE_SPINE = 7;
     public static final int CASSETTE_WIDTH = 190;
     public static final int CASSETTE_HEIGHT = 100;
@@ -33,8 +40,8 @@ public final class Theme {
     public static final int TOGGLE_HEIGHT = 12;
     public static final int POPUP_WIDTH = 196;
     public static final int POPUP_HEIGHT = 62;
-    public static final int ARTIST = 0xFFB7CADA;
-    public static final int SPINDLE = 0xFFE04444;
+    public static final int ARTIST = 0xFF9AA4B2;
+    public static final int SPINDLE = MUTED;
     public static final long REEL_PERIOD_NANOS = 2_000_000_000L;
     public static final int LABEL_PADDING = 3;
     public static final int LABEL_LINE_GAP = 2;
@@ -64,7 +71,6 @@ public final class Theme {
     public static final int BASIC_PLAYER_MIN = 122;
     public static final int BASIC_PLAYER_MAX = 210;
     public static final int BASIC_VOLUME_SPACE = 30;
-    public static final int BASIC_BROWSER_MAX_HEIGHT = 230;
 
     public static final double SCROLL_RESPONSE_MS = 65.0;
     public static final int SCROLL_MAX_FRAME_MS = 100;
@@ -101,16 +107,7 @@ public final class Theme {
 
     public static void panelHeading(GuiGraphicsExtractor graphics, Font font, Component title, int left, int width, int height) {
         panel(graphics, left, width, height);
-        graphics.fill(left, MARGIN, left + width, MARGIN + ACCENT, ORANGE);
         graphics.text(font, title, left + PADDING, MARGIN + GAP, TEXT);
-    }
-
-    public static int browserHeight(int width) {
-        boolean narrow = width < TRACK_SIDE_CONTROLS_MIN;
-        int tapeWidth = width - TRACK_SCROLLBAR_SPACE
-                - (narrow ? 0 : CONTROL_HEIGHT + TRACK_PLAY_WIDTH + TRACK_TEXT_GAP * 2);
-        int rowHeight = tapeWidth * 3 / 5 + GAP * 2 + (narrow ? ROW : 0);
-        return Math.min(BASIC_BROWSER_MAX_HEIGHT, rowHeight * 3 / 2);
     }
 
     public static Button button(int x, int y, int width, Component label, Button.OnPress action) {
@@ -134,7 +131,7 @@ public final class Theme {
         var font = Minecraft.getInstance().font;
         int inset = Math.max(0, (right - left - font.width(label)) / 2);
         line.draw(graphics, font, label, left + inset, right,
-                button.getY() + (button.getHeight() - font.lineHeight) / 2, button.active ? TEXT : ARTIST, false, false, button.isHovered());
+                button.getY() + (button.getHeight() - font.lineHeight) / 2, button.active ? TEXT : MUTED, false, false, button.isHovered());
     }
 
     public static EditBox search(Font font) {
@@ -161,15 +158,10 @@ public final class Theme {
         if (focused) graphics.outline(x, y, TOGGLE_WIDTH, TOGGLE_HEIGHT, TEXT);
     }
 
+    /** Plain frame: one fill and one outline. Hover lightens both; no stripes or shadows. */
     public static void buttonFrame(GuiGraphicsExtractor graphics, Button button) {
-        graphics.fill(button.getX(), button.getY(), button.getRight(), button.getBottom(), CARD);
-        graphics.outline(button.getX(), button.getY(), button.getWidth(), button.getHeight(),
-                button.active && button.isHoveredOrFocused() ? GLOW : BLUE);
-        graphics.fill(button.getX(), button.getY(), button.getX() + ACCENT, button.getBottom(),
-                button.active ? ORANGE : BLUE);
-        graphics.fill(button.getX() + ACCENT, button.getBottom() - ACCENT, button.getRight() - BORDER,
-                button.getBottom() - BORDER, BACKGROUND);
-        if (button.active && button.isHoveredOrFocused()) graphics.fill(button.getX() + ACCENT,
-                button.getY() + BORDER, button.getRight() - BORDER, button.getY() + ACCENT, GLOW);
+        boolean hot = button.active && button.isHoveredOrFocused();
+        graphics.fill(button.getX(), button.getY(), button.getRight(), button.getBottom(), hot ? RAISED : CARD);
+        graphics.outline(button.getX(), button.getY(), button.getWidth(), button.getHeight(), hot ? HOVER : EDGE);
     }
 }

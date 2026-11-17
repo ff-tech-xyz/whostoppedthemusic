@@ -149,10 +149,11 @@ public final class ScenarioScreen extends Screen {
             }
         }
         int resetX = special && !fixed ? x + cell + Theme.GAP : x;
-        var reset = addRenderableWidget(Theme.captionButton(resetX, second, cell, text("reset_short"), text(special ? "reset_default" : "reset_vanilla"), button -> edit(c -> c.withSongs(defaults().songs()))));
-        reset.setTooltip(Tooltip.create(reset.getMessage()));
-        var copy = addRenderableWidget(Theme.captionButton(resetX + cell + Theme.GAP, second, cell, text("copy_short"), text("copy_songs"), button -> minecraft.gui.setScreen(new CopyPicker())));
+        // Copy first; Reset last, quieter, and needs a second click because it throws edits away.
+        var copy = addRenderableWidget(Theme.captionButton(resetX, second, cell, text("copy_short"), text("copy_songs"), button -> minecraft.gui.setScreen(new CopyPicker())));
         copy.setTooltip(Tooltip.create(copy.getMessage()));
+        addRenderableWidget(new ConfirmButton(resetX + cell + Theme.GAP, second, cell, text("reset_short"), text("reset_confirm"),
+                text(special ? "reset_default" : "reset_vanilla"), () -> edit(c -> c.withSongs(defaults().songs()))));
     }
 
     private void toggle(int x, int y, int width, String key, BooleanSupplier value, Runnable change) {
@@ -254,7 +255,7 @@ public final class ScenarioScreen extends Screen {
                     rightX, rightX + columnWidth, weight.getBottom() + Theme.BORDER, Theme.TEXT, false, false, weight.isHovered());
         }
         if (dragging != null) {
-            if (songs.isMouseOver(mouseX, mouseY)) graphics.outline(songs.getX(), songs.getY(), songs.getWidth(), songs.getHeight(), Theme.GLOW);
+            if (songs.isMouseOver(mouseX, mouseY)) graphics.outline(songs.getX(), songs.getY(), songs.getWidth(), songs.getHeight(), Theme.HOVER);
             heldTape.setPosition(Math.clamp(mouseX - Theme.DRAG_WIDTH / 2, Theme.MARGIN, width - Theme.DRAG_WIDTH - Theme.MARGIN),
                     Math.clamp(mouseY - Theme.DRAG_HEIGHT / 2, Theme.MARGIN, height - Theme.DRAG_HEIGHT - Theme.MARGIN));
             heldTape.extractRenderState(graphics, -1, -1, delta);
