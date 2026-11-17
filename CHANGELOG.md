@@ -10,8 +10,11 @@ Calmer, clearer screens.
 - Basic mode lists songs as compact rows, with select and play on the same line as the song, so you can see many more songs at once. Clicking a row also selects it.
 - Frequency and Jukebox buttons show their current value, like "Frequency: Constant".
 - Shuffle uses the same on/off switch as Interrupt and Active.
-- Reset sits after Copy, is quieter, and asks you to click again before it clears a scenario's songs.
-- The weight readout says "plays about 58% of the time" instead of "18 in 31 (58.1%)".
+- Reset sits after Copy, is quieter, and asks you to click again before it clears a scenario's songs. While it waits, its text turns bold and a thin bar shows how long you have.
+- The weight readout says "plays about 58% of the time" instead of "18 in 31 (58.1%)", and never rounds a song down to 0% or up to 100% when it shares the list.
+- Switches that are off now show a grey track, so off is as easy to read as on.
+- Buttons you can't use look sunken, not just greyed text.
+- The song that's playing gets an orange outline in every list, not only on big cassettes.
 
 ## 1.2.0
 

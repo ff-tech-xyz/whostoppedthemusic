@@ -46,14 +46,22 @@ public final class WeightSlider extends AbstractWidget {
     }
 
     @Override protected void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
-        setMessage(Component.translatable("whostoppedthemusic.weight_chance", weight.getAsInt(), total.getAsInt(),
-                String.format(Locale.ROOT, "%.0f", total.getAsInt() == 0 ? 0 : weight.getAsInt() * 100.0 / total.getAsInt())));
+        setMessage(chance(weight.getAsInt(), total.getAsInt()));
         setTooltip(Tooltip.create(getMessage()));
         int center = getY() + getHeight() / 2;
         int knob = getX() + Theme.GAP + (weight.getAsInt() - 1) * (getWidth() - Theme.GAP * 2) / 99;
         graphics.fill(getX() + Theme.GAP, center - Theme.BORDER, getRight() - Theme.GAP, center + Theme.BORDER, Theme.EDGE);
         graphics.fill(knob - Theme.ACCENT, getY() + Theme.BORDER, knob + Theme.ACCENT, getBottom() - Theme.BORDER,
                 active ? isHoveredOrFocused() ? Theme.TEXT : Theme.ORANGE : Theme.MUTED);
+    }
+
+    /** Rounded share, but never "0%" for a song that can play or "100%" for one that shares the list. */
+    private static Component chance(int weight, int total) {
+        double percent = total == 0 ? 0 : weight * 100.0 / total;
+        if (weight > 0 && percent < 1) return Component.translatable("whostoppedthemusic.weight_chance_low", weight);
+        if (weight < total && percent > 99) return Component.translatable("whostoppedthemusic.weight_chance_high", weight);
+        return Component.translatable("whostoppedthemusic.weight_chance", weight, total,
+                String.format(Locale.ROOT, "%.0f", percent));
     }
 
     @Override protected void updateWidgetNarration(NarrationElementOutput output) { defaultButtonNarrationText(output); }

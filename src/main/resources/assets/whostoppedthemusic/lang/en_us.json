@@ -31,6 +31,8 @@
   "whostoppedthemusic.missing": "Missing",
   "whostoppedthemusic.weight": "Weight %s",
   "whostoppedthemusic.weight_chance": "Weight %1$s · plays about %3$s%% of the time",
+  "whostoppedthemusic.weight_chance_low": "Weight %s · plays less than 1%% of the time",
+  "whostoppedthemusic.weight_chance_high": "Weight %s · plays more than 99%% of the time",
   "whostoppedthemusic.preview": "▶ Preview",
   "whostoppedthemusic.preview_hint": "Play up to 3 seconds from the middle, then resume your music. Press again to cancel.",
   "whostoppedthemusic.scenario.biome_kind": "biome · %s",

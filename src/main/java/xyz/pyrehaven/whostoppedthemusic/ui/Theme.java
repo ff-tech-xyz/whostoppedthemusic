@@ -150,7 +150,7 @@ public final class Theme {
         for (int row = 0; row < TOGGLE_HEIGHT; row++) {
             int inset = row == 0 || row == TOGGLE_HEIGHT - 1 ? radius / 2 : row == 1 || row == TOGGLE_HEIGHT - 2 ? BORDER : 0;
             graphics.fill(x + inset, y + row, x + TOGGLE_WIDTH - inset, y + row + BORDER,
-                    on ? ORANGE : BACKGROUND);
+                    on ? ORANGE : MUTED);
         }
         int knobX = x + (on ? TOGGLE_WIDTH - TOGGLE_HEIGHT : 0) + BORDER;
         graphics.fill(knobX, y + BORDER, knobX + TOGGLE_HEIGHT - BORDER * 2, y + TOGGLE_HEIGHT - BORDER,
@@ -158,9 +158,17 @@ public final class Theme {
         if (focused) graphics.outline(x, y, TOGGLE_WIDTH, TOGGLE_HEIGHT, TEXT);
     }
 
-    /** Plain frame: one fill and one outline. Hover lightens both; no stripes or shadows. */
+    /**
+     * Plain frame: one fill and one outline. Hover lightens both; no stripes or shadows.
+     * Disabled buttons sink into the background so they don't look clickable.
+     */
     public static void buttonFrame(GuiGraphicsExtractor graphics, Button button) {
-        boolean hot = button.active && button.isHoveredOrFocused();
+        if (!button.active) {
+            graphics.fill(button.getX(), button.getY(), button.getRight(), button.getBottom(), BACKGROUND);
+            graphics.outline(button.getX(), button.getY(), button.getWidth(), button.getHeight(), CARD);
+            return;
+        }
+        boolean hot = button.isHoveredOrFocused();
         graphics.fill(button.getX(), button.getY(), button.getRight(), button.getBottom(), hot ? RAISED : CARD);
         graphics.outline(button.getX(), button.getY(), button.getWidth(), button.getHeight(), hot ? HOVER : EDGE);
     }

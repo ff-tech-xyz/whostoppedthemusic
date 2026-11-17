@@ -65,7 +65,7 @@ public final class CassetteArtwork {
         widget.setTooltip(Tooltip.create(full));
         boolean hot = widget.isHoveredOrFocused();
         graphics.fill(x, y, x + w, y + h, hot ? Theme.RAISED : Theme.CARD);
-        graphics.outline(x, y, w, h, hot ? Theme.HOVER : Theme.EDGE);
+        graphics.outline(x, y, w, h, current ? Theme.ORANGE : hot ? Theme.HOVER : Theme.EDGE);
         // The spine is the one accent on a row: orange only when this song is picked.
         if (included) graphics.fill(x + Theme.BORDER, y + Theme.BORDER, x + Theme.ACCENT + Theme.BORDER,
                 y + h - Theme.BORDER, Theme.ORANGE);
